@@ -10,6 +10,7 @@ import nltk
 import os
 import pandas as pd
 import pdb
+import scipy.spatial.distance
 import sklearn.feature_extraction.text
 import sqlite3
 
@@ -82,8 +83,10 @@ class TopNDivExpRelRecommendationStrategy(RecommendationStrategy):
 
 class Recommender(object):
     def __init__(self, dataset):
+        self.label = ''
         self.dataset = dataset
         self.data_folder = os.path.join(DATA_BASE_FOLDER, self.dataset)
+        self.dataset_folder = os.path.join(self.data_folder, 'dataset')
         self.graph_folder = os.path.join(self.data_folder, 'graphs')
         self.db_file = os.path.join(self.data_folder, 'database.db')
         self.db_main_table = 'movies' if dataset == 'movielens' else 'books'
@@ -115,24 +118,25 @@ class Recommender(object):
         else:
             conn.close()
 
-    def get_similarity_matrix(self):
-        raise NotImplementedError
-
     def save_graph(self, recs, label, n):
         file_name = os.path.join(
             self.graph_folder,
-            label + '_' + unicode(n) + '.txt'
+            self.label + '_' + label + '_' + unicode(n)
         )
-        with io.open(file_name, 'w', encoding='utf-8') as outfile:
+        with io.open(file_name + '.txt', 'w', encoding='utf-8') as outfile:
             for ridx, rec in enumerate(recs):
                 for r in rec:
                     outfile.write(unicode(ridx) + '\t' + unicode(r) + '\n')
 
-        with io.open(file_name, 'w', encoding='utf-8') as outfile:
+        with io.open(file_name + '_resolved.txt', 'w', encoding='utf-8')\
+                as outfile:
             for ridx, rec in enumerate(recs):
                 for r in rec:
                     outfile.write(self.id2original_title[ridx+1] + '\t' +
                                   self.id2original_title[r+1] + '\n')
+
+    def get_similarity_matrix(self):
+        raise NotImplementedError
 
     def get_recommendations(self):
         strategies = [
@@ -152,14 +156,14 @@ class Recommender(object):
 class ContentBasedRecommender(Recommender):
     def __init__(self, dataset):
         super(ContentBasedRecommender, self).__init__(dataset)
+        self.label = 'cb'
 
     def get_recommendations(self):
-        sims = self.get_tf_idf_similarity(self.df['wp_text'])
-        self.similarity_matrix = SimilarityMatrix(sims)
+        self.similarity_matrix = self.get_similarity_matrix(self.df['wp_text'])
         super(ContentBasedRecommender, self).get_recommendations()
 
     # @decorators.Cached
-    def get_tf_idf_similarity(self, data, max_features=50000, simple=False):
+    def get_similarity_matrix(self, data, max_features=50000, simple=False):
         """get the TF-IDF similarity values of a given list of text"""
 
         class LemmaTokenizer(object):
@@ -188,14 +192,56 @@ class ContentBasedRecommender(Recommender):
 
         v = sklearn.feature_extraction.text.TfidfTransformer()
         v = v.fit_transform(counts)
-        # similarity = (v * v.T).toarray()  # cosine similarity
-        similarity = v.todense() * v.todense().T  # cosine similarity
-        return similarity
+        v_dense = v.todense()
+        similarity = v_dense * v_dense.T  # cosine similarity
+        return SimilarityMatrix(similarity)
 
 
 class RatingBasedRecommender(Recommender):
-    def __init__(self):
-            pass
+    def __init__(self, dataset):
+        super(RatingBasedRecommender, self).__init__(dataset)
+        self.label = 'rb'
+
+    def get_recommendations(self):
+        self.similarity_matrix = self.get_similarity_matrix()
+        super(RatingBasedRecommender, self).get_recommendations()
+
+    #@decorators.Cached
+    def get_utility_matrix(self):
+        # load user ids
+        item_ids = set(map(str, self.df.index))
+        item2matrix = {m: i for i, m in enumerate(self.df.index)}
+        user_ids = set()
+        path_ratings = os.path.join(self.dataset_folder, 'ratings.dat')
+        with io.open(path_ratings, encoding='latin-1') as infile:
+            for line in infile:
+                user, item = line.split('::')[:2]
+                if item in item_ids:
+                    user_ids.add(int(user))
+        user2matrix = {u: i for i, u in enumerate(sorted(user_ids))}
+        M = np.zeros((len(user_ids), len(item_ids)))
+
+        # load ratings
+        with io.open(path_ratings, encoding='latin-1') as infile:
+            for line in infile:
+                user, item, rat = line.split('::')[:3]
+                user = int(user)
+                rat = float(rat)
+                if user in user_ids and item in item_ids:
+                    M[user2matrix[user], item2matrix[int(item)]] = rat
+        return M
+
+    def get_similarity_matrix(self):
+        um = self.get_utility_matrix()
+
+        # transpose M because pdist calculates similarities between lines
+        similarity = scipy.spatial.distance.pdist(um.T, 'correlation')
+
+        # correlation is undefined for zero vectors --> set it to the max
+        # max distance is 2 because the pearson correlation runs from -1...+1
+        similarity[np.isnan(similarity)] = 2.0
+        similarity = scipy.spatial.distance.squareform(similarity)
+        return SimilarityMatrix(1 - similarity)
 
 
 class MatrixFactorizationRecommender(RatingBasedRecommender):
@@ -224,8 +270,10 @@ class Graph(object):
 
 if __name__ == '__main__':
     # TODO: use     @decorators.Cached
-    cbr = ContentBasedRecommender(dataset='movielens')
-    cbr.get_recommendations()
+    # cbr = ContentBasedRecommender(dataset='movielens')
+    # cbr.get_recommendations()
 
+    rbr = RatingBasedRecommender(dataset='movielens')
+    rbr.get_recommendations()
 
 
