@@ -20,7 +20,8 @@ import decorators
 # TODO: move to separate file
 DEBUG = True
 DATA_BASE_FOLDER = 'data'
-NUMBER_OF_RECOMMENDATIONS = [5, 10, 15]
+NUMBER_OF_RECOMMENDATIONS = [5, 10]
+NUMBER_OF_DIVERSIFIED_RECOMMENDATIONS = [2, 4]
 NUMBER_OF_POTENTIAL_RECOMMENDATIONS = 50
 
 
@@ -40,12 +41,26 @@ class SimilarityMatrix(object):
 
 
 class RecommendationStrategy(object):
-    def __init__(self, similarity_matrix):
+    def __init__(self, similarity_matrix, ):
         self.sims = similarity_matrix
         self.label = ''
 
     def get_recommendations(self, n):
         raise NotImplementedError
+
+    def get_top_n_recommendations(self, n):
+        return self.sims.get_top_n(n)
+
+    def get_base_recs(self, n, nd):
+        """return base recommendations
+        n is the number of desired base recommendations
+        nd is the number of zero columns to be diversified
+        """
+        base_recs = self.sims.get_top_n(n - nd)
+        # add nd columns to base_recs for the diversified recommendations
+        recs = np.zeros((base_recs.shape[0], base_recs.shape[1] + nd))
+        return recs
+
 
 
 class TopNRecommendationStrategy(RecommendationStrategy):
@@ -54,7 +69,7 @@ class TopNRecommendationStrategy(RecommendationStrategy):
         self.label = 'top_n'
 
     def get_recommendations(self, n):
-        return self.sims.get_top_n(n)
+        return self.get_top_n_recommendations(n)
 
 
 class TopNDivRandomRecommendationStrategy(RecommendationStrategy):
@@ -63,6 +78,12 @@ class TopNDivRandomRecommendationStrategy(RecommendationStrategy):
             similarity_matrix
         )
         self.label = 'top_n_div_random'
+
+    def get_recommendations(self, n):
+        for nd in NUMBER_OF_DIVERSIFIED_RECOMMENDATIONS:
+            recs = self.get_base_recs(n, nd)
+
+
 
 
 class TopNDivDiversifyRecommendationStrategy(RecommendationStrategy):
@@ -206,7 +227,7 @@ class RatingBasedRecommender(Recommender):
         self.similarity_matrix = self.get_similarity_matrix()
         super(RatingBasedRecommender, self).get_recommendations()
 
-    #@decorators.Cached
+    # @decorators.Cached
     def get_utility_matrix(self):
         # load user ids
         item_ids = set(map(str, self.df.index))
@@ -219,7 +240,7 @@ class RatingBasedRecommender(Recommender):
                 if item in item_ids:
                     user_ids.add(int(user))
         user2matrix = {u: i for i, u in enumerate(sorted(user_ids))}
-        M = np.zeros((len(user_ids), len(item_ids)))
+        matrix = np.zeros((len(user_ids), len(item_ids)))
 
         # load ratings
         with io.open(path_ratings, encoding='latin-1') as infile:
@@ -228,8 +249,8 @@ class RatingBasedRecommender(Recommender):
                 user = int(user)
                 rat = float(rat)
                 if user in user_ids and item in item_ids:
-                    M[user2matrix[user], item2matrix[int(item)]] = rat
-        return M
+                    matrix[user2matrix[user], item2matrix[int(item)]] = rat
+        return matrix
 
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
