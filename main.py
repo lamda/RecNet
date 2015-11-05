@@ -39,6 +39,7 @@ class SimilarityMatrix(object):
             for index, line in enumerate(self.sims.argsort()):
                 line_filtered = np.delete(line, np.where(line == index)[0])
                 self.sims_argsorted[index, :] = line_filtered
+            self.sims_argsorted = self.sims_argsorted.astype(int)
         return self.sims_argsorted[:, c0:c1]
 
     def get_top_n(self, n):
@@ -140,7 +141,34 @@ class TopNDivExpRelRecommendationStrategy(RecommendationStrategy):
         self.label = 'top_n_div_exprel'
 
     def get_recommendations(self, n):
+        nd = int(n * FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS)
+        recs = self.get_div_rec_basis(n, nd)
+        recs[:, n - nd:] = self.get_exprel_columns(n, nd)
         return recs.astype(int)
+
+    def get_exprel_columns(self, n, nd):
+        results = []
+        idx2sel = {idx: set(vals[:n - nd])
+                   for idx, vals in enumerate(self.sims.sims_argsorted)}
+        for col_idx in range(nd):
+            div_column = np.zeros(self.sims.sims.shape[0])
+            for idx in range(self.sims.sims.shape[0]):
+                node_max, rel_max = -1, -1
+                neighborhood1 = idx2sel[idx]
+                n_sets = [idx2sel[i] for i in neighborhood1]
+                neighborhood2 = reduce(lambda x, y: x | y, n_sets)
+                neighborhood = neighborhood1 | neighborhood2
+                for node in range(NUMBER_OF_POTENTIAL_RECOMMENDATIONS):
+                    if node not in idx2sel[idx]:
+                        rel_nodes = {n} | set(self.sims.sims_argsorted[node, :n]) - neighborhood
+                        rel_value = sum([1 - self.sims.sims[idx, r] for r in rel_nodes])
+                        if rel_value > rel_max:
+                            rel_max = rel_value
+                            node_max = node
+                div_column[idx] = node_max
+                idx2sel[idx].add(node_max)
+            results.append(div_column)
+        return np.array(results).T
 
 
 class Recommender(object):
@@ -204,8 +232,8 @@ class Recommender(object):
         strategies = [
             # TopNRecommendationStrategy,
             # TopNDivRandomRecommendationStrategy,
-            TopNDivDiversifyRecommendationStrategy,
-            # TopNDivExpRelRecommendationStrategy,
+            # TopNDivDiversifyRecommendationStrategy,
+            TopNDivExpRelRecommendationStrategy,
         ]
 
         for strategy in strategies:
@@ -291,7 +319,7 @@ class RatingBasedRecommender(Recommender):
                 rat = float(rat)
                 if user in user_ids and item in item_ids:
                     matrix[user2matrix[user], item2matrix[int(item)]] = rat
-        return matrix
+        return matrix.astype(int)
 
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
