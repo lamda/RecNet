@@ -23,7 +23,7 @@ DEBUG = True
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4
-NUMBER_OF_POTENTIAL_RECOMMENDATIONS = 25 # should be 50?
+NUMBER_OF_POTENTIAL_RECOMMENDATIONS = 25  # should be 50?
 
 
 class SimilarityMatrix(object):
@@ -85,7 +85,7 @@ class TopNDivRandomRecommendationStrategy(RecommendationStrategy):
         self.label = 'top_n_div_random'
 
     def get_recommendations(self, n):
-        nd = n * FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS
+        nd = int(n * FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS)
         recs = self.get_div_rec_basis(n, nd)
         divs = self.sims.get_similar_items(c0=n)
         div_range = range(divs.shape[1])
@@ -106,7 +106,31 @@ class TopNDivDiversifyRecommendationStrategy(RecommendationStrategy):
         self.label = 'top_n_div_diversify'
 
     def get_recommendations(self, n):
+        nd = int(n * FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS)
+        recs = self.get_div_rec_basis(n, nd)
+        recs[:, n-nd:] = self.get_diversified_columns(n, nd)
         return recs.astype(int)
+
+    def get_diversified_columns(self, n, nd):
+        results = []
+        idx2sel = {idx: set(vals[:n-nd])
+                   for idx, vals in enumerate(self.sims.sims_argsorted)}
+        for col_idx in range(nd):
+            div_column = np.zeros(self.sims.sims.shape[0])
+            for idx in range(self.sims.sims.shape[0]):
+                node_max, val_max = -1, -1
+                for node in range(NUMBER_OF_POTENTIAL_RECOMMENDATIONS):
+                    if node not in idx2sel[idx]:
+                        val = sum(self.sims.sims[node, r]
+                                  for r in idx2sel[idx])
+                        if val > val_max:
+                            val_max = val
+                            node_max = node
+                div_column[idx] = node_max
+                idx2sel[idx].add(node_max)
+            results.append(div_column)
+        return np.array(results).T
+
 
 class TopNDivExpRelRecommendationStrategy(RecommendationStrategy):
     def __init__(self, similarity_matrix):
@@ -117,6 +141,7 @@ class TopNDivExpRelRecommendationStrategy(RecommendationStrategy):
 
     def get_recommendations(self, n):
         return recs.astype(int)
+
 
 class Recommender(object):
     def __init__(self, dataset):
@@ -177,9 +202,9 @@ class Recommender(object):
 
     def get_recommendations(self):
         strategies = [
-            TopNRecommendationStrategy,
-            TopNDivRandomRecommendationStrategy,
-            # TopNDivDiversifyRecommendationStrategy,
+            # TopNRecommendationStrategy,
+            # TopNDivRandomRecommendationStrategy,
+            TopNDivDiversifyRecommendationStrategy,
             # TopNDivExpRelRecommendationStrategy,
         ]
 
