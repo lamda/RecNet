@@ -18,26 +18,31 @@ import decorators
 
 
 # TODO: move to separate file
+np.random.seed(2014)
 DEBUG = True
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
-NUMBER_OF_DIVERSIFIED_RECOMMENDATIONS = [2, 4]
-NUMBER_OF_POTENTIAL_RECOMMENDATIONS = 50
+FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4
+NUMBER_OF_POTENTIAL_RECOMMENDATIONS = 25 # should be 50?
 
 
 class SimilarityMatrix(object):
     def __init__(self, sims):
         self.sims = sims
+        self.sims_argsorted = None
+
+    def get_similar_items(self, c0=0, c1=NUMBER_OF_POTENTIAL_RECOMMENDATIONS):
+        """delete diagonal entries from a matrix and return columns c0...c1"""
+        if self.sims_argsorted is None:
+            zeros = np.zeros((self.sims.shape[0], self.sims.shape[1]-1))
+            self.sims_argsorted = zeros
+            for index, line in enumerate(self.sims.argsort()):
+                line_filtered = np.delete(line, np.where(line == index)[0])
+                self.sims_argsorted[index, :] = line_filtered
+        return self.sims_argsorted[:, c0:c1]
 
     def get_top_n(self, n):
-        return self.filter_matrix(self.sims, n=n)
-
-    def filter_matrix(self, m, n=NUMBER_OF_POTENTIAL_RECOMMENDATIONS):
-        """delete diagonal entries from a matrix and keep only the top 50"""
-        m_filtered = np.zeros((m.shape[0], m.shape[1] - 1))
-        for index, line in enumerate(m):
-            m_filtered[index, :] = np.delete(line, index)
-        return m_filtered.argsort()[:, :n]
+        return self.get_similar_items(c1=n)
 
 
 class RecommendationStrategy(object):
@@ -51,16 +56,16 @@ class RecommendationStrategy(object):
     def get_top_n_recommendations(self, n):
         return self.sims.get_top_n(n)
 
-    def get_base_recs(self, n, nd):
-        """return base recommendations
+    def get_div_rec_basis(self, n, nd):
+        """return base recommendations + zero columns for diversification
         n is the number of desired base recommendations
         nd is the number of zero columns to be diversified
         """
         base_recs = self.sims.get_top_n(n - nd)
         # add nd columns to base_recs for the diversified recommendations
         recs = np.zeros((base_recs.shape[0], base_recs.shape[1] + nd))
+        recs[:, :n-nd] = base_recs
         return recs
-
 
 
 class TopNRecommendationStrategy(RecommendationStrategy):
@@ -69,7 +74,7 @@ class TopNRecommendationStrategy(RecommendationStrategy):
         self.label = 'top_n'
 
     def get_recommendations(self, n):
-        return self.get_top_n_recommendations(n)
+        return self.get_top_n_recommendations(n).astype(int)
 
 
 class TopNDivRandomRecommendationStrategy(RecommendationStrategy):
@@ -80,10 +85,17 @@ class TopNDivRandomRecommendationStrategy(RecommendationStrategy):
         self.label = 'top_n_div_random'
 
     def get_recommendations(self, n):
-        for nd in NUMBER_OF_DIVERSIFIED_RECOMMENDATIONS:
-            recs = self.get_base_recs(n, nd)
-
-
+        nd = n * FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS
+        recs = self.get_div_rec_basis(n, nd)
+        divs = self.sims.get_similar_items(c0=n)
+        div_range = range(divs.shape[1])
+        r_idx = [np.random.permutation(div_range)
+                 for x in range(recs.shape[0])]
+        r_idx = np.array(r_idx)[:, :nd]
+        for c_idx in range(r_idx.shape[1]):
+            div_col = divs[np.arange(r_idx.shape[0]), r_idx.T[c_idx, :]]
+            recs[:, n-nd+c_idx] = div_col
+        return recs.astype(int)
 
 
 class TopNDivDiversifyRecommendationStrategy(RecommendationStrategy):
@@ -93,6 +105,8 @@ class TopNDivDiversifyRecommendationStrategy(RecommendationStrategy):
         )
         self.label = 'top_n_div_diversify'
 
+    def get_recommendations(self, n):
+        return recs.astype(int)
 
 class TopNDivExpRelRecommendationStrategy(RecommendationStrategy):
     def __init__(self, similarity_matrix):
@@ -101,6 +115,8 @@ class TopNDivExpRelRecommendationStrategy(RecommendationStrategy):
         )
         self.label = 'top_n_div_exprel'
 
+    def get_recommendations(self, n):
+        return recs.astype(int)
 
 class Recommender(object):
     def __init__(self, dataset):
@@ -162,7 +178,7 @@ class Recommender(object):
     def get_recommendations(self):
         strategies = [
             TopNRecommendationStrategy,
-            # TopNDivRandomRecommendationStrategy,
+            TopNDivRandomRecommendationStrategy,
             # TopNDivDiversifyRecommendationStrategy,
             # TopNDivExpRelRecommendationStrategy,
         ]
