@@ -19,9 +19,12 @@ def check_recommendation_duplicates(dataset):
         with open(os.path.join(graph_folder, graph_file)) as infile:
             for line in infile:
                 l, r = line.strip().split('\t')
+                if l == r:
+                    print(graph_file, line)
+                    # pdb.set_trace()
                 if left != l:
                     if len(set(right)) != len(right):
-                        print(left, right)
+                        print(graph_file, line, left, right)
                         pdb.set_trace()
                     left = l
                     right = [r]
