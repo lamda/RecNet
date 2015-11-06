@@ -19,11 +19,13 @@ import decorators
 
 # TODO: move to separate file
 np.random.seed(2014)
-DEBUG = True
+# DEBUG = True
+DEBUG = False
+DEBUG_SIZE = 250
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
-FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4
-NUMBER_OF_POTENTIAL_RECOMMENDATIONS = 25  # should be 50?
+FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.2  # should be 0.4
+NUMBER_OF_POTENTIAL_RECOMMENDATIONS = 50  # should be 50
 
 
 class SimilarityMatrix(object):
@@ -40,6 +42,8 @@ class SimilarityMatrix(object):
                 line_filtered = np.delete(line, np.where(line == index)[0])
                 self.sims_argsorted[index, :] = line_filtered
             self.sims_argsorted = self.sims_argsorted.astype(int)
+            # reverse argsort order to get similar items first
+            self.sims_argsorted = np.fliplr(self.sims_argsorted)
         return self.sims_argsorted[:, c0:c1]
 
     def get_top_n(self, n):
@@ -116,20 +120,24 @@ class TopNDivDiversifyRecommendationStrategy(RecommendationStrategy):
         results = []
         idx2sel = {idx: set(vals[:n-nd])
                    for idx, vals in enumerate(self.sims.sims_argsorted)}
-        for col_idx in range(nd):
-            div_column = np.zeros(self.sims.sims.shape[0])
-            for idx in range(self.sims.sims.shape[0]):
-                node_max, val_max = -1, -1
-                for node in range(NUMBER_OF_POTENTIAL_RECOMMENDATIONS):
-                    if node not in idx2sel[idx]:
-                        val = sum(self.sims.sims[node, r]
-                                  for r in idx2sel[idx])
-                        if val > val_max:
-                            val_max = val
-                            node_max = node
-                div_column[idx] = node_max
-                idx2sel[idx].add(node_max)
+        for div_col_idx in range(nd):
+            div_column = np.zeros(self.sims.sims.shape[0], dtype=int)
+            for row_idx in range(self.sims.sims.shape[0]):
+                node_min, val_min = 50000, 50000
+                for col_idx in range(NUMBER_OF_POTENTIAL_RECOMMENDATIONS):
+                    sims_col_idx = self.sims.sims_argsorted[row_idx, col_idx]
+                    if sims_col_idx in idx2sel[row_idx] or\
+                                    sims_col_idx == row_idx:
+                        continue
+                    val = sum(self.sims.sims[sims_col_idx, r]
+                              for r in idx2sel[row_idx])
+                    if val < val_min:
+                        val_min = val
+                        node_min = sims_col_idx
+                div_column[row_idx] = node_min
             results.append(div_column)
+            for didx, dnode in enumerate(div_column):
+                idx2sel[didx].add(dnode)
         return np.array(results).T
 
 
@@ -150,30 +158,40 @@ class TopNDivExpRelRecommendationStrategy(RecommendationStrategy):
         results = []
         idx2sel = {idx: set(vals[:n - nd])
                    for idx, vals in enumerate(self.sims.sims_argsorted)}
-        for col_idx in range(nd):
+        for div_col_idx in range(nd):
             div_column = np.zeros(self.sims.sims.shape[0])
-            for idx in range(self.sims.sims.shape[0]):
-                node_max, rel_max = -1, -1
-                neighborhood1 = idx2sel[idx]
+            for row_idx in range(self.sims.sims.shape[0]):
+                node_max, val_max = -1, -1
+                neighborhood1 = idx2sel[row_idx]
                 n_sets = [idx2sel[i] for i in neighborhood1]
                 neighborhood2 = reduce(lambda x, y: x | y, n_sets)
                 neighborhood = neighborhood1 | neighborhood2
-                for node in range(NUMBER_OF_POTENTIAL_RECOMMENDATIONS):
-                    if node not in idx2sel[idx]:
-                        rel_nodes = {n} | set(self.sims.sims_argsorted[node, :n]) - neighborhood
-                        rel_value = sum([1 - self.sims.sims[idx, r] for r in rel_nodes])
-                        if rel_value > rel_max:
-                            rel_max = rel_value
-                            node_max = node
-                div_column[idx] = node_max
-                idx2sel[idx].add(node_max)
+                vals = []
+                for col_idx in range(NUMBER_OF_POTENTIAL_RECOMMENDATIONS):
+                    sims_col_idx = self.sims.sims_argsorted[row_idx, col_idx]
+                    if sims_col_idx in idx2sel[row_idx] or\
+                            sims_col_idx == row_idx:
+                        continue
+                    rel_nodes = {sims_col_idx} | \
+                        set(self.sims.sims_argsorted[sims_col_idx, :n-nd]) -\
+                        neighborhood
+                    val = sum([self.sims.sims[row_idx, r] for r in rel_nodes])
+                    if val > val_max:
+                        val_max = val
+                        node_max = sims_col_idx
+                    vals.append(val)
+                pdb.set_trace()
+                div_column[row_idx] = node_max
             results.append(div_column)
+            for didx, dnode in enumerate(div_column):
+                idx2sel[didx].add(dnode)
         return np.array(results).T
 
 
 class Recommender(object):
-    def __init__(self, dataset):
-        self.label = ''
+    def __init__(self, dataset, label):
+        print(label)
+        self.label = label
         self.dataset = dataset
         self.data_folder = os.path.join(DATA_BASE_FOLDER, self.dataset)
         self.dataset_folder = os.path.join(self.data_folder, 'dataset')
@@ -184,15 +202,15 @@ class Recommender(object):
             os.makedirs(self.graph_folder)
 
         data = self.query_db('SELECT * FROM ' + self.db_main_table)
-        idx = [d[0] for d in data]
-        data = [(d[1], d[2], d[4], d[5], d[3]) for d in data]
-        cols = ['cf_title', 'wp_title', 'original_title', 'wp_id', 'wp_text']
-        self.df = pd.DataFrame(data=data, columns=cols, index=idx)
+        data = [(d[0], d[1], d[2], d[4], d[5], d[3]) for d in data]
+        cols = ['movielens_id', 'cf_title', 'wp_title', 'original_title',
+                'wp_id', 'wp_text']
+        self.df = pd.DataFrame(data=data, columns=cols)
         self.id2original_title = {
             t[0]: t[1] for t in zip(self.df.index, self.df['original_title'])
         }
         if DEBUG:
-            self.df = self.df.iloc[:25]
+            self.df = self.df.iloc[:DEBUG_SIZE]
         self.similarity_matrix = None
 
     def query_db(self, query):
@@ -222,8 +240,8 @@ class Recommender(object):
                 as outfile:
             for ridx, rec in enumerate(recs):
                 for r in rec:
-                    outfile.write(self.id2original_title[ridx+1] + '\t' +
-                                  self.id2original_title[r+1] + '\n')
+                    outfile.write(self.id2original_title[ridx] + '\t' +
+                                  self.id2original_title[r] + '\n')
 
     def get_similarity_matrix(self):
         raise NotImplementedError
@@ -237,24 +255,27 @@ class Recommender(object):
         ]
 
         for strategy in strategies:
+            s = strategy(self.similarity_matrix)
+            print(s.label)
             for n in NUMBER_OF_RECOMMENDATIONS:
-                s = strategy(self.similarity_matrix)
                 recs = s.get_recommendations(n=n)
                 self.save_graph(recs, label=s.label, n=n)
 
 
 class ContentBasedRecommender(Recommender):
     def __init__(self, dataset):
-        super(ContentBasedRecommender, self).__init__(dataset)
-        self.label = 'cb'
+        super(ContentBasedRecommender, self).__init__(dataset, 'cb')
 
     def get_recommendations(self):
-        self.similarity_matrix = self.get_similarity_matrix(self.df['wp_text'])
+        self.similarity_matrix = self.get_similarity_matrix()
         super(ContentBasedRecommender, self).get_recommendations()
 
     # @decorators.Cached
-    def get_similarity_matrix(self, data, max_features=50000, simple=False):
+    def get_similarity_matrix(self):
         """get the TF-IDF similarity values of a given list of text"""
+        data = self.df['wp_text']
+        max_features = 50000
+        simple = False
 
         class LemmaTokenizer(object):
             """
@@ -283,24 +304,23 @@ class ContentBasedRecommender(Recommender):
         v = sklearn.feature_extraction.text.TfidfTransformer()
         v = v.fit_transform(counts)
         v_dense = v.todense()
-        similarity = v_dense * v_dense.T  # cosine similarity
+        similarity = np.array(v_dense * v_dense.T)  # cosine similarity
         return SimilarityMatrix(similarity)
 
 
 class RatingBasedRecommender(Recommender):
     def __init__(self, dataset):
-        super(RatingBasedRecommender, self).__init__(dataset)
-        self.label = 'rb'
+        super(RatingBasedRecommender, self).__init__(dataset, 'rb')
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
         super(RatingBasedRecommender, self).get_recommendations()
 
-    # @decorators.Cached
+    @decorators.Cached # TODO
     def get_utility_matrix(self):
         # load user ids
-        item_ids = set(map(str, self.df.index))
-        item2matrix = {m: i for i, m in enumerate(self.df.index)}
+        item_ids = set(map(str, self.df['movielens_id']))
+        item2matrix = {m: i for i, m in enumerate(self.df['movielens_id'])}
         user_ids = set()
         path_ratings = os.path.join(self.dataset_folder, 'ratings.dat')
         with io.open(path_ratings, encoding='latin-1') as infile:
@@ -321,15 +341,18 @@ class RatingBasedRecommender(Recommender):
                     matrix[user2matrix[user], item2matrix[int(item)]] = rat
         return matrix.astype(int)
 
+    @decorators.Cached # TODO
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
 
         # transpose M because pdist calculates similarities between lines
         similarity = scipy.spatial.distance.pdist(um.T, 'correlation')
+        # similarity = scipy.spatial.distance.pdist(um.T, 'cosine')
 
         # correlation is undefined for zero vectors --> set it to the max
         # max distance is 2 because the pearson correlation runs from -1...+1
         similarity[np.isnan(similarity)] = 2.0
+        # similarity[np.isnan(similarity)] = 1.0
         similarity = scipy.spatial.distance.squareform(similarity)
         return SimilarityMatrix(1 - similarity)
 
@@ -360,10 +383,8 @@ class Graph(object):
 
 if __name__ == '__main__':
     # TODO: use     @decorators.Cached
-    # cbr = ContentBasedRecommender(dataset='movielens')
-    # cbr.get_recommendations()
+    # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
+    rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
 
-    rbr = RatingBasedRecommender(dataset='movielens')
-    rbr.get_recommendations()
 
 
