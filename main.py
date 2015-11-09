@@ -17,7 +17,6 @@ import sqlite3
 import decorators
 
 
-# TODO: move to separate file
 np.random.seed(2014)
 # DEBUG = True
 DEBUG = False
@@ -125,7 +124,10 @@ class TopNDivDiversifyRecommendationStrategy(RecommendationStrategy):
             for row_idx in range(self.sims.sims.shape[0]):
                 node_min, val_min = 50000, 50000
                 for col_idx in range(NUMBER_OF_POTENTIAL_RECOMMENDATIONS):
-                    sims_col_idx = self.sims.sims_argsorted[row_idx, col_idx]
+                    try:
+                        sims_col_idx = self.sims.sims_argsorted[row_idx, col_idx]
+                    except IndexError:
+                        pdb.set_trace()
                     if sims_col_idx in idx2sel[row_idx] or\
                                     sims_col_idx == row_idx:
                         continue
@@ -161,7 +163,7 @@ class TopNDivExpRelRecommendationStrategy(RecommendationStrategy):
         for div_col_idx in range(nd):
             div_column = np.zeros(self.sims.sims.shape[0])
             for row_idx in range(self.sims.sims.shape[0]):
-                node_max, val_max = -1, -1
+                node_max, val_max = -1000, -1000
                 neighborhood1 = idx2sel[row_idx]
                 n_sets = [idx2sel[i] for i in neighborhood1]
                 neighborhood2 = reduce(lambda x, y: x | y, n_sets)
@@ -180,6 +182,8 @@ class TopNDivExpRelRecommendationStrategy(RecommendationStrategy):
                         val_max = val
                         node_max = sims_col_idx
                     vals.append(val)
+                if node_max == -1:
+                    pdb.set_trace()
                 div_column[row_idx] = node_max
             results.append(div_column)
             for didx, dnode in enumerate(div_column):
@@ -248,9 +252,9 @@ class Recommender(object):
     def get_recommendations(self):
         strategies = [
             TopNRecommendationStrategy,
-            TopNDivRandomRecommendationStrategy,
-            TopNDivDiversifyRecommendationStrategy,
-            TopNDivExpRelRecommendationStrategy,
+            # TopNDivRandomRecommendationStrategy,
+            # TopNDivDiversifyRecommendationStrategy,
+            # TopNDivExpRelRecommendationStrategy,
         ]
 
         for strategy in strategies:
@@ -308,14 +312,14 @@ class ContentBasedRecommender(Recommender):
 
 
 class RatingBasedRecommender(Recommender):
-    def __init__(self, dataset):
-        super(RatingBasedRecommender, self).__init__(dataset, 'rb')
+    def __init__(self, dataset, label='rb'):
+        super(RatingBasedRecommender, self).__init__(dataset, label)
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
         super(RatingBasedRecommender, self).get_recommendations()
 
-    @decorators.Cached # TODO
+    # @decorators.Cached # TODO
     def get_utility_matrix(self):
         # load user ids
         item_ids = set(map(str, self.df['movielens_id']))
@@ -327,6 +331,10 @@ class RatingBasedRecommender(Recommender):
                 user, item = line.split('::')[:2]
                 if item in item_ids:
                     user_ids.add(int(user))
+        if DEBUG:
+            user_ids = set(
+                np.random.choice(list(user_ids), DEBUG_SIZE, replace=False)
+            )
         user2matrix = {u: i for i, u in enumerate(sorted(user_ids))}
         matrix = np.zeros((len(user_ids), len(item_ids)))
 
@@ -340,7 +348,7 @@ class RatingBasedRecommender(Recommender):
                     matrix[user2matrix[user], item2matrix[int(item)]] = rat
         return matrix.astype(int)
 
-    @decorators.Cached # TODO
+    # @decorators.Cached # TODO
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
 
@@ -357,8 +365,99 @@ class RatingBasedRecommender(Recommender):
 
 
 class MatrixFactorizationRecommender(RatingBasedRecommender):
-    def __init__(self):
-        pass
+    def __init__(self, dataset):
+        super(MatrixFactorizationRecommender, self).__init__(dataset, 'rbmf')
+
+    def get_recommendations(self):
+        self.similarity_matrix = self.get_similarity_matrix()
+        super(RatingBasedRecommender, self).get_recommendations()
+
+    # @decorators.Cached # TODO
+    def get_similarity_matrix(self):
+        um = self.get_utility_matrix()
+        q = self.get_q_matrix(um)
+
+        # transpose M because pdist calculates similarities between lines
+        similarity = scipy.spatial.distance.pdist(q, 'correlation')
+        # similarity = scipy.spatial.distance.pdist(q, 'cosine')
+
+        # correlation is undefined for zero vectors --> set it to the max
+        # max distance is 2 because the pearson correlation runs from -1...+1
+        similarity[np.isnan(similarity)] = 2.0  # for correlation
+        # similarity[np.isnan(similarity)] = 1.0  # for cosine
+        similarity = scipy.spatial.distance.squareform(similarity)
+        return SimilarityMatrix(1 - similarity)
+
+    # @profile
+    def get_q_matrix(self, um, k=5, eta=0.002, lamda=0.02, nsteps=500, tol=1e-6,
+                     regularize=True):
+        umt = self.get_training_matrix(um)
+        ucount = um.shape[0]
+        icount = um.shape[1]
+        p = np.random.random((ucount, k))
+        q = np.random.random((icount, k))
+        rmse = []
+        for m in range(nsteps):
+            print(m)
+            counter = 0
+            iteru = range(ucount)
+            np.random.shuffle(iteru)
+            for u in iteru:
+                iteri = range(icount)
+                np.random.shuffle(iteri)
+                for i in iteri:
+                    if np.isnan(um[u, i]):
+                        continue
+                    for y in range(k):
+                        error = np.ma.dot(p[u, :], q.T[:, i]) - um[u, i]
+                        delta_p = error * q.T[y, i]
+                        delta_q = error * p[u, y]
+
+                        if regularize:
+                            delta_p += lamda * q[i, y]
+                            delta_q += lamda * p[u, y]
+
+                        p[u, y] -= 2.0 * eta * delta_p
+                        q[i, y] -= 2.0 * eta * delta_q
+
+                        # error = np.ma.dot(p[u, :], q.T[:, i]) - um[u, i]
+                        # p[u, y] -= 2.0 * eta * (error * q.T[y, i] + lamda * q[i, y])
+                        # q[i, y] -= 2.0 * eta * (error * p[u, y] + lamda * p[u, y])
+
+                if counter % 100 == 0:
+                    rmse.append(self.training_error(umt, p, q))
+                counter += 1
+            if len(rmse) > 1:
+                if abs(rmse[-1] - rmse[-2]) < tol:
+                    return q
+        return q
+
+    def get_training_matrix(self, um, fraction=0.2):
+        umt = np.copy(um.astype(float))
+        i, j = np.nonzero(um)
+        rands = np.random.choice(
+            len(i),
+            np.floor(fraction * len(i)),
+            replace=False
+        )
+        umt[i[rands], j[rands]] = np.nan
+        return umt
+
+    def training_error(self, umt, p, q):
+        ucount = umt.shape[0]
+        icount = umt.shape[1]
+        count = ucount * icount - np.isnan(umt).sum()
+        sse = 0.0
+        for u in range(ucount):
+            for i in range(icount):
+                if np.isnan(umt[u, i]):
+                    continue
+                r_u_i = np.dot(p[u, :], q[i, :].T)
+                err = umt[u, i] - r_u_i
+                sse += err ** 2
+
+        rmse = (1.0 / count) * np.sqrt(sse)
+        return rmse
 
 
 class InterpolationWeightRecommender(RatingBasedRecommender):
@@ -381,9 +480,9 @@ class Graph(object):
 
 
 if __name__ == '__main__':
-    # TODO: use     @decorators.Cached
-    cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
+    # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
     # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
+    mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
 
 
 
