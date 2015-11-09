@@ -24,7 +24,7 @@ DEBUG = False
 DEBUG_SIZE = 250
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
-FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.2  # should be 0.4
+FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4 TODO make a list?
 NUMBER_OF_POTENTIAL_RECOMMENDATIONS = 50  # should be 50
 
 
@@ -180,7 +180,6 @@ class TopNDivExpRelRecommendationStrategy(RecommendationStrategy):
                         val_max = val
                         node_max = sims_col_idx
                     vals.append(val)
-                pdb.set_trace()
                 div_column[row_idx] = node_max
             results.append(div_column)
             for didx, dnode in enumerate(div_column):
@@ -248,9 +247,9 @@ class Recommender(object):
 
     def get_recommendations(self):
         strategies = [
-            # TopNRecommendationStrategy,
-            # TopNDivRandomRecommendationStrategy,
-            # TopNDivDiversifyRecommendationStrategy,
+            TopNRecommendationStrategy,
+            TopNDivRandomRecommendationStrategy,
+            TopNDivDiversifyRecommendationStrategy,
             TopNDivExpRelRecommendationStrategy,
         ]
 
@@ -270,7 +269,7 @@ class ContentBasedRecommender(Recommender):
         self.similarity_matrix = self.get_similarity_matrix()
         super(ContentBasedRecommender, self).get_recommendations()
 
-    # @decorators.Cached
+    @decorators.Cached
     def get_similarity_matrix(self):
         """get the TF-IDF similarity values of a given list of text"""
         data = self.df['wp_text']
@@ -351,8 +350,8 @@ class RatingBasedRecommender(Recommender):
 
         # correlation is undefined for zero vectors --> set it to the max
         # max distance is 2 because the pearson correlation runs from -1...+1
-        similarity[np.isnan(similarity)] = 2.0
-        # similarity[np.isnan(similarity)] = 1.0
+        similarity[np.isnan(similarity)] = 2.0  # for correlation
+        # similarity[np.isnan(similarity)] = 1.0  # for cosine
         similarity = scipy.spatial.distance.squareform(similarity)
         return SimilarityMatrix(1 - similarity)
 
@@ -383,8 +382,8 @@ class Graph(object):
 
 if __name__ == '__main__':
     # TODO: use     @decorators.Cached
-    # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
-    rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
+    cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
+    # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
 
 
 
