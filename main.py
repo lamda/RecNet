@@ -15,12 +15,13 @@ import sklearn.feature_extraction.text
 import sqlite3
 
 import decorators
+import recsys
 
 
 np.random.seed(2014)
-DEBUG = True
-# DEBUG = False
-DEBUG_SIZE = 250
+# DEBUG = True
+DEBUG = False
+DEBUG_SIZE = 150
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4 TODO make a list?
@@ -252,9 +253,9 @@ class Recommender(object):
     def get_recommendations(self):
         strategies = [
             TopNRecommendationStrategy,
-            # TopNDivRandomRecommendationStrategy,
-            # TopNDivDiversifyRecommendationStrategy,
-            # TopNDivExpRelRecommendationStrategy,
+            TopNDivRandomRecommendationStrategy,
+            TopNDivDiversifyRecommendationStrategy,
+            TopNDivExpRelRecommendationStrategy,
         ]
 
         for strategy in strategies:
@@ -319,7 +320,7 @@ class RatingBasedRecommender(Recommender):
         self.similarity_matrix = self.get_similarity_matrix()
         super(RatingBasedRecommender, self).get_recommendations()
 
-    # @decorators.Cached # TODO
+    @decorators.Cached # TODO
     def get_utility_matrix(self):
         # load user ids
         item_ids = set(map(str, self.df['movielens_id']))
@@ -348,7 +349,7 @@ class RatingBasedRecommender(Recommender):
                     matrix[user2matrix[user], item2matrix[int(item)]] = rat
         return matrix.astype(int)
 
-    # @decorators.Cached # TODO
+    @decorators.Cached # TODO
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
 
@@ -372,7 +373,7 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         self.similarity_matrix = self.get_similarity_matrix()
         super(RatingBasedRecommender, self).get_recommendations()
 
-    # @decorators.Cached # TODO
+    @decorators.Cached # TODO
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
         q = self.factorize(um)
@@ -389,50 +390,23 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         return SimilarityMatrix(1 - similarity)
 
     # @profile
-    def factorize(self, m, k=15, eta=0.002, lamda=0.02, nsteps=500, tol=1e-5,
-                  regularize=True):
+    @decorators.Cached
+    def factorize(self, m, k=25, eta=0.0000001, nsteps=500, tol=1e-5):
         # k should be smaller than #users and #items (2-300?)
         m = m.astype(float)
-
-        import recsys
-        um = recsys.UtilityMatrix(m, self.get_training_matrix_indices(m), 2)
-        # ptr = recsys.Plotter()
-        f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, tol=tol, eta=0.000001)
-        # ptr.add_plot(f.rmse, 'GD')
-        # ptr.finish()
+        um = recsys.UtilityMatrix(m, self.get_training_matrix_indices(m), k)
+        f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, tol=tol,
+                           eta=eta)
         return f.q
 
     def get_training_matrix_indices(self, um, fraction=0.2):
-        umt = np.copy(um.astype(float))
         i, j = np.nonzero(um)
         rands = np.random.choice(
             len(i),
             np.floor(fraction * len(i)),
             replace=False
         )
-        # umt[i[rands], j[rands]] = np.nan
-        # return umt
         return i[rands], j[rands]
-
-    def training_error(self, umt, p, q):
-        ucount = umt.shape[0]
-        icount = umt.shape[1]
-        count = ucount * icount - np.isnan(umt).sum()
-        sse = 0.0
-        for u in range(ucount):
-            for i in range(icount):
-                if np.isnan(umt[u, i]):
-                    continue
-                r_u_i = np.dot(p[u, :], q[i, :].T)
-                err = umt[u, i] - r_u_i
-                if np.isnan(err):
-                    pdb.set_trace()
-                sse += err ** 2
-
-        rmse = (1.0 / count) * np.sqrt(sse)
-        if np.isnan(rmse):
-            pdb.set_trace()
-        return rmse
 
 
 class InterpolationWeightRecommender(RatingBasedRecommender):

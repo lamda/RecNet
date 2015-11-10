@@ -250,18 +250,24 @@ class Factors(Recommender):
 
 class FactorsSGD(Factors):
 
-    def __init__(self, m, k, nsteps=500, eta=0.02, regularize=False, newton=False):
-        Factors.__init__(self, m, k, nsteps, eta, regularize, newton)
+    def __init__(self, m, k, nsteps=500, eta=0.02, regularize=False, newton=False, tol=1e-5):
+        Factors.__init__(self, m, k, nsteps, eta, regularize, newton, tol)
 
     def factorize(self):
         ucount = self.m.rt.shape[0]
         icount = self.m.rt.shape[1]
-        if FIXED_RANDOM:
-            np.random.seed(2014)
-        self.p = np.random.random((ucount, self.k))
-        if FIXED_RANDOM:
-            np.random.seed(2014)
-        self.q = np.random.random((icount, self.k))
+
+        # init randomly
+        # self.p = np.random.random((ucount, self.k))
+        # self.q = np.random.random((icount, self.k))
+
+        # init by SVD
+        m = np.copy(self.m.rt)
+        m[np.where(np.isnan(m))] = 0
+        ps, ss, vs = np.linalg.svd(m)
+        qs = np.dot(np.diag(ss), vs)
+        self.p = ps[:, :self.k]
+        self.q = qs[:self.k, :].T
 
         lamb = 0.02
 
@@ -272,20 +278,14 @@ class FactorsSGD(Factors):
             counter = 0
             for u, i in self.m.rt_nnan_indices:
                 for y in range(self.k):
-                    tmp = 0.0
-                    for l in range(self.k):
-                        tmp += self.p[u, l] * self.q.T[l, i]
-                    tmp -= self.m.rc[u, i]
-                    #tmp *= self.q.T[y, i]
-                    self.p[u, y] -= 2.0 * self.eta * (tmp * self.q.T[y, i])
-
-
-                    #tmp = 0.0
-                    #for l in range(self.k):
-                    #   tmp += self.p[u, l] * self.q.T[l, i]
-                    #tmp -= self.m.rc[u, i]
-                    #tmp *= self.p[u, y]
-                    self.q[i, y] -= 2.0 * self.eta * (tmp * self.p[u, y])
+                    error = np.dot(self.p[u, :], self.q.T[:, i]) - self.m.rc[u, i]
+                    delta_p = error * self.q.T[y, i]
+                    delta_q = error * self.p[u, y]
+                    if self.regularize:
+                        delta_p -= lamb * self.p[u, y]
+                        delta_q -= lamb * self.q.T[y, i]
+                    self.p[u, y] -= 2.0 * self.eta * delta_p
+                    self.q[i, y] -= 2.0 * self.eta * delta_q
 
                 if counter % 100 == 0:
                     self.rmse.append(self.training_error())
