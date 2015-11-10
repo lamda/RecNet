@@ -18,8 +18,8 @@ import decorators
 
 
 np.random.seed(2014)
-# DEBUG = True
-DEBUG = False
+DEBUG = True
+# DEBUG = False
 DEBUG_SIZE = 250
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
@@ -331,10 +331,10 @@ class RatingBasedRecommender(Recommender):
                 user, item = line.split('::')[:2]
                 if item in item_ids:
                     user_ids.add(int(user))
-        if DEBUG:
-            user_ids = set(
-                np.random.choice(list(user_ids), DEBUG_SIZE, replace=False)
-            )
+        # if DEBUG:
+        #     user_ids = set(
+        #         np.random.choice(list(user_ids), DEBUG_SIZE, replace=False)
+        #     )
         user2matrix = {u: i for i, u in enumerate(sorted(user_ids))}
         matrix = np.zeros((len(user_ids), len(item_ids)))
 
@@ -375,7 +375,7 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
     # @decorators.Cached # TODO
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
-        q = self.get_q_matrix(um)
+        q = self.factorize(um)
 
         # transpose M because pdist calculates similarities between lines
         similarity = scipy.spatial.distance.pdist(q, 'correlation')
@@ -389,50 +389,20 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         return SimilarityMatrix(1 - similarity)
 
     # @profile
-    def get_q_matrix(self, um, k=5, eta=0.002, lamda=0.02, nsteps=500, tol=1e-6,
-                     regularize=True):
-        umt = self.get_training_matrix(um)
-        ucount = um.shape[0]
-        icount = um.shape[1]
-        p = np.random.random((ucount, k))
-        q = np.random.random((icount, k))
-        rmse = []
-        for m in range(nsteps):
-            print(m)
-            counter = 0
-            iteru = range(ucount)
-            np.random.shuffle(iteru)
-            for u in iteru:
-                iteri = range(icount)
-                np.random.shuffle(iteri)
-                for i in iteri:
-                    if np.isnan(um[u, i]):
-                        continue
-                    for y in range(k):
-                        error = np.ma.dot(p[u, :], q.T[:, i]) - um[u, i]
-                        delta_p = error * q.T[y, i]
-                        delta_q = error * p[u, y]
+    def factorize(self, m, k=15, eta=0.002, lamda=0.02, nsteps=500, tol=1e-5,
+                  regularize=True):
+        # k should be smaller than #users and #items (2-300?)
+        m = m.astype(float)
 
-                        if regularize:
-                            delta_p += lamda * q[i, y]
-                            delta_q += lamda * p[u, y]
+        import recsys
+        um = recsys.UtilityMatrix(m, self.get_training_matrix_indices(m), 2)
+        # ptr = recsys.Plotter()
+        f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, tol=tol, eta=0.000001)
+        # ptr.add_plot(f.rmse, 'GD')
+        # ptr.finish()
+        return f.q
 
-                        p[u, y] -= 2.0 * eta * delta_p
-                        q[i, y] -= 2.0 * eta * delta_q
-
-                        # error = np.ma.dot(p[u, :], q.T[:, i]) - um[u, i]
-                        # p[u, y] -= 2.0 * eta * (error * q.T[y, i] + lamda * q[i, y])
-                        # q[i, y] -= 2.0 * eta * (error * p[u, y] + lamda * p[u, y])
-
-                if counter % 100 == 0:
-                    rmse.append(self.training_error(umt, p, q))
-                counter += 1
-            if len(rmse) > 1:
-                if abs(rmse[-1] - rmse[-2]) < tol:
-                    return q
-        return q
-
-    def get_training_matrix(self, um, fraction=0.2):
+    def get_training_matrix_indices(self, um, fraction=0.2):
         umt = np.copy(um.astype(float))
         i, j = np.nonzero(um)
         rands = np.random.choice(
@@ -440,8 +410,9 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
             np.floor(fraction * len(i)),
             replace=False
         )
-        umt[i[rands], j[rands]] = np.nan
-        return umt
+        # umt[i[rands], j[rands]] = np.nan
+        # return umt
+        return i[rands], j[rands]
 
     def training_error(self, umt, p, q):
         ucount = umt.shape[0]
@@ -454,9 +425,13 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
                     continue
                 r_u_i = np.dot(p[u, :], q[i, :].T)
                 err = umt[u, i] - r_u_i
+                if np.isnan(err):
+                    pdb.set_trace()
                 sse += err ** 2
 
         rmse = (1.0 / count) * np.sqrt(sse)
+        if np.isnan(rmse):
+            pdb.set_trace()
         return rmse
 
 
