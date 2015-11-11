@@ -19,9 +19,9 @@ import recsys
 
 
 np.random.seed(2014)
-# DEBUG = True
-DEBUG = False
-DEBUG_SIZE = 150
+DEBUG = True
+# DEBUG = False
+DEBUG_SIZE = 55
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4 TODO make a list?
@@ -320,7 +320,7 @@ class RatingBasedRecommender(Recommender):
         self.similarity_matrix = self.get_similarity_matrix()
         super(RatingBasedRecommender, self).get_recommendations()
 
-    @decorators.Cached # TODO
+    # @decorators.Cached # TODO
     def get_utility_matrix(self):
         # load user ids
         item_ids = set(map(str, self.df['movielens_id']))
@@ -349,7 +349,7 @@ class RatingBasedRecommender(Recommender):
                     matrix[user2matrix[user], item2matrix[int(item)]] = rat
         return matrix.astype(int)
 
-    @decorators.Cached # TODO
+    # @decorators.Cached # TODO
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
 
@@ -364,6 +364,15 @@ class RatingBasedRecommender(Recommender):
         similarity = scipy.spatial.distance.squareform(similarity)
         return SimilarityMatrix(1 - similarity)
 
+    def get_training_matrix_indices(self, um, fraction=0.2):
+        i, j = np.nonzero(um)
+        rands = np.random.choice(
+            len(i),
+            np.floor(fraction * len(i)),
+            replace=False
+        )
+        return i[rands], j[rands]
+
 
 class MatrixFactorizationRecommender(RatingBasedRecommender):
     def __init__(self, dataset):
@@ -373,7 +382,7 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         self.similarity_matrix = self.get_similarity_matrix()
         super(RatingBasedRecommender, self).get_recommendations()
 
-    @decorators.Cached # TODO
+    # @decorators.Cached # TODO
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
         q = self.factorize(um)
@@ -390,8 +399,8 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         return SimilarityMatrix(1 - similarity)
 
     # @profile
-    @decorators.Cached
-    def factorize(self, m, k=25, eta=0.0000001, nsteps=500, tol=1e-5):
+    # @decorators.Cached
+    def factorize(self, m, k=100, eta=0.0000001, nsteps=500, tol=1e-5):
         # k should be smaller than #users and #items (2-300?)
         m = m.astype(float)
         um = recsys.UtilityMatrix(m, self.get_training_matrix_indices(m), k)
@@ -399,19 +408,39 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
                            eta=eta)
         return f.q
 
-    def get_training_matrix_indices(self, um, fraction=0.2):
-        i, j = np.nonzero(um)
-        rands = np.random.choice(
-            len(i),
-            np.floor(fraction * len(i)),
-            replace=False
-        )
-        return i[rands], j[rands]
-
 
 class InterpolationWeightRecommender(RatingBasedRecommender):
-    def __init__(self):
-        pass
+    def __init__(self, dataset):
+        super(InterpolationWeightRecommender, self).__init__(dataset, 'rbiw')
+
+    def get_recommendations(self):
+        self.similarity_matrix = self.get_similarity_matrix()
+        super(RatingBasedRecommender, self).get_recommendations()
+
+    # @decorators.Cached # TODO
+    def get_similarity_matrix(self):
+        um = self.get_utility_matrix()
+        w = self.get_interpolation_weights(um)
+
+        # transpose M because pdist calculates similarities between lines
+        similarity = scipy.spatial.distance.pdist(w, 'correlation')
+        # similarity = scipy.spatial.distance.pdist(q, 'cosine')
+
+        # correlation is undefined for zero vectors --> set it to the max
+        # max distance is 2 because the pearson correlation runs from -1...+1
+        similarity[np.isnan(similarity)] = 2.0  # for correlation
+        # similarity[np.isnan(similarity)] = 1.0  # for cosine
+        similarity = scipy.spatial.distance.squareform(similarity)
+        return SimilarityMatrix(1 - similarity)
+
+    # @profile
+    # @decorators.Cached
+    def get_interpolation_weights(self, m, nsteps=500, eta=0.0002):
+        m = m.astype(float)
+        um = recsys.UtilityMatrix(m, self.get_training_matrix_indices(m), 2)
+        wf = recsys.WeightedCFNN(um, nsteps=nsteps, eta=eta)
+        pdb.set_trace()
+        return wf.w
 
 
 class Graph(object):
@@ -429,9 +458,14 @@ class Graph(object):
 
 
 if __name__ == '__main__':
+    from datetime import datetime
+    start_time = datetime.now()
     # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
     # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
-    mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
+    # mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
+    iwrbr = InterpolationWeightRecommender(dataset='movielens'); iwrbr.get_recommendations()
+    end_time = datetime.now()
+    print('Duration: {}'.format(end_time - start_time))
 
 
 

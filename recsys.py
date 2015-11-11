@@ -137,25 +137,33 @@ class CFNN(Recommender):
 class WeightedCFNN(CFNN):
 
     def __init__(self, m, nsteps=500, eta=0.0002):
+        print('WCFNN called')
+        import inspect
+        stack = inspect.stack()
+        the_class = stack[1][0].f_locals["self"].__class__
+        the_method = stack[1][0].f_code.co_name
+        print the_class, the_method
         Recommender.__init__(self, m)
         self.normalize = False
         self.nsteps = nsteps
         self.eta = eta
+
+        self.w = np.copy(self.m.s)
+        #self.w = np.random.random((icount, icount))
+
         self.interpolate_weights()
 
     def interpolate_weights(self):
         ucount = self.m.rt.shape[0]
         icount = self.m.rt.shape[1]
-        self.w = np.copy(self.m.s)
-        #self.w = np.random.random((icount, icount))
 
         js = []
         for i in range(icount):
-                for u in range(ucount):
-                    if not np.isnan(self.m.rt[u, i]):
-                        n_u_i = self.m.similar_items(u, i)
-                        for l in n_u_i:
-                            js.append(l)
+            for u in range(ucount):
+                if not np.isnan(self.m.rt[u, i]):
+                    n_u_i = self.m.similar_items(u, i)
+                    for l in n_u_i:
+                        js.append(l)
         js = list(set(js))
 
         self.rmse = []
@@ -185,6 +193,7 @@ class WeightedCFNN(CFNN):
 class Factors(Recommender):
 
     def __init__(self, m, k, nsteps=500, eta=0.02, regularize=False, newton=False, tol=1e-5):
+        print('Factors called')
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
@@ -192,20 +201,11 @@ class Factors(Recommender):
         self.regularize = regularize
         self.newton = newton
         self.tol = tol
-        self.factorize()
-
-    def predict(self, u, i):
-        p_u = self.p[u, :]
-        q_i = self.q[i, :]
-        return np.dot(p_u, q_i.T) + self.m.mu_i[i]
-
-    def factorize(self):
-        ucount = self.m.rt.shape[0]
-        icount = self.m.rt.shape[1]
 
         # init randomly
-        # self.p = np.random.random((ucount, self.k))
-        # self.q = np.random.random((icount, self.k))
+        # use a higher eta for random initialization
+        # self.p = np.random.random((self.m.rt.shape[0], self.k))
+        # self.q = np.random.random((self.m.rt.shape[1], self.k))
 
         # init by SVD
         m = np.copy(self.m.rt)
@@ -215,6 +215,15 @@ class Factors(Recommender):
         self.p = ps[:, :self.k]
         self.q = qs[:self.k, :].T
 
+        self.factorize()
+
+    def predict(self, u, i):
+        p_u = self.p[u, :]
+        q_i = self.q[i, :]
+        return np.dot(p_u, q_i.T) + self.m.mu_i[i]
+
+    def factorize(self):
+        print 'factorize() called with k =', self.k, 'factors, class =', self.__class__
         lamb = 0.02
 
         self.rmse = []
@@ -545,7 +554,8 @@ if __name__ == '__main__':
     # toy()
     # toy2()
     # movie_lens()
-    movie_lens2()
+    # movie_lens2()
+    pass
 
 
 
