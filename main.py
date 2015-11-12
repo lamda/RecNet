@@ -19,9 +19,9 @@ import recsys
 
 
 np.random.seed(2014)
-# DEBUG = True
-DEBUG = False
-DEBUG_SIZE = 800
+DEBUG = True
+# DEBUG = False
+DEBUG_SIZE = 500
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4 TODO make a list?

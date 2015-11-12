@@ -29,9 +29,9 @@ class UtilityMatrix:
         self.si = {}
 
     def similar_items(self, u, i):
-        # try:
-        #     return self.si[(u, i)]
-        # except KeyError:
+        try:
+            return self.si[(u, i)]
+        except KeyError:
             r_u = self.r[u, :]  # user ratings
             s_i = np.copy(self.s[i, :])  # item similarity
             s_i[s_i < 0.0] = np.nan  # mask only to similar items
@@ -97,7 +97,7 @@ class Recommender:
             # print 'r', u
             for i in xrange(icount):
                 # if not np.isnan(self.m.rt[u, i]):
-                if (u, i) in self.m.rt_nnan_indices:
+                if (u, i) not in self.m.rt_nnan_indices:
                     continue
                 r_u_i = self.predict(u, i)
                 err = self.m.r[u, i] - r_u_i
@@ -246,17 +246,30 @@ class WeightedCFNN2(CFNN):
         for m in range(self.nsteps):
             print m,
             for i in xrange(icount):
-                # print i
+                print i
                 delta_i = np.zeros(icount)
                 for u in xrange(ucount):
-                    if (u, i) in self.m.rt_nnan_indices:
+                    if (u, i) not in self.m.rt_nnan_indices:
                         continue
                     tmp = 0
                     for k in self.m.similar_items(u, i):
+                        if (u, k) not in self.m.rt_nnan_indices:
+                            continue
                         tmp += self.w[i, k] * self.m.rt[u, k]
+                    if sum(np.isnan(delta_i)) > 0:
+                        print 1
+                        pdb.set_trace()
                     tmp -= self.m.rt[u, i]
+                    if sum(np.isnan(delta_i)) > 0:
+                        print 2
+                        pdb.set_trace()
                     for j in self.m.similar_items(u, i):
+                        if (u, j) not in self.m.rt_nnan_indices:
+                            continue
                         delta_i[j] += tmp * self.m.rt[u, j]
+                    if sum(np.isnan(delta_i)) > 0:
+                        print 3
+                        pdb.set_trace()
                 delta_i = delta_i * 2 * self.eta
                 self.w[i, :] = self.w[i, :] - delta_i
             self.rmse.append(self.training_error())
