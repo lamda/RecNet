@@ -26,18 +26,23 @@ class UtilityMatrix:
         self.s[np.isnan(self.s)] = 0.0
         self.rt = self.training_data()
         self.rt_nnan_indices = self.get_rt_nnan_indices()
+        self.si = {}
 
     def similar_items(self, u, i):
-        r_u = self.r[u, :]  # user ratings
-        s_i = np.copy(self.s[i, :])  # item similarity
-        s_i[s_i < 0.0] = np.nan  # mask only to similar items
-        s_i[i] = np.nan  # mask the item
-        s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
-        nn = np.isnan(s_i).sum()  # how many invalid items
+        # try:
+        #     return self.si[(u, i)]
+        # except KeyError:
+            r_u = self.r[u, :]  # user ratings
+            s_i = np.copy(self.s[i, :])  # item similarity
+            s_i[s_i < 0.0] = np.nan  # mask only to similar items
+            s_i[i] = np.nan  # mask the item
+            s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
+            nn = np.isnan(s_i).sum()  # how many invalid items
 
-        s_i_sorted = np.argsort(s_i)
-        s_i_k = s_i_sorted[-self.k-nn:-nn]
-        return s_i_k
+            s_i_sorted = np.argsort(s_i)
+            s_i_k = s_i_sorted[-self.k-nn:-nn]
+            self.si[(u, i)] = s_i_k
+            return self.si[(u, i)]
 
     def training_data(self):
         rt = np.copy(self.r)
@@ -47,8 +52,8 @@ class UtilityMatrix:
     def get_rt_nnan_indices(self):
         nnan = np.where(~np.isnan(self.rt))
         nnan_indices = zip(nnan[0], nnan[1])
-        np.random.shuffle(nnan_indices)
-        return nnan_indices
+        # np.random.shuffle(nnan_indices)
+        return set(nnan_indices)
 
 
 class Recommender:
@@ -88,19 +93,22 @@ class Recommender:
         icount = self.m.rt.shape[1]
         count = ucount * icount - np.isnan(self.m.rt).sum()
         sse = 0.0
-        for u in range(ucount):
-            for i in range(icount):
-                if not np.isnan(self.m.rt[u, i]):
-                    r_u_i = self.predict(u, i)
-                    err = self.m.r[u, i] - r_u_i
-                    sse += err ** 2
+        for u in xrange(ucount):
+            # print 'r', u
+            for i in xrange(icount):
+                # if not np.isnan(self.m.rt[u, i]):
+                if (u, i) in self.m.rt_nnan_indices:
+                    continue
+                r_u_i = self.predict(u, i)
+                err = self.m.r[u, i] - r_u_i
+                sse += err ** 2
 
-                    if debug_:
-                        print "user:", u
-                        print "item:", i
-                        print "rating:", r_u_i
-                        print "error:", err
-                        print "--------------"
+                if debug_:
+                    print "user:", u
+                    print "item:", i
+                    print "rating:", r_u_i
+                    print "error:", err
+                    print "--------------"
 
         rmse = (1.0 / count) * math.sqrt(sse)
         if debug_:
@@ -188,6 +196,98 @@ class WeightedCFNN(CFNN):
             if len(self.rmse) > 1:
                 if abs(self.rmse[-1] - self.rmse[-2]) < 1e-5:
                     break
+
+
+class WeightedCFNN2(CFNN):
+
+    def __init__(self, m, nsteps=500, eta=0.00075):
+        Recommender.__init__(self, m)
+        print 'WeightedCFNN2, eta=', eta
+        self.normalize = False
+        self.nsteps = nsteps
+        self.eta = eta
+        self.interpolate_weights()
+
+    # @profile
+    def interpolate_weights2(self):
+        if FIXED_RANDOM:
+            np.random.seed(2014)
+        ucount = self.m.rt.shape[0]
+        icount = self.m.rt.shape[1]
+        self.w = np.copy(self.m.s)
+        # self.w = np.random.random((icount, icount))
+
+        self.rmse = []
+        for m in range(self.nsteps):
+            print m,
+            for i in range(icount):
+                tmp = 0
+                for u in range(ucount):
+                    for j in self.m.similar_items(u, i):
+
+                        # tmp += (self.w[i, j] * self.m.rc[u, j] - self.m.rc[u, i]) * self.m.rc[u, j]
+                        self.w[i, j] -= 2 * self.eta * (self.w[i, j] * self.m.rc[u, j] - self.m.rc[u, i]) * self.m.rc[u, j]
+            self.rmse.append(self.training_error())
+            print self.rmse[-1]
+            if len(self.rmse) > 1:
+                if abs(self.rmse[-1] - self.rmse[-2]) < 1e-6:
+                    break
+
+    def interpolate_weights(self):
+        if FIXED_RANDOM:
+            np.random.seed(2014)
+        ucount = self.m.rt.shape[0]
+        icount = self.m.rt.shape[1]
+        self.w = np.copy(self.m.s)
+        # self.w = np.random.random((icount, icount))
+        # self.w = np.zeros((icount, icount))
+
+        self.rmse = []
+        for m in range(self.nsteps):
+            print m,
+            for i in xrange(icount):
+                # print i
+                delta_i = np.zeros(icount)
+                for u in xrange(ucount):
+                    if (u, i) in self.m.rt_nnan_indices:
+                        continue
+                    tmp = 0
+                    for k in self.m.similar_items(u, i):
+                        tmp += self.w[i, k] * self.m.rt[u, k]
+                    tmp -= self.m.rt[u, i]
+                    for j in self.m.similar_items(u, i):
+                        delta_i[j] += tmp * self.m.rt[u, j]
+                delta_i = delta_i * 2 * self.eta
+                self.w[i, :] = self.w[i, :] - delta_i
+            self.rmse.append(self.training_error())
+            print self.rmse[-1]
+            if len(self.rmse) > 1:
+                if abs(self.rmse[-1] - self.rmse[-2]) < 1e-6:
+                    break
+
+        # self.rmse = []
+        # for m in range(self.nsteps):
+        #     print m,
+        #     pdb.set_trace()
+        #     delta_i_j = np.zeros((icount, icount))
+        #     for i in range(icount):
+        #             print i
+        #         for u in range(ucount):
+        #             if np.isnan(self.m.r[u, i]):
+        #                 continue
+        #             tmp = 0
+        #             for k in self.m.similar_items(u, i):
+        #                 tmp += self.w[i, k] * self.m.r[u, k]
+        #             tmp -= self.m.r[u, i]
+        #             for j in self.m.similar_items(u, i):
+        #                 delta_i_j[i, j] += tmp * self.m.r[u, j]
+        #     delta_i_j = delta_i_j * 2 * self.eta
+        #     self.w = self.w - delta_i_j
+        #     self.rmse.append(self.training_error())
+        #     print self.rmse[-1]
+        #     if len(self.rmse) > 1:
+        #         if abs(self.rmse[-1] - self.rmse[-2]) < 1e-6:
+        #             break
 
 
 class Factors(Recommender):

@@ -19,9 +19,9 @@ import recsys
 
 
 np.random.seed(2014)
-DEBUG = True
-# DEBUG = False
-DEBUG_SIZE = 55
+# DEBUG = True
+DEBUG = False
+DEBUG_SIZE = 800
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4 TODO make a list?
@@ -435,11 +435,11 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
     # @profile
     # @decorators.Cached
-    def get_interpolation_weights(self, m, nsteps=500, eta=0.0002):
+    def get_interpolation_weights(self, m, nsteps=500, eta=0.000015, n=5):
+        # typical values for n lie in the range of 20-50 (Bell & Koren 2007)
         m = m.astype(float)
-        um = recsys.UtilityMatrix(m, self.get_training_matrix_indices(m), 2)
-        wf = recsys.WeightedCFNN(um, nsteps=nsteps, eta=eta)
-        pdb.set_trace()
+        um = recsys.UtilityMatrix(m, self.get_training_matrix_indices(m), n)
+        wf = recsys.WeightedCFNN2(um, nsteps=nsteps, eta=eta)
         return wf.w
 
 
