@@ -21,7 +21,7 @@ import recsys
 np.random.seed(2014)
 DEBUG = True
 # DEBUG = False
-DEBUG_SIZE = 500
+DEBUG_SIZE = 250
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4 TODO make a list?
@@ -364,15 +364,6 @@ class RatingBasedRecommender(Recommender):
         similarity = scipy.spatial.distance.squareform(similarity)
         return SimilarityMatrix(1 - similarity)
 
-    def get_training_matrix_indices(self, um, fraction=0.2):
-        i, j = np.nonzero(um)
-        rands = np.random.choice(
-            len(i),
-            np.floor(fraction * len(i)),
-            replace=False
-        )
-        return i[rands], j[rands]
-
 
 class MatrixFactorizationRecommender(RatingBasedRecommender):
     def __init__(self, dataset):
@@ -400,12 +391,17 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
 
     # @profile
     # @decorators.Cached
-    def factorize(self, m, k=100, eta=0.0000001, nsteps=500, tol=1e-5):
+    def factorize(self, m, k=100, eta=0.00000015, nsteps=500):
         # k should be smaller than #users and #items (2-300?)
         m = m.astype(float)
-        um = recsys.UtilityMatrix(m, self.get_training_matrix_indices(m), k)
-        f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, tol=tol,
-                           eta=eta)
+        m_nan = np.copy(m)
+        m_nan[m_nan == 0] = np.nan
+        if DEBUG:
+            k = 15
+        print(eta)
+        um = recsys.UtilityMatrix(m, recsys.get_training_matrix_indices(m_nan), k)
+        f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, eta=eta)
+        print('test error:', f.test_error())
         return f.q
 
 
@@ -435,11 +431,15 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
     # @profile
     # @decorators.Cached
-    def get_interpolation_weights(self, m, nsteps=500, eta=0.000015, n=5):
+    def get_interpolation_weights(self, m, nsteps=500, eta=0.000001, n=15):
         # typical values for n lie in the range of 20-50 (Bell & Koren 2007)
         m = m.astype(float)
-        um = recsys.UtilityMatrix(m, self.get_training_matrix_indices(m), n)
+        m = m.astype(float)
+        m_nan = np.copy(m)
+        m_nan[m_nan == 0] = np.nan
+        um = recsys.UtilityMatrix(m, recsys.get_training_matrix_indices(m_nan), n)
         wf = recsys.WeightedCFNN2(um, nsteps=nsteps, eta=eta)
+        print('test error:', wf.test_error())
         return wf.w
 
 
@@ -462,8 +462,8 @@ if __name__ == '__main__':
     start_time = datetime.now()
     # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
     # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
-    # mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
-    iwrbr = InterpolationWeightRecommender(dataset='movielens'); iwrbr.get_recommendations()
+    mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
+    # iwrbr = InterpolationWeightRecommender(dataset='movielens'); iwrbr.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 
