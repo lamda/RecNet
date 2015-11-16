@@ -19,8 +19,8 @@ import recsys
 
 
 np.random.seed(2014)
-DEBUG = True
-# DEBUG = False
+# DEBUG = True
+DEBUG = False
 DEBUG_SIZE = 250
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
@@ -353,14 +353,18 @@ class RatingBasedRecommender(Recommender):
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
 
+        # use the centered version for similarity computation
+        um_centered = np.copy(um.astype(float))
+        um_centered[np.where(um_centered == 0)] = np.nan
+        um_centered = um_centered - np.nanmean(um_centered, axis=0)[np.newaxis, :]
+        um_centered[np.where(np.isnan(um_centered))] = 0
+
         # transpose M because pdist calculates similarities between lines
-        similarity = scipy.spatial.distance.pdist(um.T, 'correlation')
-        # similarity = scipy.spatial.distance.pdist(um.T, 'cosine')
+        similarity = scipy.spatial.distance.pdist(um_centered.T, 'cosine')
 
         # correlation is undefined for zero vectors --> set it to the max
         # max distance is 2 because the pearson correlation runs from -1...+1
         similarity[np.isnan(similarity)] = 2.0  # for correlation
-        # similarity[np.isnan(similarity)] = 1.0  # for cosine
         similarity = scipy.spatial.distance.squareform(similarity)
         return SimilarityMatrix(1 - similarity)
 
@@ -377,10 +381,16 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
         q = self.factorize(um)
+        # use the centered version for similarity computation
+        q_centered = np.copy(q.astype(float).T)
+        q_centered[np.where(q_centered == 0)] = np.nan
+        q_centered = q_centered - np.nanmean(q_centered, axis=0)[np.newaxis, :]
+        q_centered[np.where(np.isnan(q_centered))] = 0
+        q_centered = q_centered.T
 
         # transpose M because pdist calculates similarities between lines
-        similarity = scipy.spatial.distance.pdist(q, 'correlation')
-        # similarity = scipy.spatial.distance.pdist(q, 'cosine')
+        # similarity = scipy.spatial.distance.pdist(q, 'correlation')
+        similarity = scipy.spatial.distance.pdist(q_centered, 'cosine')
 
         # correlation is undefined for zero vectors --> set it to the max
         # max distance is 2 because the pearson correlation runs from -1...+1
@@ -417,6 +427,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
         w = self.get_interpolation_weights(um)
+        # TODO: use adjusted cosine similarity?
 
         # transpose M because pdist calculates similarities between lines
         similarity = scipy.spatial.distance.pdist(w, 'correlation')
