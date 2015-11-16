@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+
+from __future__ import print_function
+
 import numpy as np
 import matplotlib.pylab as pylab
 import math
@@ -5,9 +9,6 @@ import abc
 import csv
 import pdb
 
-FIXED_RANDOM = False
-if FIXED_RANDOM:
-    np.random.seed(2014)
 np.set_printoptions(linewidth=225)
 debug_ = False
 
@@ -26,6 +27,7 @@ class UtilityMatrix:
         self.s[np.isnan(self.s)] = 0.0
         self.rt = self.training_data()
         self.rt_nnan_indices = self.get_nnan_indices(self.rt)
+        self.rt_nan_indices = self.get_nan_indices(self.rt)
         self.r_nnan_indices = self.get_nnan_indices(self.r)
         self.si, self.sirt = {}, {}
         self.items = {}
@@ -47,9 +49,9 @@ class UtilityMatrix:
             return self.si[(u, i)]
 
     def similar_items_rt(self, u, i):
-        try:
-            return self.sirt[(u, i)]
-        except KeyError:
+        # try:
+        #     return self.sirt[(u, i)]
+        # except KeyError:
             r_u = self.rt[u, :]  # user ratings
             s_i = np.copy(self.s[i, :])  # item similarity
             s_i[s_i < 0.0] = np.nan  # mask only to similar items
@@ -59,8 +61,8 @@ class UtilityMatrix:
 
             s_i_sorted = np.argsort(s_i)
             s_i_k = s_i_sorted[-self.k-nn:-nn]
-            self.sirt[(u, i)] = s_i_k
-            return self.sirt[(u, i)]
+            # self.sirt[(u, i)] = s_i_k
+            return s_i_k
 
     def training_data(self):
         rt = np.copy(self.r)
@@ -70,8 +72,12 @@ class UtilityMatrix:
     def get_nnan_indices(self, m):
         nnan = np.where(~np.isnan(m))
         nnan_indices = zip(nnan[0], nnan[1])
-        np.random.shuffle(nnan_indices)
         return set(nnan_indices)
+
+    def get_nan_indices(self, m):
+        ynan = np.where(np.isnan(m))
+        ynan_indices = zip(ynan[0], ynan[1])
+        return set(ynan_indices)
 
 
 class Recommender:
@@ -96,16 +102,16 @@ class Recommender:
             sse += err ** 2
 
             if debug_:
-                print "user:", u
-                print "item:", i
-                print "rating:", r_u_i
-                print "error:", err
-                print "--------------"
+                print("user:", u)
+                print("item:", i)
+                print("rating:", r_u_i)
+                print("error:", err)
+                print("--------------")
 
         rmse = (1.0 / count) * math.sqrt(sse)
         if debug_:
-            print "rmse test data: ", rmse
-            print "--------------"
+            print("rmse test data: ", rmse)
+            print("--------------")
         return rmse
 
     def training_error(self):
@@ -121,23 +127,21 @@ class Recommender:
                     sse += err ** 2
 
                     if debug_:
-                        print "user:", u
-                        print "item:", i
-                        print "rating:", r_u_i
-                        print "error:", err
-                        print "--------------"
+                        print("user:", u)
+                        print("item:", i)
+                        print("rating:", r_u_i)
+                        print("error:", err)
+                        print("--------------")
         rmse = (1.0 / count) * math.sqrt(sse)
         if debug_:
-            print "rmse training data: ", rmse
-            print "--------------"
+            print("rmse training data: ", rmse)
+            print("--------------")
         return rmse
 
     def training_error_fast(self):
-        error = [self.m.r[u, i] - self.predict(u, i)
-                 for (u, i) in self.m.rt_nnan_indices]
-        sse = sum(e**2 for e in error)
-        rmse = (1.0 / len(self.m.rt_nnan_indices)) * math.sqrt(sse)
-        return rmse
+        sse = np.sqrt(sum((self.m.r[u, i] - self.predict(u, i)) ** 2
+                          for (u, i) in self.m.rt_nnan_indices))
+        return (1.0 / len(self.m.rt_nnan_indices)) * sse
 
 
 class CFNN(Recommender):
@@ -152,7 +156,7 @@ class CFNN(Recommender):
         z = 0.0
         n_u_i = self.m.similar_items(u, i)
         if debug_:
-            print "similar items:", n_u_i
+            print("similar items:", n_u_i)
         for j in n_u_i:
             r += self.m.rc[u, j] * self.w[i, j]
             if self.normalize:
@@ -168,7 +172,7 @@ class CFNN(Recommender):
 class WeightedCFNN(CFNN):
 
     def __init__(self, m, nsteps=500, eta=0.0002):
-        print 'WeightedCFNN'
+        print('WeightedCFNN')
         Recommender.__init__(self, m)
         self.normalize = False
         self.nsteps = nsteps
@@ -192,7 +196,7 @@ class WeightedCFNN(CFNN):
 
         self.rmse = []
         for m in range(self.nsteps):
-            print m,
+            print(m,)
             delta_w_i_j = np.zeros([icount, icount])
             for i in range(icount):
                 for j in js:
@@ -209,7 +213,7 @@ class WeightedCFNN(CFNN):
             self.w -= 2.0 * self.eta * delta_w_i_j
 
             self.rmse.append(self.training_error())
-            print self.rmse[-1]
+            print(self.rmse[-1])
             if len(self.rmse) > 1:
                 if abs(self.rmse[-1] - self.rmse[-2]) < 1e-5:
                     break
@@ -219,7 +223,7 @@ class WeightedCFNN2(CFNN):
 
     def __init__(self, m, nsteps=500, eta=0.00075, regularize=False):
         Recommender.__init__(self, m)
-        print 'WeightedCFNN2, eta=', eta
+        print('WeightedCFNN2, eta =', eta, 'regularize =', regularize)
         self.normalize = False
         self.nsteps = nsteps
         self.eta = eta
@@ -229,8 +233,7 @@ class WeightedCFNN2(CFNN):
 
     # @profile
     def interpolate_weights(self):
-        if FIXED_RANDOM:
-            np.random.seed(2014)
+        import memory_profiler as mprof
         ucount = self.m.rt.shape[0]
         icount = self.m.rt.shape[1]
         self.w = np.copy(self.m.s)
@@ -238,26 +241,28 @@ class WeightedCFNN2(CFNN):
         # self.w = np.zeros((icount, icount))
 
         self.rmse = []
-        for m in range(self.nsteps):
-            print m,
+        rt_nan_indices = self.m.rt_nan_indices
+        m = self.m
+        for step in xrange(self.nsteps):
+            print(step, end='\r')
             delta_w_i_j = np.zeros((icount, icount))
             for i in xrange(icount):
+                print(i+1, '/', icount, end='\r')
                 for u in xrange(ucount):
-                    if (u, i) not in self.m.rt_nnan_indices:
+                    if (u, i) in rt_nan_indices:
                         continue
-                    s_u_i = self.m.similar_items_rt(u, i)
-                    error = sum(self.w[i, k] * self.m.rt[u, k] for k in s_u_i) \
-                        - self.m.rt[u, i]
+                    s_u_i = m.similar_items_rt(u, i)
+                    error = sum(self.w[i, k] * m.rt[u, k] for k in s_u_i) \
+                        - m.rt[u, i]
                     for j in s_u_i:
-                        delta_w_i_j[i, j] += error * self.m.rt[u, j]
+                        delta_w_i_j[i, j] += error * m.rt[u, j]
                         if self.regularize:
                             delta_w_i_j[i, j] += self.lamda * self.w[i, j]
             self.w -= 2 * self.eta * delta_w_i_j
             self.rmse.append(self.training_error_fast())
-            print self.rmse[-1]
-            if len(self.rmse) > 1:
-                if abs(self.rmse[-1] - self.rmse[-2]) < 1e-5:
-                    break
+            print('%.9f %.2f MB' % (self.rmse[-1], mprof.memory_usage()[0]))
+            if len(self.rmse) > 1 and abs(self.rmse[-1] - self.rmse[-2]) < 1e-5:
+                break
 
 
 class Factors(Recommender):
@@ -292,12 +297,12 @@ class Factors(Recommender):
         return np.dot(p_u, q_i.T) + self.m.mu_i[i]
 
     def factorize(self):
-        print 'factorize() called with k =', self.k, 'factors'
+        print('factorize() called with k =', self.k, 'factors')
         lamb = 0.02
 
         self.rmse = []
         for m in range(self.nsteps):
-            print m,
+            print(m,)
 
             masked = np.ma.array(self.m.rt - self.m.mu_i, mask=np.isnan(self.m.rt))
             delta_p = np.ma.dot(np.ma.dot(self.p, self.q.T) - masked, self.q)
@@ -316,14 +321,14 @@ class Factors(Recommender):
                 self.p -= 2.0 * self.eta * delta_p
                 self.q -= 2.0 * self.eta * delta_q
             self.rmse.append(self.training_error())
-            print self.rmse[-1]
+            print(self.rmse[-1])
             if len(self.rmse) > 1:
                 if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
                     break
 
         if debug_:
-            print self.p
-            print self.q
+            print(self.p)
+            print(self.q)
 
 
 class FactorsSGD(Factors):
@@ -334,18 +339,14 @@ class FactorsSGD(Factors):
     def factorize(self):
         ucount = self.m.rt.shape[0]
         icount = self.m.rt.shape[1]
-        if FIXED_RANDOM:
-            np.random.seed(2014)
         self.p = np.random.random((ucount, self.k))
-        if FIXED_RANDOM:
-            np.random.seed(2014)
         self.q = np.random.random((icount, self.k))
 
         lamb = 0.02
 
         self.rmse = []
         for m in range(self.nsteps):
-            print m
+            print(m)
 
             counter = 0
             for u, i in self.m.rt_nnan_indices:
@@ -373,8 +374,8 @@ class FactorsSGD(Factors):
                     break
 
         if debug_:
-            print self.p
-            print self.q
+            print(self.p)
+            print(self.q)
 
 
 class FactorsSGD2(Factors):
@@ -385,18 +386,14 @@ class FactorsSGD2(Factors):
     def factorize(self):
         ucount = self.m.rt.shape[0]
         icount = self.m.rt.shape[1]
-        if FIXED_RANDOM:
-            np.random.seed(2014)
         self.p = np.random.random((ucount, self.k))
-        if FIXED_RANDOM:
-            np.random.seed(2014)
         self.q = np.random.random((icount, self.k))
 
         lamb = 0.02
 
         self.rmse = []
         for m in range(self.nsteps):
-            print m
+            print(m)
             counter = 0
             for u, i in self.m.rt_nnan_indices:
                 for y in range(self.k):
@@ -417,8 +414,8 @@ class FactorsSGD2(Factors):
                     break
 
         if debug_:
-            print self.p
-            print self.q
+            print(self.p)
+            print(self.q)
 
 
 class Plotter(object):
@@ -446,7 +443,7 @@ def plot_rmse(rmse, f, title):
 
 def print_test_error(recommender, title):
     rmse = recommender.test_error()
-    print title, " test rmse:", rmse
+    print(title, " test rmse:", rmse)
 
 
 def read_movie_lens_data():
@@ -490,9 +487,9 @@ def get_training_matrix_indices(um, fraction=0.2):
 def movie_lens():
     data = read_movie_lens_data()
     um = UtilityMatrix(data, np.array([[458, 458], [209, 211]]), 2)
-    print "training data"
-    print um.rt
-    print um.s
+    print("training data")
+    print(um.rt)
+    print(um.s)
 
     cfnn = CFNN(um)
     factors = Factors(um, 2, eta=0.002)
@@ -500,37 +497,37 @@ def movie_lens():
     factors2 = Factors(um, 2, eta=0.002, newton=True)
     factors3 = FactorsSGD(um, 2, eta=0.002)
 
-    print "cfnn similarities"
-    print cfnn.w
-    print "factors p"
-    print factors.p
-    print "factors q.t"
-    print factors.q.T
-    print "factors1 p"
-    print factors1.p
-    print "factors1 q.t"
-    print factors1.q.T
-    print "factors2 p"
-    print factors2.p
-    print "factors2 q.t"
-    print factors2.q.T
-    print "factors3 p"
-    print factors3.p
-    print "factors3 q.t"
-    print factors3.q.T
+    print("cfnn similarities")
+    print(cfnn.w)
+    print("factors p")
+    print(factors.p)
+    print("factors q.t")
+    print(factors.q.T)
+    print("factors1 p")
+    print(factors1.p)
+    print("factors1 q.t")
+    print(factors1.q.T)
+    print("factors2 p")
+    print(factors2.p)
+    print("factors2 q.t")
+    print(factors2.q.T)
+    print("factors3 p")
+    print(factors3.p)
+    print("factors3 q.t")
+    print(factors3.q.T)
 
     print_test_error(cfnn, 'cfnn')
     print_test_error(factors, 'factors')
     print_test_error(factors1, 'factors1')
     print_test_error(factors2, 'factors2')
     print_test_error(factors3, 'factors3')
-    print "-----------------"
+    print("-----------------")
     rmse = cfnn.training_error()
-    print "cfnn training rmse:", rmse
-    print "factors training rmse:", len(factors.rmse), factors.rmse[-1]
-    print "factors1 training rmse:", len(factors1.rmse), factors1.rmse[-1]
-    print "factors2 training rmse:", len(factors2.rmse), factors2.rmse[-1]
-    print "factors3 training rmse:", len(factors3.rmse), factors3.rmse[-1]
+    print("cfnn training rmse:", rmse)
+    print("factors training rmse:", len(factors.rmse), factors.rmse[-1])
+    print("factors1 training rmse:", len(factors1.rmse), factors1.rmse[-1])
+    print("factors2 training rmse:", len(factors2.rmse), factors2.rmse[-1])
+    print("factors3 training rmse:", len(factors3.rmse), factors3.rmse[-1])
 
     plot_rmse(factors.rmse, 1, 'RMSE (Matrix Factorization)')
     plot_rmse(factors1.rmse, 2, 'RMSE (Matrix Factorization) Regularized')
@@ -557,31 +554,31 @@ def toy():
         ]),
         2
     )
-    print "training data"
-    print um.rt
-    print um.s
+    print("training data")
+    print(um.rt)
+    print(um.s)
 
     cfnn = CFNN(um)
     wcfnn = WeightedCFNN(um)
     factors = Factors(um, 2)
 
-    print "cfnn similarities"
-    print cfnn.w
-    print "wcfnn weights"
-    print wcfnn.w
-    print "factors p"
-    print factors.p
-    print "factors q.t"
-    print factors.q.T
+    print("cfnn similarities")
+    print(cfnn.w)
+    print("wcfnn weights")
+    print(wcfnn.w)
+    print("factors p")
+    print(factors.p)
+    print("factors q.t")
+    print(factors.q.T)
 
     print_test_error(cfnn, 'cfnn')
     print_test_error(wcfnn, 'wcfnn')
     print_test_error(factors, 'factors')
-    print "-----------------"
+    print("-----------------")
     rmse = cfnn.training_error()
-    print "cfnn training rmse:", rmse
-    print "wcfnn training rmse:", len(wcfnn.rmse), wcfnn.rmse[-1]
-    print "factors training rmse:", len(factors.rmse), factors.rmse[-1]
+    print("cfnn training rmse:", rmse)
+    print("wcfnn training rmse:", len(wcfnn.rmse), wcfnn.rmse[-1])
+    print("factors training rmse:", len(factors.rmse), factors.rmse[-1])
 
     plot_rmse(wcfnn.rmse, 1, 'RMSE (Weighted CFNN)')
     plot_rmse(factors.rmse, 2, 'RMSE (Matrix Factorization)')
@@ -609,16 +606,16 @@ def toy2():
     # f = Factors(um, 2)
     # fsgd = FactorsSGD(um, 2)
     # fsgd2 = FactorsSGD2(um, 2)
-    wcfnn = WeightedCFNN(um)
-    wcfnn2 = WeightedCFNN2(um)
+    # wcfnn = WeightedCFNN(um)
+    # wcfnn2 = WeightedCFNN2(um)
     wcfnn2r = WeightedCFNN2(um, regularize=True)
     ptr = Plotter()
     for approach, label in [
         # (f, 'Gradient Descent'),
         # (fsgd, 'Stochastic Gradient Descent (original)'),
         # (fsgd2, 'Gradient Descent (modified)'),
-        (wcfnn, 'Interpolation Weights'),
-        (wcfnn2, 'Interpolation Weights (modified)'),
+        # (wcfnn, 'Interpolation Weights'),
+        # (wcfnn2, 'Interpolation Weights (modified)'),
         (wcfnn2r, 'Interpolation Weights (modified, regularized)'),
     ]:
         ptr.add_plot(approach.rmse, label)

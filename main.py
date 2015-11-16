@@ -19,9 +19,9 @@ import recsys
 
 
 np.random.seed(2014)
-# DEBUG = True
-DEBUG = False
-DEBUG_SIZE = 250
+DEBUG = True
+# DEBUG = False
+DEBUG_SIZE = 75
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4 TODO make a list?
@@ -449,7 +449,8 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
         um = recsys.UtilityMatrix(m, recsys.get_training_matrix_indices(m_nan), n)
-        wf = recsys.WeightedCFNN2(um, nsteps=nsteps, eta=eta)
+        # wf = recsys.WeightedCFNN2(um, nsteps=nsteps, eta=eta, regularize=True)
+        wf = recsys.WeightedCFNN2(um, nsteps=nsteps, eta=eta, regularize=False)
         print('test error:', wf.test_error())
         return wf.w
 
@@ -473,8 +474,8 @@ if __name__ == '__main__':
     start_time = datetime.now()
     # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
     # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
-    mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
-    # iwrbr = InterpolationWeightRecommender(dataset='movielens'); iwrbr.get_recommendations()
+    # mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
+    iwrbr = InterpolationWeightRecommender(dataset='movielens'); iwrbr.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 
