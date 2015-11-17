@@ -6,7 +6,7 @@ import collections
 import io
 import numpy as np
 import cPickle as pickle
-# import nltk
+import nltk
 import os
 import pandas as pd
 import pdb

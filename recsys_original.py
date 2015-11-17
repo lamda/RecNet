@@ -4,9 +4,9 @@ from __future__ import print_function
 
 import abc
 import csv
-# import matplotlib.pylab as pylab
+import matplotlib.pylab as pylab
 import math
-# import memory_profiler as mprof
+import memory_profiler as mprof
 import numpy as np
 import operator
 import pdb
@@ -121,7 +121,7 @@ class Recommender:
         count = self.m.hidden.shape[1]
         sse = 0.0
         for u, i in self.m.hidden.T:
-            r_u_i = self.predict(u, i, 'r')
+            r_u_i = self.predict(u, i, self.m.r)
             err = self.m.r[u, i] - r_u_i
             sse += err ** 2
 
@@ -216,7 +216,7 @@ class WeightedCFNN(CFNN):
         self.lamda = 0.02
         self.interpolate_weights()
 
-    @profile
+    # @profile
     def interpolate_weights(self):
         ucount = self.m.rt.shape[0]
         icount = self.m.rt.shape[1]
@@ -249,8 +249,8 @@ class WeightedCFNN(CFNN):
             self.w -= 2 * self.eta * delta_w_i_j
             # self.rmse.append(self.training_error())
             self.rmse.append(self.training_error_fast())
-            # print('%.9f %.2f MB' % (self.rmse[-1], mprof.memory_usage()[0]))
-            print('%.9f' % (self.rmse[-1]))
+            print('%.9f %.2f MB' % (self.rmse[-1], mprof.memory_usage()[0]))
+            # print('%.9f' % (self.rmse[-1]))
             if len(self.rmse) > 1 and abs(self.rmse[-1] - self.rmse[-2]) < 1e-5:
                 break
 
@@ -598,7 +598,7 @@ def toy2():
     # fsgd2 = FactorsSGD2(um, 2)
     # wcfnn = WeightedCFNN(um)
     wcfnnr = WeightedCFNN(um, regularize=True)
-    # ptr = Plotter()
+    ptr = Plotter()
     for approach, label in [
         # (f, 'Gradient Descent'),
         # (fsgd, 'Stochastic Gradient Descent (original)'),
@@ -606,7 +606,7 @@ def toy2():
         # (wcfnn, 'Interpolation Weights'),
         (wcfnnr, 'Interpolation Weights (regularized)'),
     ]:
-        # ptr.add_plot(approach.rmse, label)
+        ptr.add_plot(approach.rmse, label)
         print_test_error(approach, label)
     # ptr.finish()
 
@@ -621,7 +621,7 @@ def movie_lens2():
     # fsgd2 = FactorsSGD2(um, 2)
     # wcfnn = WeightedCFNN(um)
     wcfnnr = WeightedCFNN(um, regularize=True)
-    # ptr = Plotter()
+    ptr = Plotter()
     for approach, label in [
         # (f, 'Gradient Descent'),
         # (fsgd, 'Stochastic Gradient Descent (original)'),
@@ -629,13 +629,13 @@ def movie_lens2():
         # (wcfnn, 'Interpolation Weights'),
         (wcfnnr, 'Interpolation Weights (regularized)'),
     ]:
-        # ptr.add_plot(approach.rmse, label)
+        ptr.add_plot(approach.rmse, label)
         print_test_error(approach, label)
     # ptr.finish()
 
 
 if __name__ == '__main__':
-    # toy2()
-    movie_lens2()
+    toy2()
+    # movie_lens2()
 
 
