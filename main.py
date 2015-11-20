@@ -15,13 +15,13 @@ import sklearn.feature_extraction.text
 import sqlite3
 
 import decorators
-import recsys
+import recsys_test as recsys
 
 
-np.random.seed(2014)
+# np.random.seed(2014)
 DEBUG = True
 # DEBUG = False
-DEBUG_SIZE = 55
+DEBUG_SIZE = 255
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4 TODO make a list?
@@ -389,7 +389,7 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         q_centered = q_centered.T
 
         # transpose M because pdist calculates similarities between lines
-        # similarity = scipy.spatial.distance.pdist(q, 'correlation')
+        # similarity = scipy.spatial.distance.pdist(q.T, 'correlation')
         similarity = scipy.spatial.distance.pdist(q_centered, 'cosine')
 
         # correlation is undefined for zero vectors --> set it to the max
@@ -401,18 +401,25 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
 
     # @profile
     # @decorators.Cached
-    def factorize(self, m, k=100, eta=0.00000015, nsteps=500):
+    def factorize(self, m, k=100, eta=0.000005, nsteps=500):
         # k should be smaller than #users and #items (2-300?)
         m = m.astype(float)
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
+        # with open('m.obj', 'wb') as outfile:
+        #     pickle.dump(m_nan, outfile)
         if DEBUG:
             k = 15
         print(eta)
-        um = recsys.UtilityMatrix(m, recsys.get_training_matrix_indices(m_nan), k)
-        f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, eta=eta)
+        um = recsys.UtilityMatrix(m_nan)
+        # f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, eta=eta)
+        f = recsys.Factors(um, k, regularize=True, eta=0.000004)
         print('test error:', f.test_error())
+        pdb.set_trace()
         return f.q
+        # print(np.dot(f.p, f.q.T))
+        # pdb.set_trace()
+        # return np.dot(f.p, f.q.T)
 
 
 class InterpolationWeightRecommender(RatingBasedRecommender):
@@ -442,15 +449,16 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
     # @profile
     # @decorators.Cached
-    def get_interpolation_weights(self, m, nsteps=500, eta=0.000001, n=15):
+    def get_interpolation_weights(self, m, nsteps=500, eta=0.00001, n=15):
         # typical values for n lie in the range of 20-50 (Bell & Koren 2007)
-        m = m.astype(float)
         m = m.astype(float)
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
-        um = recsys.UtilityMatrix(m, recsys.get_training_matrix_indices(m_nan), n)
-        # wf = recsys.WeightedCFNN(um, nsteps=nsteps, eta=eta, regularize=True)
-        wf = recsys.WeightedCFNN(um, nsteps=nsteps, eta=eta, regularize=False)
+        # with open('m255.obj', 'wb') as outfile:
+        #     pickle.dump(m_nan, outfile)
+        # sys.exit()
+        um = recsys.UtilityMatrix(m_nan)
+        wf = recsys.WeightedCFNN(um, k=75, nsteps=nsteps, eta=0.00001, regularize=True)
         print('test error:', wf.test_error())
         return wf.w
 
