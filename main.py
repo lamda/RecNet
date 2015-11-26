@@ -398,22 +398,20 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         similarity[np.isnan(similarity)] = 2.0  # for correlation
         # similarity[np.isnan(similarity)] = 1.0  # for cosine
         similarity = scipy.spatial.distance.squareform(similarity)
-        # pdb.set_trace()
         return SimilarityMatrix(1 - similarity)
 
     # @profile
     # @decorators.Cached
-    def factorize(self, m, k=15, eta=0.000005, nsteps=500):
+    def factorize(self, m, k=15, eta=0.000005, nsteps=1000):
         # k should be smaller than #users and #items (2-300?)
         m = m.astype(float)
-        m_nan = np.copy(m)
-        m_nan[m_nan == 0] = np.nan
+        m[m == 0] = np.nan
         # with open('m.obj', 'wb') as outfile:
-        #     pickle.dump(m_nan, outfile)
+        #     pickle.dump(m, outfile)
         # sys.exit()
-        um = recsys.UtilityMatrix(m_nan)
+        um = recsys.UtilityMatrix(m)
         # f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, eta=eta)
-        f = recsys.Factors(um, k=25, regularize=True, eta=0.0000006, init_svd=True)
+        f = recsys.Factors(um, k=15, nsteps=1000, regularize=True, eta=0.00001, lamda=0.05, init_svd=False)
         return f.q
 
 
@@ -439,9 +437,8 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
         um = recsys.UtilityMatrix(m_nan)
-        # wf = recsys.WeightedCFNN(um, k=10, eta=0.0008, regularize=True, init_sim=True)
-        wf = recsys.WeightedCFNN(um, k=5, eta=0.00008, regularize=True, init_sim=True)
-        # wf = recsys.WeightedCFNN(um, k=10, eta=0.000005, regularize=True, init_sim=True) # DEBUG
+        wf = recsys.WeightedCFNN(um, k=15, eta=0.001, regularize=True, init_sim=False)
+        # wf = recsys.WeightedCFNN(um, k=5, eta=0.00001, regularize=True, init_sim=True) # DEBUG
         # wf = recsys.WeightedCFNN(um, k=10, eta=0.0001, regularize=True, init_sim=True) # DEBUG 750
         return wf.w
 
@@ -465,8 +462,8 @@ if __name__ == '__main__':
     start_time = datetime.now()
     # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
     # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
-    mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
-    # iwrbr = InterpolationWeightRecommender(dataset='movielens'); iwrbr.get_recommendations()
+    # mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
+    iwrbr = InterpolationWeightRecommender(dataset='movielens'); iwrbr.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 

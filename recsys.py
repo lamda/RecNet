@@ -28,12 +28,12 @@ class UtilityMatrix:
         # self.r_nan_indices = self.get_nan_indices(self.r)
         # self.r_not_nan_indices = self.get_not_nan_indices(self.r)
 
-    def get_training_data(self, hidden):
-        if hidden is None:  # take 80% of the input as training data
+    def get_training_data(self, hidden, training_share=0.2):
+        if hidden is None:  # take some of the input as training data
             i, j = np.where(~((self.r == 0) | (np.isnan(self.r))))
             rands = np.random.choice(
                 len(i),
-                np.floor(0.2 * len(i)),
+                np.floor(training_share * len(i)),
                 replace=False
             )
             hidden = np.vstack((i[rands], j[rands]))
@@ -150,7 +150,7 @@ class CFNN(Recommender):
 class Factors(Recommender):
 
     def __init__(self, m, k, nsteps=500, eta=0.000004, regularize=False,
-                 newton=False, tol=1e-5, lamda=0.02, init_svd=True):
+                 newton=False, tol=1e-5, lamda=0.05, init_svd=True):
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
@@ -158,11 +158,12 @@ class Factors(Recommender):
         self.regularize = regularize
         self.newton = newton
         self.tol = tol
-        self.lamda = 0.02
+        self.lamda = lamda
 
         if init_svd:
-            # init by SVD (new)
-            m = np.copy(self.m.rt)
+            # init by Singular Value Decomposition
+            # m = np.copy(self.m.rt)
+            m = self.m.rt
             m[np.where(np.isnan(m))] = 0
             ps, ss, vs = np.linalg.svd(m)
             self.p = ps[:, :self.k]
@@ -183,6 +184,11 @@ class Factors(Recommender):
 
         self.factorize()
 
+        print('init_svd =', init_svd)
+        print('k =', k)
+        print('lamda =', self.lamda)
+        print('eta = ', self.eta)
+
         diff = np.linalg.norm(p_init - self.p) + np.linalg.norm(q_init - self.q)
 
         self.plot_rmse('%.4f' % diff, suffix='svd' if init_svd else 'random')
@@ -195,11 +201,9 @@ class Factors(Recommender):
 
     def factorize(self):
         for m in range(self.nsteps):
-            print(m, end='\r')
-
             masked = np.ma.array(self.m.rt, mask=np.isnan(self.m.rt))
-            delta_p = np.ma.dot(np.ma.dot(self.p, self.q.T) - masked, self.q)
-            delta_q = np.ma.dot((np.ma.dot(self.p, self.q.T) - masked).T, self.p)
+            delta_p = np.ma.dot(np.dot(self.p, self.q.T) - masked, self.q)
+            delta_q = np.ma.dot((np.dot(self.p, self.q.T) - masked).T, self.p)
 
             if self.regularize:
                 delta_p += self.lamda * self.p
@@ -209,12 +213,15 @@ class Factors(Recommender):
             self.q -= 2 * self.eta * delta_q
 
             self.rmse.append(self.training_error())
-            print(self.rmse[-1])
+            print(m, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
             if len(self.rmse) > 1:
                 if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
                     break
                 if self.rmse[-1] > self.rmse[-2]:
                     print('RMSE getting larger')
+                    self.eta *= 0.5
+                else:
+                    self.eta *= 1.05
 
     def factorize_iterate(self):
         for m in range(self.nsteps):
@@ -240,11 +247,12 @@ class Factors(Recommender):
 
 class WeightedCFNN(CFNN):
     def __init__(self, m, k, nsteps=500, eta=0.00075, regularize=False,
-                 init_sim=True):
+                 init_sim=True, tol=1e-5):
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
         self.eta = eta
+        self.tol = tol
         self.regularize = regularize
         self.lamda = 0.02
         self.normalize = False
@@ -252,7 +260,7 @@ class WeightedCFNN(CFNN):
             self.w = np.copy(self.m.s)
         else:
             self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))
-            self.eta *= 5
+            # self.eta *= 5
         w_init = np.copy(self.w)
 
         print('init_sim =', init_sim)
@@ -261,6 +269,11 @@ class WeightedCFNN(CFNN):
         print('eta = ', self.eta)
 
         self.interpolate_weights()
+
+        print('init_sim =', init_sim)
+        print('k =', k)
+        print('lamda =', self.lamda)
+        print('eta = ', self.eta)
 
         diff = np.linalg.norm(w_init - self.w)
 
@@ -292,7 +305,7 @@ class WeightedCFNN(CFNN):
         #     self.w -= 2 * self.eta * delta_w_i_j
         #     self.rmse.append(self.training_error())
         #     print('%.9f' % (self.rmse[-1]))
-        #     if len(self.rmse) > 1 and abs(self.rmse[-1] - self.rmse[-2]) < 1e-5:
+        #     if len(self.rmse) > 1 and abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
         #         break
 
         rt_not_nan_indices = self.m.rt_not_nan_indices
@@ -313,12 +326,15 @@ class WeightedCFNN(CFNN):
                         delta_w_i[j] += self.lamda * self.w[i, j]
                 self.w[i, :] -= 2 * self.eta * delta_w_i
             self.rmse.append(self.training_error())
-            print('%.9f' % (self.rmse[-1]))
+            print(step, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
             if len(self.rmse) > 1:
-                if abs(self.rmse[-1] - self.rmse[-2]) < 1e-5:
+                if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
                     break
                 if self.rmse[-1] > self.rmse[-2]:
                     print('RMSE getting larger')
+                    self.eta *= 0.5
+                else:
+                    self.eta *= 1.05
 
 
 def read_movie_lens_data():
@@ -381,15 +397,9 @@ if __name__ == '__main__':
     # um = UtilityMatrix(m, hidden=hidden)
 
     um = UtilityMatrix(m)
-    cfnn = CFNN(um, k=20)
-    # f = Factors(um, k=15, eta=0.000004, regularize=True, init_svd=True)
-    # f = Factors(um, k=15, eta=0.000004, regularize=True, init_svd=False)
-    # w = WeightedCFNN(um, k=15, eta=0.0000012, regularize=True)
-
-    print('CFNN', '%.4f' % cfnn.test_error())
-    # print('Factors', '%.4f' % f.test_error())
-    # print('Weighted CFNN', '%.4f' % w.test_error())
-    # print(np.dot(f.p, f.q.T))
+    # cfnn = CFNN(um, k=20)
+    # f = Factors(um, k=5, eta=0.00001, regularize=True, init_svd=False)
+    w = WeightedCFNN(um, k=15, eta=0.000001, regularize=True, init_sim=False)
 
     end_time = datetime.datetime.now()
     print('Duration: {}'.format(end_time - start_time))
