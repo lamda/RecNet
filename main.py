@@ -15,13 +15,14 @@ import sklearn.feature_extraction.text
 import sqlite3
 
 import decorators
-import recsys_test as recsys
+import recsys
 
 
 # np.random.seed(2014)
-DEBUG = True
-# DEBUG = False
+# DEBUG = True
+DEBUG = False
 DEBUG_SIZE = 255
+# DEBUG_SIZE = 750
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4 TODO make a list?
@@ -359,7 +360,7 @@ class RatingBasedRecommender(Recommender):
         um_centered = um_centered - np.nanmean(um_centered, axis=0)[np.newaxis, :]
         um_centered[np.where(np.isnan(um_centered))] = 0
 
-        # transpose M because pdist calculates similarities between lines
+        # transpose M because pdist calculates similarities between rows
         similarity = scipy.spatial.distance.pdist(um_centered.T, 'cosine')
 
         # correlation is undefined for zero vectors --> set it to the max
@@ -388,7 +389,7 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         q_centered[np.where(np.isnan(q_centered))] = 0
         q_centered = q_centered.T
 
-        # transpose M because pdist calculates similarities between lines
+        # transpose M because pdist calculates similarities between rows
         # similarity = scipy.spatial.distance.pdist(q.T, 'correlation')
         similarity = scipy.spatial.distance.pdist(q_centered, 'cosine')
 
@@ -397,29 +398,23 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         similarity[np.isnan(similarity)] = 2.0  # for correlation
         # similarity[np.isnan(similarity)] = 1.0  # for cosine
         similarity = scipy.spatial.distance.squareform(similarity)
+        # pdb.set_trace()
         return SimilarityMatrix(1 - similarity)
 
     # @profile
     # @decorators.Cached
-    def factorize(self, m, k=100, eta=0.000005, nsteps=500):
+    def factorize(self, m, k=15, eta=0.000005, nsteps=500):
         # k should be smaller than #users and #items (2-300?)
         m = m.astype(float)
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
         # with open('m.obj', 'wb') as outfile:
         #     pickle.dump(m_nan, outfile)
-        if DEBUG:
-            k = 15
-        print(eta)
+        # sys.exit()
         um = recsys.UtilityMatrix(m_nan)
         # f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, eta=eta)
-        f = recsys.Factors(um, k, regularize=True, eta=0.000004)
-        print('test error:', f.test_error())
-        pdb.set_trace()
+        f = recsys.Factors(um, k=25, regularize=True, eta=0.0000006, init_svd=True)
         return f.q
-        # print(np.dot(f.p, f.q.T))
-        # pdb.set_trace()
-        # return np.dot(f.p, f.q.T)
 
 
 class InterpolationWeightRecommender(RatingBasedRecommender):
@@ -434,32 +429,20 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
         w = self.get_interpolation_weights(um)
-        # TODO: use adjusted cosine similarity?
-
-        # transpose M because pdist calculates similarities between lines
-        similarity = scipy.spatial.distance.pdist(w, 'correlation')
-        # similarity = scipy.spatial.distance.pdist(q, 'cosine')
-
-        # correlation is undefined for zero vectors --> set it to the max
-        # max distance is 2 because the pearson correlation runs from -1...+1
-        similarity[np.isnan(similarity)] = 2.0  # for correlation
-        # similarity[np.isnan(similarity)] = 1.0  # for cosine
-        similarity = scipy.spatial.distance.squareform(similarity)
-        return SimilarityMatrix(1 - similarity)
+        return SimilarityMatrix(w)
 
     # @profile
     # @decorators.Cached
-    def get_interpolation_weights(self, m, nsteps=500, eta=0.00001, n=15):
+    def get_interpolation_weights(self, m, nsteps=500, eta=0.00001, n=10):
         # typical values for n lie in the range of 20-50 (Bell & Koren 2007)
         m = m.astype(float)
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
-        # with open('m255.obj', 'wb') as outfile:
-        #     pickle.dump(m_nan, outfile)
-        # sys.exit()
         um = recsys.UtilityMatrix(m_nan)
-        wf = recsys.WeightedCFNN(um, k=75, nsteps=nsteps, eta=0.00001, regularize=True)
-        print('test error:', wf.test_error())
+        # wf = recsys.WeightedCFNN(um, k=10, eta=0.0008, regularize=True, init_sim=True)
+        wf = recsys.WeightedCFNN(um, k=5, eta=0.00008, regularize=True, init_sim=True)
+        # wf = recsys.WeightedCFNN(um, k=10, eta=0.000005, regularize=True, init_sim=True) # DEBUG
+        # wf = recsys.WeightedCFNN(um, k=10, eta=0.0001, regularize=True, init_sim=True) # DEBUG 750
         return wf.w
 
 
@@ -482,10 +465,21 @@ if __name__ == '__main__':
     start_time = datetime.now()
     # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
     # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
-    # mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
-    iwrbr = InterpolationWeightRecommender(dataset='movielens'); iwrbr.get_recommendations()
+    mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
+    # iwrbr = InterpolationWeightRecommender(dataset='movielens'); iwrbr.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
+
+    # values for MovieLens:
+    #    CFNN, k = 10
+    #    IW, k = 10, init = sim
+    #    MF, k = 25, init = SVD
+    #
+    # values for BookCrossing:
+    #    CFNN, k =
+    #    IW, k = , init =
+    #    MF, k = , init =
+
 
 
 
