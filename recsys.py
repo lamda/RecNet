@@ -143,7 +143,7 @@ class CFNN(Recommender):
                 s = sum(self.w[i, j] for j in n_u_i)
                 if not np.isfinite(r/sum(self.w[i, j] for j in n_u_i)) or np.isnan(r/sum(self.w[i, j] for j in n_u_i)):
                     pdb.set_trace()
-                r /= sum(self.w[i, j] for j in n_u_i)
+                r /= s
         return b_xi + r
 
 
@@ -254,7 +254,7 @@ class WeightedCFNN(CFNN):
         self.eta = eta
         self.tol = tol
         self.regularize = regularize
-        self.lamda = 0.02
+        self.lamda = 0.05
         self.normalize = False
         if init_sim:
             self.w = np.copy(self.m.s)
@@ -282,49 +282,26 @@ class WeightedCFNN(CFNN):
 
     # @profile
     def interpolate_weights(self):
-        ucount = self.m.rt.shape[0]
         icount = self.m.rt.shape[1]
 
-        # rt_nan_indices = set(self.m.rt_nan_indices)
-        # m = self.m
-        # for step in xrange(self.nsteps):
-        #     print(step, end='\r')
-        #     delta_w_i_j = np.zeros((icount, icount))
-        #     for i in xrange(icount):
-        #         print(i+1, '/', icount, end='\r')
-        #         for u in xrange(ucount):
-        #             if (u, i) in rt_nan_indices:
-        #                 continue
-        #             s_u_i = m.similar_items(u, i, self.k)
-        #             error = sum(self.w[i, k] * m.rt[u, k] for k in s_u_i) \
-        #                 - m.rt[u, i]
-        #             for j in s_u_i:
-        #                 delta_w_i_j[i, j] += error * m.rt[u, j]
-        #                 if self.regularize:
-        #                     delta_w_i_j[i, j] += self.lamda * self.w[i, j]
-        #     self.w -= 2 * self.eta * delta_w_i_j
-        #     self.rmse.append(self.training_error())
-        #     print('%.9f' % (self.rmse[-1]))
-        #     if len(self.rmse) > 1 and abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
-        #         break
-
-        rt_not_nan_indices = self.m.rt_not_nan_indices
+        rt_nan_indices = set(self.m.rt_nan_indices)
+        ucount = self.m.rt.shape[0]
         m = self.m
         for step in xrange(self.nsteps):
             print(step, end='\r')
-            for idx, ui in enumerate(rt_not_nan_indices):
-                u, i = ui
-                if (idx % 10000) == 0:
-                    print(idx, '/', len(rt_not_nan_indices), end='\r')
-                delta_w_i = np.zeros(icount)
-                s_u_i = m.similar_items(u, i, self.k)
-                error = sum(self.w[i, k] * m.rt[u, k] for k in s_u_i) \
-                    - m.rt[u, i]
-                for j in s_u_i:
-                    delta_w_i[j] += error * m.rt[u, j]
-                    if self.regularize:
-                        delta_w_i[j] += self.lamda * self.w[i, j]
-                self.w[i, :] -= 2 * self.eta * delta_w_i
+            delta_w_i_j = np.zeros((icount, icount))
+            for i in xrange(icount):
+                for u in xrange(ucount):
+                    if (u, i) in rt_nan_indices:
+                        continue
+                    s_u_i = m.similar_items(u, i, self.k)
+                    error = sum(self.w[i, k] * m.rt[u, k] for k in s_u_i) \
+                        - m.rt[u, i]
+                    for j in s_u_i:
+                        delta_w_i_j[i, j] += error * m.rt[u, j]
+                        if self.regularize:
+                            delta_w_i_j[i, j] += self.lamda * self.w[i, j]
+            self.w -= 2 * self.eta * delta_w_i_j
             self.rmse.append(self.training_error())
             print(step, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
             if len(self.rmse) > 1:
