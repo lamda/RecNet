@@ -194,16 +194,59 @@ class Factors(Recommender):
         self.plot_rmse('%.4f' % diff, suffix='svd' if init_svd else 'random')
         print('test error: %.4f' % self.test_error())
 
-    def predict(self, u, i):
+    def predict_old(self, u, i):
         p_u = self.p[u, :]
         q_i = self.q[i, :]
         return np.dot(p_u, q_i.T)
 
-    def factorize(self):
+    def predict(self, u, i):
+        b_xi = self.m.mu + self.m.b_u[u] + self.m.b_i[i]
+        if np.isnan(b_xi):
+            if np.isnan(self.m.b_u[u]) and np.isnan(self.m.b_i[i]):
+                return self.m.mu
+            elif np.isnan(self.m.b_u[u]):
+                return self.m.mu + self.m.b_i[i]
+            else:
+                return self.m.mu + self.m.b_u[u]
+        p_u = self.p[u, :]
+        q_i = self.q[i, :]
+        return b_xi + np.dot(p_u, q_i.T)
+
+    def factorize_old(self):
         for m in range(self.nsteps):
             masked = np.ma.array(self.m.rt, mask=np.isnan(self.m.rt))
-            delta_p = np.ma.dot(np.dot(self.p, self.q.T) - masked, self.q)
-            delta_q = np.ma.dot((np.dot(self.p, self.q.T) - masked).T, self.p)
+            err = np.dot(self.p, self.q.T) - masked
+            delta_p = np.ma.dot(err, self.q)
+            delta_q = np.ma.dot(err.T, self.p)
+
+            if self.regularize:
+                delta_p += self.lamda * self.p
+                delta_q += self.lamda * self.q
+
+            self.p -= 2 * self.eta * delta_p
+            self.q -= 2 * self.eta * delta_q
+
+            self.rmse.append(self.training_error())
+            print(m, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
+            if len(self.rmse) > 1:
+                if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
+                    break
+                if self.rmse[-1] > self.rmse[-2]:
+                    print('RMSE getting larger')
+                    self.eta *= 0.5
+                else:
+                    self.eta *= 1.05
+
+    def factorize(self):
+        ucount = self.m.rt.shape[0]
+        icount = self.m.rt.shape[1]
+        B_u = np.tile(self.m.b_u, (icount, 1)).T
+        B_i = np.tile(self.m.b_i, (ucount, 1))
+        for m in range(self.nsteps):
+            masked = np.ma.array(self.m.rt, mask=np.isnan(self.m.rt))
+            err = np.dot(self.p, self.q.T) + self.m.mu + B_u + B_i - masked
+            delta_p = np.ma.dot(err, self.q)
+            delta_q = np.ma.dot(err.T, self.p)
 
             if self.regularize:
                 delta_p += self.lamda * self.p
@@ -346,9 +389,9 @@ def read_movie_lens_data():
 if __name__ == '__main__':
     start_time = datetime.datetime.now()
 
-    with open('m.obj', 'rb') as infile:  # complete MovieLens matrix
-        m = pickle.load(infile).astype(float)
-    m[m == 0] = np.nan
+    # with open('m.obj', 'rb') as infile:  # complete MovieLens matrix
+    #     m = pickle.load(infile).astype(float)
+    # m[m == 0] = np.nan
 
     # with open('m255.obj', 'rb') as infile: # sample of 255 from MovieLens
     #     m = pickle.load(infile).astype(float)
@@ -356,27 +399,27 @@ if __name__ == '__main__':
 
     # m = read_movie_lens_data() # Denis's MovieLens sample
 
-    # m = np.array([  # simple test case
-    #     [5, 1, np.NAN, 2, 2, 4, 3, 2],
-    #     [1, 5, 2, 5, 5, 1, 1, 4],
-    #     [2, np.NAN, 3, 5, 4, 1, 2, 4],
-    #     [4, 3, 5, 3, np.NAN, 5, 3, np.NAN],
-    #     [2, np.NAN, 1, 3, np.NAN, 2, 5, 3],
-    #     [4, 1, np.NAN, 1, np.NAN, 4, 3, 2],
-    #     [4, 2, 1, 1, np.NAN, 5, 4, 1],
-    #     [5, 2, 2, np.NAN, 2, 5, 4, 1],
-    #     [4, 3, 3, np.NAN, np.NAN, 4, 3, np.NAN]
-    # ])
-    # hidden = np.array([
-    #     [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
-    #     [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
-    # ])
-    # um = UtilityMatrix(m, hidden=hidden)
+    m = np.array([  # simple test case
+        [5, 1, np.NAN, 2, 2, 4, 3, 2],
+        [1, 5, 2, 5, 5, 1, 1, 4],
+        [2, np.NAN, 3, 5, 4, 1, 2, 4],
+        [4, 3, 5, 3, np.NAN, 5, 3, np.NAN],
+        [2, np.NAN, 1, 3, np.NAN, 2, 5, 3],
+        [4, 1, np.NAN, 1, np.NAN, 4, 3, 2],
+        [4, 2, 1, 1, np.NAN, 5, 4, 1],
+        [5, 2, 2, np.NAN, 2, 5, 4, 1],
+        [4, 3, 3, np.NAN, np.NAN, 4, 3, np.NAN]
+    ])
+    hidden = np.array([
+        [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
+        [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
+    ])
+    um = UtilityMatrix(m, hidden=hidden)
 
-    um = UtilityMatrix(m)
+    # um = UtilityMatrix(m)
     # cfnn = CFNN(um, k=20)
-    # f = Factors(um, k=5, eta=0.00001, regularize=True, init_svd=False)
-    w = WeightedCFNN(um, k=15, eta=0.000001, regularize=True, init_sim=False)
+    f = Factors(um, k=5, eta=0.00001, regularize=True, init_svd=False)
+    # w = WeightedCFNN(um, k=15, eta=0.000001, regularize=True, init_sim=False)
 
     end_time = datetime.datetime.now()
     print('Duration: {}'.format(end_time - start_time))

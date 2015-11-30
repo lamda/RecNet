@@ -464,8 +464,8 @@ if __name__ == '__main__':
     start_time = datetime.now()
     # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
     # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
-    # mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
-    iwrbr = InterpolationWeightRecommender(dataset='movielens'); iwrbr.get_recommendations()
+    mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
+    # iwrbr = InterpolationWeightRecommender(dataset='movielens'); iwrbr.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 
