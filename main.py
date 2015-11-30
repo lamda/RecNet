@@ -438,8 +438,8 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         m_nan[m_nan == 0] = np.nan
         um = recsys.UtilityMatrix(m_nan)
         # wf = recsys.WeightedCFNN(um, k=2, eta=0.00001, regularize=True, init_sim=True)
-        wf = recsys.WeightedCFNN(um, k=5, eta=0.00001, regularize=True, init_sim=False)
-        # wf = recsys.WeightedCFNN(um, k=10, eta=0.000001, regularize=True, init_sim=True)
+        # wf = recsys.WeightedCFNN(um, k=5, eta=0.00001, regularize=True, init_sim=False)
+        wf = recsys.WeightedCFNN(um, k=5, eta=0.000001, regularize=True, init_sim=True)
         # wf = recsys.WeightedCFNN(um, k=5, eta=0.001, regularize=True, init_sim=False) # DEBUG
         # wf = recsys.WeightedCFNN(um, k=10, eta=0.0001, regularize=True, init_sim=True) # DEBUG 750
         return wf.w
@@ -464,8 +464,8 @@ if __name__ == '__main__':
     start_time = datetime.now()
     # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
     # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
-    mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
-    # iwrbr = InterpolationWeightRecommender(dataset='movielens'); iwrbr.get_recommendations()
+    # mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
+    iwrbr = InterpolationWeightRecommender(dataset='movielens'); iwrbr.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 
