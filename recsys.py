@@ -311,7 +311,7 @@ class WeightedCFNN(CFNN):
         print('lamda =', self.lamda)
         print('eta = ', self.eta)
 
-        self.interpolate_weights()
+        self.interpolate_weights_unbiased()
 
         print('init_sim =', init_sim)
         print('k =', k)
@@ -323,8 +323,15 @@ class WeightedCFNN(CFNN):
         self.plot_rmse('%.4f' % diff, suffix='svd' if init_sim else 'random')
         print('test error: %.4f' % self.test_error())
 
+    def predict(self, u, i):  # TODO use only for unbiased
+        n_u_i = self.m.similar_items(u, i, self.k)
+        r = 0
+        for j in n_u_i:
+            r += self.w[i, j] * self.m.r[u, j]
+        return r
+
     # @profile
-    def interpolate_weights_old(self):
+    def interpolate_weights_unbiased(self):
         icount = self.m.rt.shape[1]
         rt_nan_indices = set(self.m.rt_nan_indices)
         ucount = self.m.rt.shape[0]
@@ -356,7 +363,7 @@ class WeightedCFNN(CFNN):
                     self.eta *= 1.05
 
     # @profile
-    def interpolate_weights(self):
+    def interpolate_weights_biased(self):
         rt_nan_indices = set(self.m.rt_nan_indices)
         ucount = self.m.rt.shape[0]
         icount = self.m.rt.shape[1]
@@ -427,30 +434,30 @@ if __name__ == '__main__':
     #     m = pickle.load(infile).astype(float)
     # m[m == 0] = np.nan
 
-    with open('m255.obj', 'rb') as infile: # sample of 255 from MovieLens
-        m = pickle.load(infile).astype(float)
-    m[m == 0] = np.nan
+    # with open('m255.obj', 'rb') as infile: # sample of 255 from MovieLens
+    #     m = pickle.load(infile).astype(float)
+    # m[m == 0] = np.nan
 
     # m = read_movie_lens_data() # Denis's MovieLens sample
 
-    # m = np.array([  # simple test case
-    #     [5, 1, np.NAN, 2, 2, 4, 3, 2],
-    #     [1, 5, 2, 5, 5, 1, 1, 4],
-    #     [2, np.NAN, 3, 5, 4, 1, 2, 4],
-    #     [4, 3, 5, 3, np.NAN, 5, 3, np.NAN],
-    #     [2, np.NAN, 1, 3, np.NAN, 2, 5, 3],
-    #     [4, 1, np.NAN, 1, np.NAN, 4, 3, 2],
-    #     [4, 2, 1, 1, np.NAN, 5, 4, 1],
-    #     [5, 2, 2, np.NAN, 2, 5, 4, 1],
-    #     [4, 3, 3, np.NAN, np.NAN, 4, 3, np.NAN]
-    # ])
-    # hidden = np.array([
-    #     [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
-    #     [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
-    # ])
-    # um = UtilityMatrix(m, hidden=hidden)
+    m = np.array([  # simple test case
+        [5, 1, np.NAN, 2, 2, 4, 3, 2],
+        [1, 5, 2, 5, 5, 1, 1, 4],
+        [2, np.NAN, 3, 5, 4, 1, 2, 4],
+        [4, 3, 5, 3, np.NAN, 5, 3, np.NAN],
+        [2, np.NAN, 1, 3, np.NAN, 2, 5, 3],
+        [4, 1, np.NAN, 1, np.NAN, 4, 3, 2],
+        [4, 2, 1, 1, np.NAN, 5, 4, 1],
+        [5, 2, 2, np.NAN, 2, 5, 4, 1],
+        [4, 3, 3, np.NAN, np.NAN, 4, 3, np.NAN]
+    ])
+    hidden = np.array([
+        [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
+        [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
+    ])
+    um = UtilityMatrix(m, hidden=hidden)
 
-    um = UtilityMatrix(m)
+    # um = UtilityMatrix(m)
     # cfnn = CFNN(um, k=20)
     # f = Factors(um, k=5, eta=0.00001, regularize=True, init_svd=False)
     w = WeightedCFNN(um, k=5, eta=0.000001, regularize=True, init_sim=False)

@@ -437,11 +437,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
         um = recsys.UtilityMatrix(m_nan)
-        # wf = recsys.WeightedCFNN(um, k=2, eta=0.00001, regularize=True, init_sim=True)
-        # wf = recsys.WeightedCFNN(um, k=5, eta=0.00001, regularize=True, init_sim=False)
-        wf = recsys.WeightedCFNN(um, k=5, eta=0.000001, regularize=True, init_sim=True)
-        # wf = recsys.WeightedCFNN(um, k=5, eta=0.001, regularize=True, init_sim=False) # DEBUG
-        # wf = recsys.WeightedCFNN(um, k=10, eta=0.0001, regularize=True, init_sim=True) # DEBUG 750
+        wf = recsys.WeightedCFNN(um, k=15, eta=0.00001, regularize=True, init_sim=False)
         return wf.w
 
 
