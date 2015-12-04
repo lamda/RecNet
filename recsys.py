@@ -303,7 +303,6 @@ class WeightedCFNN(CFNN):
             self.w = np.copy(self.m.s)
         else:
             self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))
-            # self.eta *= 5
         w_init = np.copy(self.w)
 
         print('init_sim =', init_sim)
@@ -311,7 +310,7 @@ class WeightedCFNN(CFNN):
         print('lamda =', self.lamda)
         print('eta = ', self.eta)
 
-        self.interpolate_weights_unbiased()
+        self.interpolate_weights()
 
         print('init_sim =', init_sim)
         print('k =', k)
@@ -321,49 +320,11 @@ class WeightedCFNN(CFNN):
         diff = np.linalg.norm(w_init - self.w)
 
         self.plot_rmse('%.4f' % diff, suffix='svd' if init_sim else 'random')
+        print(self.__class__.__name__)
         print('test error: %.4f' % self.test_error())
 
-    def predict(self, u, i):  # TODO use only for unbiased
-        n_u_i = self.m.similar_items(u, i, self.k)
-        r = 0
-        for j in n_u_i:
-            r += self.w[i, j] * self.m.r[u, j]
-        return r
-
     # @profile
-    def interpolate_weights_unbiased(self):
-        icount = self.m.rt.shape[1]
-        rt_nan_indices = set(self.m.rt_nan_indices)
-        ucount = self.m.rt.shape[0]
-        m = self.m
-        for step in xrange(self.nsteps):
-            print(step, end='\r')
-            delta_w_i_j = np.zeros((icount, icount))
-            for i in xrange(icount):
-                for u in xrange(ucount):
-                    if (u, i) in rt_nan_indices:
-                        continue
-                    s_u_i = m.similar_items(u, i, self.k)
-                    error = sum(self.w[i, k] * m.rt[u, k] for k in s_u_i) \
-                        - m.rt[u, i]
-                    for j in s_u_i:
-                        delta_w_i_j[i, j] += error * m.rt[u, j]
-                        if self.regularize:
-                            delta_w_i_j[i, j] += self.lamda * self.w[i, j]
-            self.w -= 2 * self.eta * delta_w_i_j
-            self.rmse.append(self.training_error())
-            print(step, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
-            if len(self.rmse) > 1:
-                if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
-                    break
-                if self.rmse[-1] > self.rmse[-2]:
-                    print('RMSE getting larger')
-                    self.eta *= 0.5
-                else:
-                    self.eta *= 1.05
-
-    # @profile
-    def interpolate_weights_biased(self):
+    def interpolate_weights(self):
         rt_nan_indices = set(self.m.rt_nan_indices)
         ucount = self.m.rt.shape[0]
         icount = self.m.rt.shape[1]
@@ -380,9 +341,85 @@ class WeightedCFNN(CFNN):
                     if (u, i) in rt_nan_indices:
                         continue
                     s_u_i = m.similar_items(u, i, self.k)
-                    error = m.b[u, i] + sum(self.w[i, k] * m.rtb[u, k] for k in s_u_i) - m.rt[u, i]
+                    error = m.b[u, i] - m.rt[u, i] +\
+                            sum(self.w[i, k] * m.rtb[u, k] for k in s_u_i)
                     for j in s_u_i:
                         delta_w_i_j[i, j] += error * m.rtb[u, j]
+                        if self.regularize:
+                            delta_w_i_j[i, j] += self.lamda * self.w[i, j]
+            self.w -= 2 * self.eta * delta_w_i_j
+            self.rmse.append(self.training_error())
+            print(step, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
+            if len(self.rmse) > 1:
+                if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
+                    break
+                if self.rmse[-1] > self.rmse[-2]:
+                    print('RMSE getting larger')
+                    self.eta *= 0.5
+                else:
+                    self.eta *= 1.05
+
+
+class WeightedCFNNUnbiased(CFNN):
+    def __init__(self, m, k, nsteps=500, eta=0.00075, regularize=False,
+                 init_sim=True, tol=1e-5):
+        Recommender.__init__(self, m)
+        self.k = k
+        self.nsteps = nsteps
+        self.eta = eta
+        self.tol = tol
+        self.regularize = regularize
+        self.lamda = 0.05
+        self.normalize = False
+        if init_sim:
+            self.w = np.copy(self.m.s)
+        else:
+            self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))
+        w_init = np.copy(self.w)
+
+        print('init_sim =', init_sim)
+        print('k =', k)
+        print('lamda =', self.lamda)
+        print('eta = ', self.eta)
+
+        self.interpolate_weights()
+
+        print('init_sim =', init_sim)
+        print('k =', k)
+        print('lamda =', self.lamda)
+        print('eta = ', self.eta)
+
+        diff = np.linalg.norm(w_init - self.w)
+
+        self.plot_rmse('%.4f' % diff, suffix='svd' if init_sim else 'random')
+        print(self.__class__.__name__)
+        print('test error: %.4f' % self.test_error())
+
+    def predict(self, u, i):
+        n_u_i = self.m.similar_items(u, i, self.k)
+        r = 0
+        for j in n_u_i:
+            r += self.w[i, j] * self.m.r[u, j]
+        return r
+
+    # @profile
+    def interpolate_weights(self):
+        icount = self.m.rt.shape[1]
+        rt_nan_indices = set(self.m.rt_nan_indices)
+        ucount = self.m.rt.shape[0]
+        m = self.m
+        for step in xrange(self.nsteps):
+            print(step, end='\r')
+            delta_w_i_j = np.zeros((icount, icount))
+            for i in xrange(icount):
+                for u in xrange(ucount):
+                    if (u, i) in rt_nan_indices:
+                        continue
+                    s_u_i = m.similar_items(u, i, self.k)
+                    error = sum(self.w[i, k] * m.rt[u, k] for k in s_u_i) \
+                        - m.rt[u, i]
+                    for j in s_u_i:
+                        delta_w_i_j[i, j] += error * m.rt[u, j]
                         if self.regularize:
                             delta_w_i_j[i, j] += self.lamda * self.w[i, j]
             self.w -= 2 * self.eta * delta_w_i_j
@@ -426,7 +463,6 @@ def read_movie_lens_data():
 
     return r
 
-
 if __name__ == '__main__':
     start_time = datetime.datetime.now()
 
@@ -434,34 +470,45 @@ if __name__ == '__main__':
     #     m = pickle.load(infile).astype(float)
     # m[m == 0] = np.nan
 
-    # with open('m255.obj', 'rb') as infile: # sample of 255 from MovieLens
-    #     m = pickle.load(infile).astype(float)
-    # m[m == 0] = np.nan
+    with open('m255.obj', 'rb') as infile: # sample of 255 from MovieLens
+        m = pickle.load(infile).astype(float)
+    m[m == 0] = np.nan
 
     # m = read_movie_lens_data() # Denis's MovieLens sample
 
-    m = np.array([  # simple test case
-        [5, 1, np.NAN, 2, 2, 4, 3, 2],
-        [1, 5, 2, 5, 5, 1, 1, 4],
-        [2, np.NAN, 3, 5, 4, 1, 2, 4],
-        [4, 3, 5, 3, np.NAN, 5, 3, np.NAN],
-        [2, np.NAN, 1, 3, np.NAN, 2, 5, 3],
-        [4, 1, np.NAN, 1, np.NAN, 4, 3, 2],
-        [4, 2, 1, 1, np.NAN, 5, 4, 1],
-        [5, 2, 2, np.NAN, 2, 5, 4, 1],
-        [4, 3, 3, np.NAN, np.NAN, 4, 3, np.NAN]
-    ])
-    hidden = np.array([
-        [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
-        [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
-    ])
-    um = UtilityMatrix(m, hidden=hidden)
-
-    # um = UtilityMatrix(m)
+    # m = np.array([  # simple test case
+    #     [5, 1, np.NAN, 2, 2, 4, 3, 2],
+    #     [1, 5, 2, 5, 5, 1, 1, 4],
+    #     [2, np.NAN, 3, 5, 4, 1, 2, 4],
+    #     [4, 3, 5, 3, np.NAN, 5, 3, np.NAN],
+    #     [2, np.NAN, 1, 3, np.NAN, 2, 5, 3],
+    #     [4, 1, np.NAN, 1, np.NAN, 4, 3, 2],
+    #     [4, 2, 1, 1, np.NAN, 5, 4, 1],
+    #     [5, 2, 2, np.NAN, 2, 5, 4, 1],
+    #     [4, 3, 3, np.NAN, np.NAN, 4, 3, np.NAN]
+    # ])
+    # hidden = np.array([
+    #     [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
+    #     [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
+    # ])
+    # um = UtilityMatrix(m, hidden=hidden)
+    #
+    um = UtilityMatrix(m)
     # cfnn = CFNN(um, k=20)
     # f = Factors(um, k=5, eta=0.00001, regularize=True, init_svd=False)
-    w = WeightedCFNN(um, k=5, eta=0.000001, regularize=True, init_sim=False)
+    # w = WeightedCFNN(um, k=5, eta=0.000001, regularize=True, init_sim=False)
+    # w = WeightedCFNN(um, k=5, eta=0.000001, regularize=True, init_sim=True)
+    w = WeightedCFNNUnbiased(um, k=5, eta=0.000001, regularize=True, init_sim=False)
+    # w = WeightedCFNNUnbiased(um, k=5, eta=0.000001, regularize=True, init_sim=True)
     # w = WeightedCFNN(um, k=10, eta=0.0005, regularize=True, init_sim=False)
+
+    # errors = []
+    # for i in range(10):
+    #     um = UtilityMatrix(m)
+    #     w = WeightedCFNN(um, k=5, eta=0.000001, regularize=True, init_sim=False)
+    #     # w = WeightedCFNNUnbiased(um, k=5, eta=0.000001, regularize=True, init_sim=False)
+    #     errors.append(w.test_error())
+    # print('\nMean Error for WeightedCFNN:', np.mean(errors))
 
     end_time = datetime.datetime.now()
     print('Duration: {}'.format(end_time - start_time))

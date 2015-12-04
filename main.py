@@ -437,7 +437,9 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
         um = recsys.UtilityMatrix(m_nan)
-        wf = recsys.WeightedCFNN(um, k=15, eta=0.00001, regularize=True, init_sim=False)
+        wf = recsys.WeightedCFNN(um, k=15, eta=0.00001, regularize=True, init_sim=True)
+        with open('iw.obj', 'wb') as outfile:
+            pickle.dump(wf.w, outfile)
         return wf.w
 
 
