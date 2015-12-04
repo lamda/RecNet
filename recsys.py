@@ -289,15 +289,16 @@ class Factors(Recommender):
 
 
 class WeightedCFNN(CFNN):
-    def __init__(self, m, k, nsteps=500, eta=0.00075, regularize=False,
-                 init_sim=True, tol=1e-5):
+    def __init__(self, m, k, eta_type, nsteps=500, eta=0.00075, regularize=False,
+                 init_sim=True, tol=1e-5, lamda=0.1):
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
         self.eta = eta
+        self.eta_type = eta_type
         self.tol = tol
         self.regularize = regularize
-        self.lamda = 0.05
+        self.lamda = lamda
         self.normalize = False
         if init_sim:
             self.w = np.copy(self.m.s)
@@ -308,7 +309,8 @@ class WeightedCFNN(CFNN):
         print('init_sim =', init_sim)
         print('k =', k)
         print('lamda =', self.lamda)
-        print('eta = ', self.eta)
+        print('eta =', self.eta)
+        print('eta_type =', self.eta_type)
 
         self.interpolate_weights()
 
@@ -316,6 +318,7 @@ class WeightedCFNN(CFNN):
         print('k =', k)
         print('lamda =', self.lamda)
         print('eta = ', self.eta)
+        print('eta_type =', self.eta_type)
 
         diff = np.linalg.norm(w_init - self.w)
 
@@ -354,85 +357,20 @@ class WeightedCFNN(CFNN):
                 if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
                     break
                 if self.rmse[-1] > self.rmse[-2]:
-                    print('RMSE getting larger')
-                    self.eta *= 0.5
+                    if self.eta_type == 'constant':
+                        break
+                    else: # 'increasing' or 'bold_driver'
+                        print('RMSE getting larger')
+                        self.w += 2 * self.eta * delta_w_i_j  # reset parameters
+                        self.eta *= 0.5
+                        del self.rmse[-1]
+                        if self.eta_type == 'increasing':
+                            break
                 else:
-                    self.eta *= 1.05
-
-
-class WeightedCFNNUnbiased(CFNN):
-    def __init__(self, m, k, nsteps=500, eta=0.00075, regularize=False,
-                 init_sim=True, tol=1e-5):
-        Recommender.__init__(self, m)
-        self.k = k
-        self.nsteps = nsteps
-        self.eta = eta
-        self.tol = tol
-        self.regularize = regularize
-        self.lamda = 0.05
-        self.normalize = False
-        if init_sim:
-            self.w = np.copy(self.m.s)
-        else:
-            self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))
-        w_init = np.copy(self.w)
-
-        print('init_sim =', init_sim)
-        print('k =', k)
-        print('lamda =', self.lamda)
-        print('eta = ', self.eta)
-
-        self.interpolate_weights()
-
-        print('init_sim =', init_sim)
-        print('k =', k)
-        print('lamda =', self.lamda)
-        print('eta = ', self.eta)
-
-        diff = np.linalg.norm(w_init - self.w)
-
-        self.plot_rmse('%.4f' % diff, suffix='svd' if init_sim else 'random')
-        print(self.__class__.__name__)
-        print('test error: %.4f' % self.test_error())
-
-    def predict(self, u, i):
-        n_u_i = self.m.similar_items(u, i, self.k)
-        r = 0
-        for j in n_u_i:
-            r += self.w[i, j] * self.m.r[u, j]
-        return r
-
-    # @profile
-    def interpolate_weights(self):
-        icount = self.m.rt.shape[1]
-        rt_nan_indices = set(self.m.rt_nan_indices)
-        ucount = self.m.rt.shape[0]
-        m = self.m
-        for step in xrange(self.nsteps):
-            print(step, end='\r')
-            delta_w_i_j = np.zeros((icount, icount))
-            for i in xrange(icount):
-                for u in xrange(ucount):
-                    if (u, i) in rt_nan_indices:
-                        continue
-                    s_u_i = m.similar_items(u, i, self.k)
-                    error = sum(self.w[i, k] * m.rt[u, k] for k in s_u_i) \
-                        - m.rt[u, i]
-                    for j in s_u_i:
-                        delta_w_i_j[i, j] += error * m.rt[u, j]
-                        if self.regularize:
-                            delta_w_i_j[i, j] += self.lamda * self.w[i, j]
-            self.w -= 2 * self.eta * delta_w_i_j
-            self.rmse.append(self.training_error())
-            print(step, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
-            if len(self.rmse) > 1:
-                if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
-                    break
-                if self.rmse[-1] > self.rmse[-2]:
-                    print('RMSE getting larger')
-                    self.eta *= 0.5
-                else:
-                    self.eta *= 1.05
+                    if self.eta_type == 'constant':
+                        pass
+                    else:  # 'increasing' or 'bold_driver'
+                        self.eta *= 1.1
 
 
 def read_movie_lens_data():
@@ -496,11 +434,10 @@ if __name__ == '__main__':
     um = UtilityMatrix(m)
     # cfnn = CFNN(um, k=20)
     # f = Factors(um, k=5, eta=0.00001, regularize=True, init_svd=False)
-    # w = WeightedCFNN(um, k=5, eta=0.000001, regularize=True, init_sim=False)
-    # w = WeightedCFNN(um, k=5, eta=0.000001, regularize=True, init_sim=True)
-    w = WeightedCFNNUnbiased(um, k=5, eta=0.000001, regularize=True, init_sim=False)
-    # w = WeightedCFNNUnbiased(um, k=5, eta=0.000001, regularize=True, init_sim=True)
-    # w = WeightedCFNN(um, k=10, eta=0.0005, regularize=True, init_sim=False)
+    w = WeightedCFNN(um, eta_type='constant', k=5, eta=0.001, regularize=True, init_sim=True)
+    # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
+    # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=True)
+
 
     # errors = []
     # for i in range(10):

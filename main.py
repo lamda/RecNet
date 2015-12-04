@@ -254,9 +254,9 @@ class Recommender(object):
     def get_recommendations(self):
         strategies = [
             TopNRecommendationStrategy,
-            TopNDivRandomRecommendationStrategy,
-            TopNDivDiversifyRecommendationStrategy,
-            TopNDivExpRelRecommendationStrategy,
+            # TopNDivRandomRecommendationStrategy,
+            # TopNDivDiversifyRecommendationStrategy,
+            # TopNDivExpRelRecommendationStrategy,
         ]
 
         for strategy in strategies:
@@ -427,6 +427,11 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
         w = self.get_interpolation_weights(um)
+        # with open('iw.obj', 'rb') as infile:
+        #     print('DEBUG: loading IW matrix')
+        #     w = pickle.load(infile)
+        # print(np.sum(np.abs(w)))
+        # sys.exit()
         return SimilarityMatrix(w)
 
     # @profile
@@ -437,7 +442,9 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
         um = recsys.UtilityMatrix(m_nan)
-        wf = recsys.WeightedCFNN(um, k=15, eta=0.00001, regularize=True, init_sim=True)
+        # wf = recsys.WeightedCFNN(um, eta_type='constant', k=15, eta=0.0001, regularize=True, init_sim=True)
+        # wf = recsys.WeightedCFNN(um, eta_type='increasing', k=15, eta=0.0001, regularize=True, init_sim=True)
+        wf = recsys.WeightedCFNN(um, eta_type='bold_driver', k=15, eta=0.0001, regularize=True, init_sim=True)
         with open('iw.obj', 'wb') as outfile:
             pickle.dump(wf.w, outfile)
         return wf.w
