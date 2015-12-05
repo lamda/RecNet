@@ -52,9 +52,9 @@ class UtilityMatrix:
         return s
 
     def similar_items(self, u, i, k):
-        try:
-            return self.sirt_cache[(u, i)]
-        except KeyError:
+        # try:
+        #     return self.sirt_cache[(u, i)]
+        # except KeyError:
             r_u = self.rt[u, :]  # user ratings
             s_i = np.copy(self.s[i, :])  # item similarity
             # s_i[s_i < 0.0] = np.nan  # mask only to similar items
@@ -64,7 +64,7 @@ class UtilityMatrix:
 
             s_i_sorted = np.argsort(s_i)
             s_i_k = tuple(s_i_sorted[-k - nn:-nn])
-            self.sirt_cache[(u, i)] = s_i_k
+            # self.sirt_cache[(u, i)] = s_i_k
             return s_i_k
 
     def get_not_nan_indices(self, m):
@@ -148,13 +148,14 @@ class CFNN(Recommender):
 
 
 class Factors(Recommender):
-
-    def __init__(self, m, k, nsteps=500, eta=0.000004, regularize=False,
-                 newton=False, tol=1e-5, lamda=0.05, init_svd=True):
+    def __init__(self, m, k, eta_type, nsteps=500, eta=0.000004,
+                 regularize=False, newton=False, tol=1e-5, lamda=0.05,
+                 init_svd=True):
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
         self.eta = eta
+        self.eta_type = eta_type
         self.regularize = regularize
         self.newton = newton
         self.tol = tol
@@ -181,6 +182,7 @@ class Factors(Recommender):
         print('k =', k)
         print('lamda =', self.lamda)
         print('eta = ', self.eta)
+        print('eta_type = ', self.eta_type)
 
         self.factorize()
 
@@ -188,6 +190,7 @@ class Factors(Recommender):
         print('k =', k)
         print('lamda =', self.lamda)
         print('eta = ', self.eta)
+        print('eta:type = ', self.eta_type)
 
         diff = np.linalg.norm(p_init - self.p) + np.linalg.norm(q_init - self.q)
 
@@ -233,9 +236,19 @@ class Factors(Recommender):
                     break
                 if self.rmse[-1] > self.rmse[-2]:
                     print('RMSE getting larger')
+                    self.p += 2 * self.eta * delta_p  # reset parameters
+                    self.q += 2 * self.eta * delta_q  # reset parameters
                     self.eta *= 0.5
+                    del self.rmse[-1]
+                    if self.eta_type == 'constant':
+                        break
+                    elif self.eta_type == 'increasing':
+                        break
                 else:
-                    self.eta *= 1.05
+                    if self.eta_type == 'constant':
+                        pass
+                    else:  # 'increasing' or 'bold_driver'
+                        self.eta *= 1.1
 
     def factorize_biased(self):
         ucount = self.m.rt.shape[0]
@@ -262,9 +275,19 @@ class Factors(Recommender):
                     break
                 if self.rmse[-1] > self.rmse[-2]:
                     print('RMSE getting larger')
+                    self.p += 2 * self.eta * delta_p  # reset parameters
+                    self.q += 2 * self.eta * delta_q  # reset parameters
                     self.eta *= 0.5
+                    del self.rmse[-1]
+                    if self.eta_type == 'constant':
+                        break
+                    elif self.eta_type == 'increasing':
+                        break
                 else:
-                    self.eta *= 1.05
+                    if self.eta_type == 'constant':
+                        pass
+                    else:  # 'increasing' or 'bold_driver'
+                        self.eta *= 1.1
 
     def factorize_iterate(self):
         for m in range(self.nsteps):
@@ -290,7 +313,7 @@ class Factors(Recommender):
 
 class WeightedCFNN(CFNN):
     def __init__(self, m, k, eta_type, nsteps=500, eta=0.00075, regularize=False,
-                 init_sim=True, tol=1e-5, lamda=0.1):
+                 init_sim=True, tol=1e-5, lamda=0.05):
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
@@ -345,7 +368,7 @@ class WeightedCFNN(CFNN):
                         continue
                     s_u_i = m.similar_items(u, i, self.k)
                     error = m.b[u, i] - m.rt[u, i] +\
-                            sum(self.w[i, k] * m.rtb[u, k] for k in s_u_i)
+                        sum(self.w[i, k] * m.rtb[u, k] for k in s_u_i)
                     for j in s_u_i:
                         delta_w_i_j[i, j] += error * m.rtb[u, j]
                         if self.regularize:
@@ -357,15 +380,14 @@ class WeightedCFNN(CFNN):
                 if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
                     break
                 if self.rmse[-1] > self.rmse[-2]:
+                    print('RMSE getting larger')
+                    self.w += 2 * self.eta * delta_w_i_j  # reset parameters
+                    self.eta *= 0.5
+                    del self.rmse[-1]
                     if self.eta_type == 'constant':
                         break
-                    else: # 'increasing' or 'bold_driver'
-                        print('RMSE getting larger')
-                        self.w += 2 * self.eta * delta_w_i_j  # reset parameters
-                        self.eta *= 0.5
-                        del self.rmse[-1]
-                        if self.eta_type == 'increasing':
-                            break
+                    elif self.eta_type == 'increasing':
+                        break
                 else:
                     if self.eta_type == 'constant':
                         pass
@@ -404,13 +426,13 @@ def read_movie_lens_data():
 if __name__ == '__main__':
     start_time = datetime.datetime.now()
 
-    # with open('m.obj', 'rb') as infile:  # complete MovieLens matrix
-    #     m = pickle.load(infile).astype(float)
-    # m[m == 0] = np.nan
-
-    with open('m255.obj', 'rb') as infile: # sample of 255 from MovieLens
+    with open('m.obj', 'rb') as infile:  # complete MovieLens matrix
         m = pickle.load(infile).astype(float)
     m[m == 0] = np.nan
+
+    # with open('m255.obj', 'rb') as infile: # sample of 255 from MovieLens
+    #     m = pickle.load(infile).astype(float)
+    # m[m == 0] = np.nan
 
     # m = read_movie_lens_data() # Denis's MovieLens sample
 
@@ -432,11 +454,11 @@ if __name__ == '__main__':
     # um = UtilityMatrix(m, hidden=hidden)
     #
     um = UtilityMatrix(m)
-    # cfnn = CFNN(um, k=20)
-    # f = Factors(um, k=5, eta=0.00001, regularize=True, init_svd=False)
-    w = WeightedCFNN(um, eta_type='constant', k=5, eta=0.001, regularize=True, init_sim=True)
+    cfnn = CFNN(um, k=15); print(cfnn.test_error())
+    # f = Factors(um, k=5, eta_type='bold_driver', eta=0.00001, regularize=True, init_svd=False)
+    # w = WeightedCFNN(um, eta_type='constant', k=5, eta=0.001, regularize=True, init_sim=True)
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
-    # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=True)
+    # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
 
 
     # errors = []

@@ -9,6 +9,7 @@ import cPickle as pickle
 # import nltk
 import os
 import pandas as pd
+pd.set_option('display.width', 1000)
 import pdb
 import scipy.spatial.distance
 import sklearn.feature_extraction.text
@@ -406,9 +407,6 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         # k should be smaller than #users and #items (2-300?)
         m = m.astype(float)
         m[m == 0] = np.nan
-        # with open('m.obj', 'wb') as outfile:
-        #     pickle.dump(m, outfile)
-        # sys.exit()
         um = recsys.UtilityMatrix(m)
         # f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, eta=eta)
         f = recsys.Factors(um, k=15, nsteps=1000, regularize=True, eta=0.00001, lamda=0.05, init_svd=False)
@@ -423,13 +421,52 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         self.similarity_matrix = self.get_similarity_matrix()
         super(RatingBasedRecommender, self).get_recommendations()
 
+    def get_coratings_all(self, um, mid, w):
+        d = collections.defaultdict(int)
+        for line in um:
+            if line[mid] != 0:
+                ratings = [r for r in np.nonzero(line)[0] if r != mid]
+                for r in ratings:
+                    d[r] += 1
+        indices = np.arange(0, 3640)
+        coratings = [d[i] for i in indices]
+        titles = [self.id2original_title[idx] for idx in indices]
+        similarities = [w[mid, i] for i in indices]
+        df = pd.DataFrame(index=indices,
+                          data=zip(titles, coratings, similarities),
+                          columns=['title', 'coratings', 'similarity'])
+        return df
+
+    def get_coratings(self, um, mid, w, k=10):
+        d = collections.defaultdict(int)
+        not_nan_indices = set(um.rt_not_nan_indices)
+        for u in range(um.rt.shape[0]):
+            print(u, end='\r')
+            if (u, mid) in not_nan_indices:
+                similar = um.similar_items(u, mid, k)
+                for r in similar:
+                    d[r] += 1
+        indices = np.arange(0, 3640)
+        coratings = [d[i] for i in indices]
+        titles = [self.id2original_title[idx] for idx in indices]
+        similarities = [w[mid, i] for i in indices]
+        df = pd.DataFrame(index=indices,
+                          data=zip(titles, coratings, similarities),
+                          columns=['title', 'coratings', 'similarity'])
+        return df
+
     # @decorators.Cached # TODO
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
-        w = self.get_interpolation_weights(um)
-        # with open('iw.obj', 'rb') as infile:
-        #     print('DEBUG: loading IW matrix')
-        #     w = pickle.load(infile)
+        from recsys import UtilityMatrix
+        umrs = UtilityMatrix(um.astype(float))
+        # w = self.get_interpolation_weights(um)
+        with open('iw.obj', 'rb') as infile:
+            print('DEBUG: loading IW matrix')
+            w = pickle.load(infile)
+        pdb.set_trace()
+        df = self.get_coratings(umrs, 0, w)
+        df2 = df[df['coratings'] > 0]; df2.sort_values('similarity')
         # print(np.sum(np.abs(w)))
         # sys.exit()
         return SimilarityMatrix(w)
@@ -442,9 +479,14 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
         um = recsys.UtilityMatrix(m_nan)
-        # wf = recsys.WeightedCFNN(um, eta_type='constant', k=15, eta=0.0001, regularize=True, init_sim=True)
-        # wf = recsys.WeightedCFNN(um, eta_type='increasing', k=15, eta=0.0001, regularize=True, init_sim=True)
-        wf = recsys.WeightedCFNN(um, eta_type='bold_driver', k=15, eta=0.0001, regularize=True, init_sim=True)
+        # with open('m.obj', 'wb') as outfile:
+        #     pickle.dump(m, outfile)
+        # sys.exit()
+        # wf = recsys.WeightedCFNN(um, eta_type='constant', k=10, eta=0.0001, regularize=True, init_sim=True)
+        wf = recsys.WeightedCFNN(um, eta_type='increasing', k=10, eta=0.0001, regularize=True, init_sim=True)
+        # wf = recsys.WeightedCFNN(um, eta_type='bold_driver', k=10, eta=0.0001, regularize=True, init_sim=False)
+        # Jetzt probier ich gerade, ob nicht random sondern *0.1 einen Einfluss hat (am server unten)
+        # am server oben: ob init_sim/k was bringt
         with open('iw.obj', 'wb') as outfile:
             pickle.dump(wf.w, outfile)
         return wf.w
