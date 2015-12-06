@@ -51,10 +51,19 @@ class UtilityMatrix:
 
         return s
 
+    def get_coratings(self, k):
+        co = np.zeros((self.rt.shape[1], self.rt.shape[1]))
+        for u, line in enumerate(self.rt):
+            for i in np.where(~np.isnan(line))[0]:
+                similar_items = self.similar_items(u, i, k)
+                for s in similar_items:
+                    co[i, s] += 1
+        return co
+
     def similar_items(self, u, i, k):
-        # try:
-        #     return self.sirt_cache[(u, i)]
-        # except KeyError:
+        try:
+            return self.sirt_cache[(u, i, k)]
+        except KeyError:
             r_u = self.rt[u, :]  # user ratings
             s_i = np.copy(self.s[i, :])  # item similarity
             # s_i[s_i < 0.0] = np.nan  # mask only to similar items
@@ -64,7 +73,7 @@ class UtilityMatrix:
 
             s_i_sorted = np.argsort(s_i)
             s_i_k = tuple(s_i_sorted[-k - nn:-nn])
-            # self.sirt_cache[(u, i)] = s_i_k
+            self.sirt_cache[(u, i, k)] = s_i_k
             return s_i_k
 
     def get_not_nan_indices(self, m):
@@ -123,7 +132,7 @@ class CFNN(Recommender):
         print('k =', k)
 
     def predict(self, u, i):
-        # predict a item-based CF rating based on the training data
+        # predict an item-based CF rating based on the training data
         b_xi = self.m.mu + self.m.b_u[u] + self.m.b_i[i]
         if np.isnan(b_xi):
             if np.isnan(self.m.b_u[u]) and np.isnan(self.m.b_i[i]):
@@ -216,7 +225,7 @@ class Factors(Recommender):
         return b_xi + np.dot(p_u, q_i.T)
 
     def factorize(self):
-        for m in range(self.nsteps):
+        for m in xrange(self.nsteps):
             masked = np.ma.array(self.m.rt, mask=np.isnan(self.m.rt))
             err = np.dot(self.p, self.q.T) - masked
             delta_p = np.ma.dot(err, self.q)
@@ -255,7 +264,7 @@ class Factors(Recommender):
         icount = self.m.rt.shape[1]
         B_u = np.tile(self.m.b_u, (icount, 1)).T
         B_i = np.tile(self.m.b_i, (ucount, 1))
-        for m in range(self.nsteps):
+        for m in xrange(self.nsteps):
             masked = np.ma.array(self.m.rt, mask=np.isnan(self.m.rt))
             err = np.dot(self.p, self.q.T) + self.m.mu + B_u + B_i - masked
             delta_p = np.ma.dot(err, self.q)
@@ -290,7 +299,7 @@ class Factors(Recommender):
                         self.eta *= 1.1
 
     def factorize_iterate(self):
-        for m in range(self.nsteps):
+        for m in xrange(self.nsteps):
             print(m, end='\r')
             delta_p = np.zeros((self.m.rt.shape[0], self.k))
             delta_q = np.zeros((self.m.rt.shape[1], self.k))
@@ -312,8 +321,8 @@ class Factors(Recommender):
 
 
 class WeightedCFNN(CFNN):
-    def __init__(self, m, k, eta_type, nsteps=500, eta=0.00075, regularize=False,
-                 init_sim=True, tol=1e-5, lamda=0.05):
+    def __init__(self, m, k, eta_type, init, nsteps=500, eta=0.00075,
+                 tol=1e-5, lamda=0.05, regularize = False):
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
@@ -323,21 +332,23 @@ class WeightedCFNN(CFNN):
         self.regularize = regularize
         self.lamda = lamda
         self.normalize = False
-        if init_sim:
+        if init == 'sim':
             self.w = np.copy(self.m.s)
-        else:
+        elif init == 'random':
             self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))
+        elif init == 'zeros':
+            self.w = np.zeros((self.m.rt.shape[1], self.m.rt.shape[1]))
         w_init = np.copy(self.w)
 
-        print('init_sim =', init_sim)
+        print('init =', init)
         print('k =', k)
         print('lamda =', self.lamda)
         print('eta =', self.eta)
         print('eta_type =', self.eta_type)
 
-        self.interpolate_weights()
+        self.interpolate_weights_old()
 
-        print('init_sim =', init_sim)
+        print('init =', init)
         print('k =', k)
         print('lamda =', self.lamda)
         print('eta = ', self.eta)
@@ -345,12 +356,64 @@ class WeightedCFNN(CFNN):
 
         diff = np.linalg.norm(w_init - self.w)
 
-        self.plot_rmse('%.4f' % diff, suffix='svd' if init_sim else 'random')
+        self.plot_rmse('%.4f' % diff, suffix=init)
         print(self.__class__.__name__)
         print('test error: %.4f' % self.test_error())
 
+    def get_sims_with_more_than_n_coratings(self, n=None):
+        print('getting coratings...')
+        if n is None:
+            n = self.k
+        coratings = self.m.get_coratings(n)
+
+        print('setting entries with less or equal n coratings to zero...')
+        # set all entries of self.w with <= n coratings to zero
+        return np.where(coratings > n, self.w, 0)
+
     # @profile
-    def interpolate_weights(self):
+    def interpolate_weights_old(self):
+        icount = self.m.rt.shape[1]
+
+        rt_nan_indices = set(self.m.rt_nan_indices)
+        ucount = self.m.rt.shape[0]
+        m = self.m
+        for step in xrange(self.nsteps):
+            print(step, end='\r')
+            delta_w_i_j = np.zeros((icount, icount))
+            for i in xrange(icount):
+                for u in xrange(ucount):
+                    if (u, i) in rt_nan_indices:
+                        continue
+                    s_u_i = m.similar_items(u, i, self.k)
+                    error = sum(self.w[i, k] * m.rt[u, k] for k in s_u_i)
+                    error -= m.rt[u, i]
+                    for j in s_u_i:
+                        delta_w_i_j[i, j] += error * m.rt[u, j]
+                        if self.regularize:
+                            delta_w_i_j[i, j] += self.lamda * self.w[i, j]
+            self.w -= 2 * self.eta * delta_w_i_j
+            self.rmse.append(self.training_error())
+            print(step, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
+            if len(self.rmse) > 1:
+                if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
+                    break
+                if self.rmse[-1] > self.rmse[-2]:
+                    print('RMSE getting larger')
+                    self.w += 2 * self.eta * delta_w_i_j  # reset parameters
+                    self.eta *= 0.5
+                    del self.rmse[-1]
+                    if self.eta_type == 'constant':
+                        break
+                    elif self.eta_type == 'increasing':
+                        break
+                else:
+                    if self.eta_type == 'constant':
+                        pass
+                    else:  # 'increasing' or 'bold_driver'
+                        self.eta *= 1.1
+
+    # @profile
+    def interpolate_weights_new(self):
         rt_nan_indices = set(self.m.rt_nan_indices)
         ucount = self.m.rt.shape[0]
         icount = self.m.rt.shape[1]
@@ -426,9 +489,9 @@ def read_movie_lens_data():
 if __name__ == '__main__':
     start_time = datetime.datetime.now()
 
-    with open('m.obj', 'rb') as infile:  # complete MovieLens matrix
-        m = pickle.load(infile).astype(float)
-    m[m == 0] = np.nan
+    # with open('m.obj', 'rb') as infile:  # complete MovieLens matrix
+    #     m = pickle.load(infile).astype(float)
+    # m[m == 0] = np.nan
 
     # with open('m255.obj', 'rb') as infile: # sample of 255 from MovieLens
     #     m = pickle.load(infile).astype(float)
@@ -452,14 +515,31 @@ if __name__ == '__main__':
     #     [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
     # ])
     # um = UtilityMatrix(m, hidden=hidden)
-    #
-    um = UtilityMatrix(m)
-    cfnn = CFNN(um, k=15); print(cfnn.test_error())
+
+    m = np.array([  # simple test case 2
+        [1, 5, 5, np.NAN, np.NAN, np.NAN],
+        [2, 4, 3, np.NAN, np.NAN, np.NAN],
+        [1, 4, 5, np.NAN, np.NAN, np.NAN],
+        [1, 5, 5, np.NAN, np.NAN, np.NAN],
+
+        [np.NAN, np.NAN, np.NAN, 1, 2, 3],
+        [np.NAN, np.NAN, np.NAN, 2, 1, 3],
+        [np.NAN, np.NAN, np.NAN, 3, 2, 2],
+        [np.NAN, np.NAN, np.NAN, 4, 3, 3],
+    ])
+    hidden = np.array([
+        [0, 1, 3, 4, 5],
+        [1, 2, 0, 4, 5]
+    ])
+    um = UtilityMatrix(m, hidden=hidden)
+
+    # um = UtilityMatrix(m)
+    # cfnn = CFNN(um, k=15); print(cfnn.test_error())
     # f = Factors(um, k=5, eta_type='bold_driver', eta=0.00001, regularize=True, init_svd=False)
-    # w = WeightedCFNN(um, eta_type='constant', k=5, eta=0.001, regularize=True, init_sim=True)
+    w = WeightedCFNN(um, eta_type='constant', k=5, eta=0.001, regularize=True, init='sim')
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
-
+    pdb.set_trace()
 
     # errors = []
     # for i in range(10):

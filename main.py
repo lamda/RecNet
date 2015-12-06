@@ -439,14 +439,15 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
     def get_coratings(self, um, mid, w, k=10):
         d = collections.defaultdict(int)
-        not_nan_indices = set(um.rt_not_nan_indices)
+        nan_indices = set(um.rt_nan_indices)
         for u in range(um.rt.shape[0]):
             print(u, end='\r')
-            if (u, mid) in not_nan_indices:
-                similar = um.similar_items(u, mid, k)
-                for r in similar:
-                    d[r] += 1
-        indices = np.arange(0, 3640)
+            if (u, mid) in nan_indices:
+                continue
+            s_u_i = um.similar_items(u, mid, k)
+            for r in s_u_i:
+                d[r] += 1
+        indices = np.arange(0, um.rt.shape[1])
         coratings = [d[i] for i in indices]
         titles = [self.id2original_title[idx] for idx in indices]
         similarities = [w[mid, i] for i in indices]
@@ -458,17 +459,23 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
     # @decorators.Cached # TODO
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
-        from recsys import UtilityMatrix
-        umrs = UtilityMatrix(um.astype(float))
-        # w = self.get_interpolation_weights(um)
-        with open('iw.obj', 'rb') as infile:
-            print('DEBUG: loading IW matrix')
-            w = pickle.load(infile)
-        pdb.set_trace()
-        df = self.get_coratings(umrs, 0, w)
-        df2 = df[df['coratings'] > 0]; df2.sort_values('similarity')
+        w = self.get_interpolation_weights(um)
+
+        # from recsys import UtilityMatrix
+        # with open('iw.obj', 'rb') as infile:
+        #     print('DEBUG: loading IW matrix')
+        #     w = pickle.load(infile)
+        # with open('um.obj', 'rb') as infile:
+        #     print('DEBUG: loading UM matrix')
+        #     umrs = pickle.load(infile)
+        # # # TODO: warum gibt es Ähnlichkeitswerte für Filme mit 0 Coratings?
+        # df = self.get_coratings(umrs, 0, w, k=5)
+        # print(df.sort_values('similarity'))
+        # pdb.set_trace()
+        # df2 = df[df['coratings'] > 0]; df2.sort_values('similarity')
         # print(np.sum(np.abs(w)))
-        # sys.exit()
+        # # sys.exit()
+
         return SimilarityMatrix(w)
 
     # @profile
@@ -483,10 +490,11 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         #     pickle.dump(m, outfile)
         # sys.exit()
         # wf = recsys.WeightedCFNN(um, eta_type='constant', k=10, eta=0.0001, regularize=True, init_sim=True)
-        wf = recsys.WeightedCFNN(um, eta_type='increasing', k=10, eta=0.0001, regularize=True, init_sim=True)
+        wf = recsys.WeightedCFNN(um, eta_type='increasing', k=10, eta=0.000001, regularize=True, init='zeros')
         # wf = recsys.WeightedCFNN(um, eta_type='bold_driver', k=10, eta=0.0001, regularize=True, init_sim=False)
-        # Jetzt probier ich gerade, ob nicht random sondern *0.1 einen Einfluss hat (am server unten)
-        # am server oben: ob init_sim/k was bringt
+        # server oben: k=10, unten k=15
+        with open('um.obj', 'wb') as outfile:
+            pickle.dump(wf.m, outfile)
         with open('iw.obj', 'wb') as outfile:
             pickle.dump(wf.w, outfile)
         return wf.w
