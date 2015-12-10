@@ -33,8 +33,8 @@ class Topology(object):
         ]
         graphs = [t[0] + '_top_n_' + t[1] + '10.txt' for t in itertools.product(rec_types, div_types)]
         for graph in graphs:
-            # for N in [5, 10]:
-                g = Graph(fname=graph, N=10, use_sample=False, refresh=False)
+            for N in [5, 10]:
+                g = Graph(fname=graph, N=N, use_sample=False, refresh=False)
                 g.load_graph()
                 g.compute_stats()
 
@@ -90,10 +90,9 @@ class Graph(object):
         nodes = set()
         with io.open(self.graph_file_path, encoding='utf-8') as infile:
             for line in infile:
-                node, nbs = line.strip().split('\t')
-                nbs = nbs.split(';')[:self.N]
+                node, nb = line.strip().split('\t')
                 nodes.add(node)
-                nodes.update(nbs)
+                nodes.update(nb)
         return nodes
 
     def get_recommenders_from_adjacency_list(self):
@@ -114,13 +113,15 @@ class Graph(object):
         self.load_nodes_from_adjacency_list()
         edges = []
         with io.open(self.graph_file_path, encoding='utf-8') as infile:
+            nb_count = collections.defaultdict(int)
             for index, line in enumerate(infile):
                 print(index + 1, end='\r')
-                node, nbs = line.strip().split('\t')
-                nbs = nbs.split(';')[:self.N]
+                node, nb = line.strip().split('\t')
+                if nb_count[node] > (self.N - 1):
+                    continue
                 v = self.graph.vertex_index[self.name2node[node]]
-                edges += [(v, self.graph.vertex_index[self.name2node[n]])
-                          for n in nbs]
+                nb_count[node] += 1
+                edges += [(v, self.graph.vertex_index[self.name2node[nb]])]
         self.graph.add_edge_list(edges)
 
     def save(self):
@@ -134,8 +135,8 @@ class Graph(object):
             'outdegree_av'] = data
         stats['cc'] = self.clustering_coefficient()
         stats['cp_size'], stats['cp_count'] = self.largest_component()
-        stats['bow_tie'] = self.bow_tie()
-        stats['lc_ecc'] = self.eccentricity()
+        # stats['bow_tie'] = self.bow_tie()
+        # stats['lc_ecc'] = self.eccentricity()
 
         print('saving...')
         with open(self.stats_file_path, 'wb') as outfile:
