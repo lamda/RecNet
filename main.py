@@ -411,7 +411,9 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         m[m == 0] = np.nan
         um = recsys.UtilityMatrix(m)
         # f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, eta=eta)
-        f = recsys.Factors(um, k=15, nsteps=1000, eta_type='bold_driver',regularize=True, eta=0.00001, lamda=0.05, init_svd=False)
+        f = recsys.Factors(um, k=15, nsteps=1000, eta_type='bold_driver',
+                           regularize=True, eta=0.00001, lamda=0.05,
+                           init='random')
         return f.q
 
 
@@ -624,11 +626,11 @@ class Graph(object):
 if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
-    cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
-    rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
+    # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
+    # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
     rbmf = MatrixFactorizationRecommender(dataset='movielens'); rbmf.get_recommendations()
-    rbiw = InterpolationWeightRecommender(dataset='movielens'); rbiw.get_recommendations()
-    rbar = AssociationRuleRecommender(dataset='movielens'); rbar.get_recommendations()
+    # rbiw = InterpolationWeightRecommender(dataset='movielens'); rbiw.get_recommendations()
+    # rbar = AssociationRuleRecommender(dataset='movielens'); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 

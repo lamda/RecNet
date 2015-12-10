@@ -159,7 +159,7 @@ class CFNN(Recommender):
 class Factors(Recommender):
     def __init__(self, m, k, eta_type, nsteps=500, eta=0.000004,
                  regularize=False, newton=False, tol=1e-5, lamda=0.05,
-                 init_svd=True):
+                 init='random'):
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
@@ -170,40 +170,43 @@ class Factors(Recommender):
         self.tol = tol
         self.lamda = lamda
 
-        if init_svd:
+        if init == 'svd':
             # init by Singular Value Decomposition
-            # m = np.copy(self.m.rt)
             m = self.m.rt
             m[np.where(np.isnan(m))] = 0
             ps, ss, vs = np.linalg.svd(m)
             self.p = ps[:, :self.k]
             self.q = np.dot(np.diag(ss[:self.k]), vs[:self.k, :]).T
-        else:
+        elif init == 'random':
             # init randomly
             self.eta *= 15  # use a higher eta for random initialization
             self.p = np.random.random((self.m.rt.shape[0], self.k))
             self.q = np.random.random((self.m.rt.shape[1], self.k))
+        else:
+            print('init method not supported')
+            pdb.set_trace()
 
         p_init = np.copy(self.p)
         q_init = np.copy(self.q)
 
-        print('init_svd =', init_svd)
+        print('init =', init)
         print('k =', k)
         print('lamda =', self.lamda)
         print('eta = ', self.eta)
         print('eta_type = ', self.eta_type)
 
-        self.factorize()
+        # self.factorize()
+        self.factorize_biased()
 
-        print('init_svd =', init_svd)
+        print('init =', init)
         print('k =', k)
         print('lamda =', self.lamda)
         print('eta = ', self.eta)
-        print('eta:type = ', self.eta_type)
+        print('eta_type = ', self.eta_type)
 
         diff = np.linalg.norm(p_init - self.p) + np.linalg.norm(q_init - self.q)
 
-        self.plot_rmse('%.4f' % diff, suffix='svd' if init_svd else 'random')
+        self.plot_rmse('%.4f' % diff, suffix='init')
         print('test error: %.4f' % self.test_error())
 
     def predict(self, u, i):
@@ -247,8 +250,8 @@ class Factors(Recommender):
                     print('RMSE getting larger')
                     self.p += 2 * self.eta * delta_p  # reset parameters
                     self.q += 2 * self.eta * delta_q  # reset parameters
+                    del self.rmse[-1]  # reset last error value
                     self.eta *= 0.5
-                    del self.rmse[-1]
                     if self.eta_type == 'constant':
                         break
                     elif self.eta_type == 'increasing':
@@ -260,6 +263,7 @@ class Factors(Recommender):
                         self.eta *= 1.1
 
     def factorize_biased(self):
+        self.predict = self.predict_biased
         ucount = self.m.rt.shape[0]
         icount = self.m.rt.shape[1]
         B_u = np.tile(self.m.b_u, (icount, 1)).T
@@ -286,8 +290,8 @@ class Factors(Recommender):
                     print('RMSE getting larger')
                     self.p += 2 * self.eta * delta_p  # reset parameters
                     self.q += 2 * self.eta * delta_q  # reset parameters
+                    del self.rmse[-1]  # reset last error value
                     self.eta *= 0.5
-                    del self.rmse[-1]
                     if self.eta_type == 'constant':
                         break
                     elif self.eta_type == 'increasing':
@@ -322,7 +326,7 @@ class Factors(Recommender):
 
 class WeightedCFNN(CFNN):
     def __init__(self, m, k, eta_type, init, nsteps=500, eta=0.00075,
-                 tol=1e-5, lamda=0.05, regularize = False):
+                 tol=1e-5, lamda=0.05, regularize=False):
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
