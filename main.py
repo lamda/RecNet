@@ -4,6 +4,7 @@ from __future__ import division, print_function
 
 import collections
 import io
+import itertools
 import numpy as np
 import cPickle as pickle
 # import nltk
@@ -22,8 +23,8 @@ import recsys
 # np.random.seed(2014)
 # DEBUG = True
 DEBUG = False
-DEBUG_SIZE = 255
-# DEBUG_SIZE = 750
+# DEBUG_SIZE = 255
+DEBUG_SIZE = 750
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4 TODO make a list?
@@ -212,9 +213,10 @@ class Recommender(object):
         cols = ['movielens_id', 'cf_title', 'wp_title', 'original_title',
                 'wp_id', 'wp_text']
         self.df = pd.DataFrame(data=data, columns=cols)
-        self.id2original_title = {
+        self.id2title = {
             t[0]: t[1] for t in zip(self.df.index, self.df['original_title'])
         }
+        self.title2id = {v: k for k, v in self.id2title.items()}
         if DEBUG:
             self.df = self.df.iloc[:DEBUG_SIZE]
         self.similarity_matrix = None
@@ -246,8 +248,8 @@ class Recommender(object):
                 as outfile:
             for ridx, rec in enumerate(recs):
                 for r in rec:
-                    outfile.write(self.id2original_title[ridx] + '\t' +
-                                  self.id2original_title[r] + '\n')
+                    outfile.write(self.id2title[ridx] + '\t' +
+                                  self.id2title[r] + '\n')
 
     def get_similarity_matrix(self):
         raise NotImplementedError
@@ -430,7 +432,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                     d[r] += 1
         indices = np.arange(0, 3640)
         coratings = [d[i] for i in indices]
-        titles = [self.id2original_title[idx] for idx in indices]
+        titles = [self.id2title[idx] for idx in indices]
         similarities = [w[mid, i] for i in indices]
         df = pd.DataFrame(index=indices,
                           data=zip(titles, coratings, similarities),
@@ -449,7 +451,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                 d[r] += 1
         indices = np.arange(0, um.rt.shape[1])
         coratings = [d[i] for i in indices]
-        titles = [self.id2original_title[idx] for idx in indices]
+        titles = [self.id2title[idx] for idx in indices]
         similarities = [w[mid, i] for i in indices]
         df = pd.DataFrame(index=indices,
                           data=zip(titles, coratings, similarities),
@@ -500,6 +502,111 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         return wf.w
 
 
+class AssociationRuleRecommender(RatingBasedRecommender):
+    def __init__(self, dataset):
+        super(AssociationRuleRecommender, self).__init__(dataset, 'rbar')
+
+    def get_recommendations(self):
+        self.similarity_matrix = self.get_similarity_matrix()
+        super(RatingBasedRecommender, self).get_recommendations()
+
+    def rating_stats(self, um):
+        import operator
+        ratings = [(i, np.sum(um[:, i])) for i in range(um.shape[1])]
+        print('ratings:')
+        for r in sorted(ratings, key=operator.itemgetter(1), reverse=True)[:10]:
+            print('   ', r[1], self.id2title[r[0]])
+
+    def corating_stats(self, coratings, item_id=0):
+        import operator
+        print('coratings for item %d %s:' % (item_id, self.id2title[item_id]))
+        for r in sorted(coratings[item_id].items(), key=operator.itemgetter(1),
+                        reverse=True)[:10]:
+            print('   ', r[1], self.id2title[r[0]])
+
+    def ar_simple(self, um, coratings, x, y):
+        denominator = coratings[x][y]
+        numerator = np.sum(um[:, x])
+        if numerator > 0 and denominator > 0:
+            sim = denominator / numerator
+            # print(numerator, denominator, sim)
+            # print(sim)
+            return sim
+        else:
+            # print(numerator, denominator, '--ZERO--')
+            print('--ZERO--')
+            return -1
+
+    def ar_complex(self, um, coratings, x, y):
+        # ((x and y) * !x) / ((!x and y) * x)
+        denominator = coratings[x][y] * (np.sum(um) - np.sum(um[:, x]))
+        numerator = (sum(coratings[y].values()) - coratings[x][y]) * np.sum(um[:, x])
+        if numerator > 0 and denominator > 0:
+            sim = denominator / numerator
+            # print(numerator, denominator, sim)
+            # print(sim)
+            return sim
+        else:
+            # print(numerator, denominator, '--ZERO--')
+            print('--ZERO--')
+            return -1
+
+    def ar_both(self, um, coratings, x, y):
+        simple = self.ar_simple(um, coratings, x, y)
+        complex = self.ar_complex(um, coratings, x, y)
+        print('s: %.4f, c: %.4f' % (simple, complex))
+
+    def get_similarity_matrix(self):
+        um = self.get_utility_matrix()
+        um = np.where(um == 0, um, 1)  # set all ratings to 1
+        # um = np.where(um >= 4, 1, 0)  # set all high ratings to 1
+        ucount = um.shape[0]
+        icount = um.shape[1]
+
+        with open('coratings.obj', 'rb') as infile:
+            coratings = pickle.load(infile)
+        # pdb.set_trace()
+        # self.rating_stats(um)
+        # self.corating_stats(coratings, item_id=0)
+        # self.ar_simple(um, coratings, 0, 2849)
+        # self.ar_complex(um, coratings, 0, 2849)
+        # self.ar_both(um, coratings, 0, 2849)
+
+        # coratings = {i: collections.defaultdict(int) for i in range(icount)}
+        # for u in range(ucount):
+        #     print(u+1, '/', ucount, end='\r')
+        #     items = np.nonzero(um[u, :])[0]
+        #     for i in itertools.combinations(items, 2):
+        #         coratings[i[0]][i[1]] += 1
+        #         coratings[i[1]][i[0]] += 1
+        # with open('coratings.obj', 'wb') as outfile:
+        #     pickle.dump(coratings, outfile, -1)
+
+        sims = np.zeros((icount, icount))
+        sum_items = np.sum(um)
+        sums_coratings = {x: sum(coratings[x].values()) for x in coratings}
+        for x in range(icount):
+            print(x+1, '/', icount, end='\r')
+            not_x = (sum_items - np.sum(um[:, x]))
+            is_x = np.sum(um[:, x])
+            for y in coratings[x]:
+                # # (x and y) / x  simple version
+                # denominator = coratings[x][y]
+                # numerator = is_x
+
+            # ((x and y) * !x) / ((!x and y) * x)  complex version
+            if (coratings[x][y] / is_x) > 0.25:  # confidence threshold
+                denominator = coratings[x][y] * not_x
+                numerator = (sums_coratings[y] - coratings[x][y]) * is_x
+            else:
+                denominator = numerator = 0
+
+            if numerator > 0 and denominator > 0:
+                    sims[x, y] = denominator / numerator
+
+        return SimilarityMatrix(sims)
+
+
 class Graph(object):
     def __init__(self):
         pass
@@ -519,8 +626,9 @@ if __name__ == '__main__':
     start_time = datetime.now()
     # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
     # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
-    # mfrbr = MatrixFactorizationRecommender(dataset='movielens'); mfrbr.get_recommendations()
-    iwrbr = InterpolationWeightRecommender(dataset='movielens'); iwrbr.get_recommendations()
+    # rbmf = MatrixFactorizationRecommender(dataset='movielens'); rbmf.get_recommendations()
+    # rbiw = InterpolationWeightRecommender(dataset='movielens'); rbiw.get_recommendations()
+    rbar = AssociationRuleRecommender(dataset='movielens'); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 
