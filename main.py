@@ -7,7 +7,6 @@ import io
 import itertools
 import numpy as np
 import cPickle as pickle
-# import nltk
 import os
 import pandas as pd
 pd.set_option('display.width', 1000)
@@ -257,9 +256,9 @@ class Recommender(object):
     def get_recommendations(self):
         strategies = [
             TopNRecommendationStrategy,
-            # TopNDivRandomRecommendationStrategy,
-            # TopNDivDiversifyRecommendationStrategy,
-            # TopNDivExpRelRecommendationStrategy,
+            TopNDivRandomRecommendationStrategy,
+            TopNDivDiversifyRecommendationStrategy,
+            TopNDivExpRelRecommendationStrategy,
         ]
 
         for strategy in strategies:
@@ -281,6 +280,7 @@ class ContentBasedRecommender(Recommender):
     @decorators.Cached
     def get_similarity_matrix(self):
         """get the TF-IDF similarity values of a given list of text"""
+        import nltk
         data = self.df['wp_text']
         max_features = 50000
         simple = False
@@ -411,7 +411,7 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         m[m == 0] = np.nan
         um = recsys.UtilityMatrix(m)
         # f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, eta=eta)
-        f = recsys.Factors(um, k=15, nsteps=1000, regularize=True, eta=0.00001, lamda=0.05, init_svd=False)
+        f = recsys.Factors(um, k=15, nsteps=1000, eta_type='bold_driver',regularize=True, eta=0.00001, lamda=0.05, init_svd=False)
         return f.q
 
 
@@ -594,15 +594,15 @@ class AssociationRuleRecommender(RatingBasedRecommender):
                 # denominator = coratings[x][y]
                 # numerator = is_x
 
-            # ((x and y) * !x) / ((!x and y) * x)  complex version
-            if (coratings[x][y] / is_x) > 0.25:  # confidence threshold
-                denominator = coratings[x][y] * not_x
-                numerator = (sums_coratings[y] - coratings[x][y]) * is_x
-            else:
-                denominator = numerator = 0
+                # ((x and y) * !x) / ((!x and y) * x)  complex version
+                if (coratings[x][y] / is_x) > 0.25:  # confidence threshold
+                    denominator = coratings[x][y] * not_x
+                    numerator = (sums_coratings[y] - coratings[x][y]) * is_x
+                else:
+                    denominator = numerator = 0
 
-            if numerator > 0 and denominator > 0:
-                    sims[x, y] = denominator / numerator
+                if numerator > 0 and denominator > 0:
+                        sims[x, y] = denominator / numerator
 
         return SimilarityMatrix(sims)
 
@@ -624,23 +624,14 @@ class Graph(object):
 if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
-    # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
-    # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
-    # rbmf = MatrixFactorizationRecommender(dataset='movielens'); rbmf.get_recommendations()
-    # rbiw = InterpolationWeightRecommender(dataset='movielens'); rbiw.get_recommendations()
+    cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
+    rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
+    rbmf = MatrixFactorizationRecommender(dataset='movielens'); rbmf.get_recommendations()
+    rbiw = InterpolationWeightRecommender(dataset='movielens'); rbiw.get_recommendations()
     rbar = AssociationRuleRecommender(dataset='movielens'); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 
-    # values for MovieLens:
-    #    CFNN, k = 10
-    #    IW, k = 10, init = sim
-    #    MF, k = 25, init = SVD
-    #
-    # values for BookCrossing:
-    #    CFNN, k =
-    #    IW, k = , init =
-    #    MF, k = , init =
 
 
 
