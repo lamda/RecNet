@@ -7,6 +7,7 @@ import io
 import itertools
 import numpy as np
 import cPickle as pickle
+import operator
 import os
 import pandas as pd
 pd.set_option('display.width', 1000)
@@ -513,14 +514,12 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         super(RatingBasedRecommender, self).get_recommendations()
 
     def rating_stats(self, um):
-        import operator
         ratings = [(i, np.sum(um[:, i])) for i in range(um.shape[1])]
         print('ratings:')
         for r in sorted(ratings, key=operator.itemgetter(1), reverse=True)[:10]:
             print('   ', r[1], self.id2title[r[0]])
 
     def corating_stats(self, coratings, item_id=0):
-        import operator
         print('coratings for item %d %s:' % (item_id, self.id2title[item_id]))
         for r in sorted(coratings[item_id].items(), key=operator.itemgetter(1),
                         reverse=True)[:10]:
@@ -607,20 +606,6 @@ class AssociationRuleRecommender(RatingBasedRecommender):
                         sims[x, y] = denominator / numerator
 
         return SimilarityMatrix(sims)
-
-
-class Graph(object):
-    def __init__(self):
-        pass
-
-    def load(self):
-        pass
-
-    def save(self):
-        pass
-
-    def compute_stats(self):
-        pass
 
 
 if __name__ == '__main__':

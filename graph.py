@@ -13,32 +13,6 @@ import pdb
 import random
 
 
-class Topology(object):
-    def __init__(self):
-        pass
-
-    def calculate_stats(self, preload=False):
-        dirpath = os.path.join('data', 'movielens', 'graphs')
-        rec_types = [
-            'cb',
-            'rb',
-            'rbmf',
-            'rbar'
-        ]
-        div_types = [
-            '',
-            'div_random_',
-            'div_diversify_',
-            'div_exprel_'
-        ]
-        graphs = [t[0] + '_top_n_' + t[1] + '10.txt' for t in itertools.product(rec_types, div_types)]
-        for graph in graphs:
-            for N in [5, 10]:
-                g = Graph(fname=graph, N=N, use_sample=False, refresh=False)
-                g.load_graph()
-                g.compute_stats()
-
-
 class Graph(object):
     graph_folder = os.path.join('data', 'movielens', 'graphs')
     matrix_folder = 'matrix'
@@ -300,5 +274,26 @@ class Graph(object):
 
 
 if __name__ == '__main__':
-    t = Topology()
-    t.calculate_stats()
+    rec_types = [
+        'cb',
+        'rb',
+        'rbmf',
+        'rbar'
+    ]
+    div_types = [
+        '',
+        'div_random_',
+        'div_diversify_',
+        'div_exprel_'
+    ]
+    graphs = [t[0] + '_top_n_' + t[1] + '10.txt'
+              for t in itertools.product(rec_types, div_types)]
+    Ns = [
+        5,
+        10
+    ]
+    for graph in graphs:
+        for N in Ns:
+            g = Graph(fname=graph, N=N, use_sample=False, refresh=False)
+            g.load_graph()
+            g.compute_stats()
