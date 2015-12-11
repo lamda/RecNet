@@ -73,6 +73,10 @@ class Plotter(object):
         self.linestyles = ['-', '--', ':', '-.']
         self.bar_x = range(1, self.graph_types+1)\
             + range(self.graph_types+2, 2*self.graph_types+2)
+        self.plot_file_types = [
+            '.png',
+            '.pdf',
+        ]
 
         for prop in [
             'cp_size',
@@ -118,9 +122,9 @@ class Plotter(object):
 
             if prop == 'cc':
                 ylabel = 'CC'
-                ax.set_ylim(0, 0.225)
+                ax.set_ylim(0, 0.5)
             elif prop == 'cp_count':
-                ylabel = 'Size of largest component'
+                ylabel = '# of components'
                 # ax.set_ylim(0, 110)
             else:
                 ylabel = 'Share of Nodes (%)'
@@ -130,9 +134,9 @@ class Plotter(object):
             plt.tight_layout()
             # plt.show()
             # pdb.set_trace()
-            fpath = os.path.join(self.plot_folder,
-                                 prop + '_' + graph_type + '.pdf')
-            plt.savefig(fpath)
+            fpath = os.path.join(self.plot_folder, prop + '_' + graph_type)
+            for ftype in self.plot_file_types:
+                plt.savefig(fpath + ftype)
 
     def plot_ecc(self):
         def plot_ecc_legend(label, color):
@@ -185,8 +189,9 @@ class Plotter(object):
                 # plt.legend(loc=0)
                 plt.tight_layout()
                 fpath = os.path.join(self.plot_folder, 'ecc_' + graph_type +
-                                     '_' + unicode(N) + '.pdf')
-                plt.savefig(fpath)
+                                     '_' + unicode(N))
+                for ftype in self.plot_file_types:
+                    plt.savefig(fpath + ftype)
 
     def plot_bow_tie(self):
         # plot the legend in a separate plot
@@ -238,9 +243,9 @@ class Plotter(object):
             plt.tight_layout()
             # fig.subplots_adjust(right=0.73)
             # plt.show()
-            fpath = os.path.join(self.plot_folder,
-                                 'bowtie_' + graph_type + '.pdf')
-            plt.savefig(fpath)
+            fpath = os.path.join(self.plot_folder, 'bowtie_' + graph_type)
+            for ftype in self.plot_file_types:
+                plt.savefig(fpath + ftype)
 
     def plot_alluvial(self):
         """ produce an alluvial diagram (sort of like a flow chart) for the
