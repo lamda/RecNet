@@ -21,7 +21,8 @@ class UtilityMatrix:
         self.mu = np.nanmean(self.rt)
         self.b_i = np.nanmean(self.rt, axis=0) - self.mu
         self.b_u = np.nanmean(self.rt, axis=1) - self.mu
-        self.s = self.get_similarities()
+        self.s_r = self.get_similarities(self.r)
+        self.s_rt = self.get_similarities(self.rt)
         self.sirt_cache = {}
         self.rt_not_nan_indices = self.get_not_nan_indices(self.rt)
         self.rt_nan_indices = self.get_nan_indices(self.rt)
@@ -41,8 +42,8 @@ class UtilityMatrix:
         rt[hidden[0], hidden[1]] = np.nan
         return rt, hidden
 
-    def get_similarities(self):
-        rc = self.rt - np.nanmean(self.rt, axis=0)
+    def get_similarities(self, r):
+        rc = r - np.nanmean(r, axis=0)
         rc[np.isnan(rc)] = 0.0
         # ignore division errors, set the resulting nans to zero
         with np.errstate(all='ignore'):
@@ -60,12 +61,16 @@ class UtilityMatrix:
                     co[i, s] += 1
         return co
 
-    def similar_items(self, u, i, k):
+    def similar_items(self, u, i, k, use_all=False):
         try:
             return self.sirt_cache[(u, i, k)]
         except KeyError:
-            r_u = self.rt[u, :]  # user ratings
-            s_i = np.copy(self.s[i, :])  # item similarity
+            if use_all:  # use entire matrix
+                r_u = self.r[u, :]   # user ratings
+                s_i = np.copy(self.s_r[i, :])  # item similarity
+            else:  # use training matrix
+                r_u = self.rt[u, :]  # user ratings
+                s_i = np.copy(self.s_rt[i, :])  # item similarity
             # s_i[s_i < 0.0] = np.nan  # mask only to similar items
             s_i[i] = np.nan  # mask the item
             s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
@@ -73,7 +78,7 @@ class UtilityMatrix:
 
             s_i_sorted = np.argsort(s_i)
             s_i_k = tuple(s_i_sorted[-k - nn:-nn])
-            self.sirt_cache[(u, i, k)] = s_i_k
+            self.sirt_cache[(u, i, k)] = s_i_k  # TODO
             return s_i_k
 
     def get_not_nan_indices(self, m):
@@ -126,7 +131,7 @@ class Recommender:
 class CFNN(Recommender):
     def __init__(self, m, k):
         Recommender.__init__(self, m)
-        self.w = self.m.s
+        self.w = self.m.s_rt
         self.k = k
         self.normalize = True
         print('k =', k)
@@ -337,7 +342,7 @@ class WeightedCFNN(CFNN):
         self.lamda = lamda
         self.normalize = False
         if init == 'sim':
-            self.w = np.copy(self.m.s)
+            self.w = np.copy(self.m.s_rt)
         elif init == 'random':
             self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))
         elif init == 'zeros':

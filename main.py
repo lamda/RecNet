@@ -21,10 +21,10 @@ import recsys
 
 
 # np.random.seed(2014)
-# DEBUG = True
+DEBUG = True
 DEBUG = False
-# DEBUG_SIZE = 255
-DEBUG_SIZE = 750
+DEBUG_SIZE = 255
+# DEBUG_SIZE = 750
 DATA_BASE_FOLDER = 'data'
 NUMBER_OF_RECOMMENDATIONS = [5, 10]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4 TODO make a list?
@@ -442,46 +442,82 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                           columns=['title', 'coratings', 'similarity'])
         return df
 
-    def get_coratings(self, um, mid, w, k=10):
-        d = collections.defaultdict(int)
-        nan_indices = set(um.rt_nan_indices)
-        for u in range(um.rt.shape[0]):
-            print(u, end='\r')
-            if (u, mid) in nan_indices:
-                continue
-            s_u_i = um.similar_items(u, mid, k)
-            for r in s_u_i:
-                d[r] += 1
-        indices = np.arange(0, um.rt.shape[1])
-        coratings = [d[i] for i in indices]
+    def get_coratings(self, mid, w, k, coratings_top_10):
+        indices = np.arange(0, len(coratings_top_10))
+        coratings = [coratings_top_10[mid][i] for i in indices]
         titles = [self.id2title[idx] for idx in indices]
         similarities = [w[mid, i] for i in indices]
+        num_ratings = sum(coratings_top_10[mid].values())
+        frac_coratings = [x / num_ratings for x in coratings]
         df = pd.DataFrame(index=indices,
-                          data=zip(titles, coratings, similarities),
-                          columns=['title', 'coratings', 'similarity'])
+                          data=zip(titles, coratings, frac_coratings, similarities),
+                          columns=['title', 'coratings', 'frac_coratings', 'similarity'])
         return df
 
     # @decorators.Cached # TODO
-    def get_similarity_matrix(self):
+    def get_similarity_matrix(self, threshold=0.25):
         um = self.get_utility_matrix()
-        w = self.get_interpolation_weights(um)
+        ucount = um.shape[0]
+        icount = um.shape[1]
 
+        # compute coratings
         # from recsys import UtilityMatrix
-        # with open('iw.obj', 'rb') as infile:
-        #     print('DEBUG: loading IW matrix')
-        #     w = pickle.load(infile)
-        # with open('um.obj', 'rb') as infile:
-        #     print('DEBUG: loading UM matrix')
-        #     umrs = pickle.load(infile)
-        # # # TODO: warum gibt es Ähnlichkeitswerte für Filme mit 0 Coratings?
-        # df = self.get_coratings(umrs, 0, w, k=5)
-        # print(df.sort_values('similarity'))
-        # pdb.set_trace()
-        # df2 = df[df['coratings'] > 0]; df2.sort_values('similarity')
-        # print(np.sum(np.abs(w)))
-        # # sys.exit()
+        # m_nan = np.copy(um.astype(float))
+        # m_nan[m_nan == 0] = np.nan
+        # umrs = UtilityMatrix(m_nan)
+        # coratings = {i: collections.defaultdict(int) for i in range(icount)}
+        # not_nan_indices = umrs.get_not_nan_indices(umrs.r)
+        # idx_count = len(not_nan_indices)
+        # for idx, (u, i) in enumerate(not_nan_indices):
+        #     if ((idx+1) % 10000) == 0:
+        #         print(idx+1, '/', idx_count, end='\r')
+        #     s_u_i = umrs.similar_items(u, i, 10, use_all=True)
+        #     for ci in s_u_i:
+        #         coratings[i][ci] += 1
+        # with open('coratings_top_10.obj', 'wb') as outfile:
+        #     pickle.dump(coratings, outfile, -1)
+        # sys.exit()
 
-        return SimilarityMatrix(w)
+        # alternative way of computing coratings
+        # coratings = {i: collections.defaultdict(int) for i in range(icount)}
+        # nan_indices = set(umrs.get_nan_indices(umrs.r))
+        # for u in range(ucount):
+        #     print(u+1, '/', ucount, end='\r')
+        #     for i in range(icount):
+        #         if (u, i) in nan_indices:
+        #             continue
+        #         s_u_i = umrs.similar_items(u, i, 10, use_all=True)
+        #         for ci in s_u_i:
+        #             coratings[i][ci] += 1
+
+        # with open('coratings_top_10_alternative.obj', 'wb') as outfile:
+        #     pickle.dump(coratings, outfile, -1)
+        # sys.exit()
+
+        with open('coratings_top_10.obj', 'rb') as infile:
+            print('DEBUG: loading coratings')
+            coratings = pickle.load(infile)
+        # with open('coratings_top_10_alternative.obj', 'rb') as infile:
+        #     print('DEBUG: loading coratings')
+        #     coratings_alt = pickle.load(infile)
+        # pdb.set_trace()
+
+        # w = self.get_interpolation_weights(um)
+        with open('iw.obj', 'rb') as infile:
+            print('DEBUG: loading IW matrix')
+            w = pickle.load(infile)
+        # df = self.get_coratings(mid=0, w=w, k=10, coratings_top_10=coratings)
+        # print(df.sort_values('similarity'))
+        # print(coratings[0][1140])
+
+        sims = np.zeros((icount, icount))
+        for x in range(icount):
+            for y in coratings[x]:
+                if coratings[x][y] < 50:  # confidence threshold
+                    continue
+                sims[x, y] = w[x, y]
+
+        return SimilarityMatrix(sims)
 
     # @profile
     # @decorators.Cached
@@ -557,21 +593,12 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         complex = self.ar_complex(um, coratings, x, y)
         print('s: %.4f, c: %.4f' % (simple, complex))
 
-    def get_similarity_matrix(self):
+    def get_similarity_matrix(self, threshold=0.25):
         um = self.get_utility_matrix()
         um = np.where(um == 0, um, 1)  # set all ratings to 1
         # um = np.where(um >= 4, 1, 0)  # set all high ratings to 1
         ucount = um.shape[0]
         icount = um.shape[1]
-
-        with open('coratings.obj', 'rb') as infile:
-            coratings = pickle.load(infile)
-        # pdb.set_trace()
-        # self.rating_stats(um)
-        # self.corating_stats(coratings, item_id=0)
-        # self.ar_simple(um, coratings, 0, 2849)
-        # self.ar_complex(um, coratings, 0, 2849)
-        # self.ar_both(um, coratings, 0, 2849)
 
         # coratings = {i: collections.defaultdict(int) for i in range(icount)}
         # for u in range(ucount):
@@ -582,28 +609,34 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         #         coratings[i[1]][i[0]] += 1
         # with open('coratings.obj', 'wb') as outfile:
         #     pickle.dump(coratings, outfile, -1)
+        # # debug helpers
+        # self.rating_stats(um)
+        # self.corating_stats(coratings, item_id=0)
+        # self.ar_simple(um, coratings, 0, 2849)
+        # self.ar_complex(um, coratings, 0, 2849)
+        # self.ar_both(um, coratings, 0, 2849)
+        with open('coratings.obj', 'rb') as infile:
+            coratings = pickle.load(infile)
 
         sims = np.zeros((icount, icount))
         sum_items = np.sum(um)
         sums_coratings = {x: sum(coratings[x].values()) for x in coratings}
         for x in range(icount):
-            print(x+1, '/', icount, end='\r')
-            not_x = (sum_items - np.sum(um[:, x]))
             is_x = np.sum(um[:, x])
+            not_x = (sum_items - is_x)
             for y in coratings[x]:
+                if coratings[x][y] < 10:
+                    continue
                 # # (x and y) / x  simple version
                 # denominator = coratings[x][y]
                 # numerator = is_x
 
                 # ((x and y) * !x) / ((!x and y) * x)  complex version
-                if (coratings[x][y] / is_x) > 0.25:  # confidence threshold
-                    denominator = coratings[x][y] * not_x
-                    numerator = (sums_coratings[y] - coratings[x][y]) * is_x
-                else:
-                    denominator = numerator = 0
+                denominator = coratings[x][y] * not_x
+                numerator = (sums_coratings[y] - coratings[x][y]) * is_x
 
-                if numerator > 0 and denominator > 0:
-                        sims[x, y] = denominator / numerator
+                if numerator > 0:
+                    sims[x, y] = denominator / numerator
 
         return SimilarityMatrix(sims)
 
@@ -613,8 +646,8 @@ if __name__ == '__main__':
     start_time = datetime.now()
     # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
     # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
-    rbmf = MatrixFactorizationRecommender(dataset='movielens'); rbmf.get_recommendations()
-    # rbiw = InterpolationWeightRecommender(dataset='movielens'); rbiw.get_recommendations()
+    # rbmf = MatrixFactorizationRecommender(dataset='movielens'); rbmf.get_recommendations()
+    rbiw = InterpolationWeightRecommender(dataset='movielens'); rbiw.get_recommendations()
     # rbar = AssociationRuleRecommender(dataset='movielens'); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
