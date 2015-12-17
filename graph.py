@@ -14,26 +14,25 @@ import random
 
 
 class Graph(object):
-    graph_folder = os.path.join('data', 'movielens', 'graphs')
-    matrix_folder = 'matrix'
-    stats_folder = os.path.join(graph_folder, 'stats')
-
-    def __init__(self, fname='', graph=None, N=None, use_sample=False,
+    def __init__(self, dataset, fname='', graph=None, N=None, use_sample=False,
                  refresh=False, suffix=''):
         print(fname, N, 'use_sample =', use_sample, 'refresh =', refresh)
-        if not os.path.exists(Graph.stats_folder):
-            os.makedirs(Graph.stats_folder)
+        self.graph_folder = os.path.join('data', dataset, 'graphs')
+        self.matrix_folder = 'matrix'
+        self.stats_folder = os.path.join('data', dataset, 'stats')
+        if not os.path.exists(self.stats_folder):
+            os.makedirs(self.stats_folder)
         self.use_sample = use_sample
         self.graph_name = fname if not use_sample else fname + '_sample'
-        self.graph_file_path = os.path.join(Graph.graph_folder, self.graph_name)
+        self.graph_file_path = os.path.join(self.graph_folder, self.graph_name + '.txt')
         self.N = N
         self.gt_file_path = os.path.join(
-            Graph.graph_folder,
-            self.graph_name + '_' + str(self.N) + suffix + '.gt'
+            self.graph_folder,
+            fname + suffix + '.gt'
         )
         self.stats_file_path = os.path.join(
-            Graph.stats_folder,
-            self.graph_name + '_' + str(self.N) + suffix + '.obj'
+            self.stats_folder,
+            self.graph_name + '.obj'
         )
         self.graph = gt.Graph(directed=True)
         self.names = self.graph.new_vertex_property('string')
@@ -91,7 +90,7 @@ class Graph(object):
             for index, line in enumerate(infile):
                 print(index + 1, end='\r')
                 node, nb = line.strip().split('\t')
-                if nb_count[node] > (self.N - 1):
+                if self.N is not None and nb_count[node] > (self.N - 1):
                     continue
                 v = self.graph.vertex_index[self.name2node[node]]
                 nb_count[node] += 1
@@ -283,9 +282,9 @@ if __name__ == '__main__':
     ]
     div_types = [
         '',
-        'div_random_',
-        'div_diversify_',
-        'div_exprel_'
+        '_div_random',
+        '_div_diversify',
+        '_div_exprel'
     ]
     graphs = [t[0] + '_top_n_' + t[1] + '10.txt'
               for t in itertools.product(rec_types, div_types)]
@@ -293,8 +292,10 @@ if __name__ == '__main__':
         5,
         10
     ]
-    for graph in graphs:
-        for N in Ns:
-            g = Graph(fname=graph, N=N, use_sample=False, refresh=False)
-            g.load_graph()
-            g.compute_stats()
+    for rec_type in rec_types:
+        for div_type in div_types:
+            for N in Ns:
+                fname = rec_type + '_' + unicode(N) + div_type
+                g = Graph(dataset='movielens', fname=fname, N=N, use_sample=False, refresh=False)
+                g.load_graph()
+                g.compute_stats()

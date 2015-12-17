@@ -12,31 +12,21 @@ import random
 import cPickle as pickle
 import pdb
 
-import matplotlib
-matplotlib.use('Agg')
-matplotlib.rc('pdf', fonttype=42)
+# import matplotlib
+# matplotlib.use('Agg')
+# matplotlib.rc('pdf', fonttype=42)
 import graph_tool.all as gt
 import numpy as np
-import matplotlib.pyplot as plt
-
-do_debug = False
-if do_debug:
-    with open('ttid2title.obj', 'rb') as infile:
-        ttid2title = pickle.load(infile)
-else:
-    ttid2title = collections.defaultdict(int)
+# import matplotlib.pyplot as plt
 
 
-def print_debug(*text):
-    """wrapper for the print(function that can be turned on and off"""
-    if do_debug:
-        for t in text:
-            print(t, end=' ')
-        print()
+def debug(*text):
+    """wrapper for the print function that can be turned on and off"""
+    if True:
+        print(' '.join(str(t) for t in text))
 
 
 def load_graph(fpath):
-    """load a graph from a tab-separated edge list file"""
     graph = gt.load_graph(fpath, fmt='gt')
     name2node = {graph.vp['name'][node]: node for node in graph.vertices()}
     graph.name2node = name2node
@@ -58,14 +48,10 @@ class SimilarityMatrix(object):
                 u, v = line.strip().split('\t')
                 item2matrix[u] = int(v)
         self.item2matrix = item2matrix
-
-        with open(matrix_file, 'rb') as infile:
-            self.cluster2sims = pickle.load(infile)
+        self.matrix = np.load(matrix_file)
 
     def __getitem__(self, key):
-        item, targets = key[0], key[1]
-        s = self.cluster2sims[targets][self.item2matrix[item], 0]
-        return s
+        return self.matrix[self.item2matrix[key[0]], self.item2matrix[key[1]]]
 
 
 class MissionCollection(object):
@@ -87,14 +73,14 @@ class MissionCollection(object):
         self.stats = np.zeros(Navigator.steps_max + 1)
         for m in self.missions:
             m.compute_stats()
-            self.stats += m.stats
+            self.stats += 100 * m.stats
         self.stats /= len(self.missions)
 
 
 class Mission(object):
     """This class represents a Point-to-Point Search mission"""
     # mission types
-    missions = [u'Information Foraging']
+    missions = [u'Greedy Search', u'Berrypicking', u'Information Foraging']
 
     def __init__(self, start, targets):
         self.steps = 0
@@ -102,7 +88,7 @@ class Mission(object):
         self.start = start
         self.visited = set()
         self.targets = targets
-        self.targets_original = [frozenset(t) for t in copy.deepcopy(targets)]
+        self.targets_original = copy.deepcopy(targets)
         self.stats = None
 
     def add(self, node):
@@ -140,12 +126,14 @@ class IFMission(Mission):
 
     def compute_stats(self):
         self.stats = np.zeros(Navigator.steps_max + 1)
-        targets = list(copy.deepcopy(self.targets_original[0]))
+        targets = copy.deepcopy(self.targets_original[0])
+        i = targets.index(self.path[0])
+        del targets[i]
         curr = 0
         for i, n in enumerate(self.path[:len(self.stats)]):
             if n in targets:
                 targets.remove(n)
-                curr += 1
+                curr += (1 / len(self.targets_original[0]))
             self.stats[i] = curr
         if i < len(self.stats):
             self.stats[i:] = curr
@@ -199,6 +187,8 @@ class Strategy(object):
     strategies = [
         # u'random',
         u'title',
+        # u'neighbors',
+        # u'wp_neighbors',
         # u'optimal'
     ]
 
@@ -209,60 +199,62 @@ class Strategy(object):
     def find_next(graph, strategy, mission, node, parent_node=None,
                   matrix=None):
         """Select the next node to go to in a navigation mission"""
-        print_debug('strategy =', strategy)
-        graph_node = graph.name2node[node]
-        nodes = [graph.vp['name'][n] for n in graph_node.out_neighbours()]
+        debug('strategy =', strategy)
+        node_gt = graph.name2node[node]
+        nodes_gt = [n for n in node_gt.out_neighbours()]
+        nodes = [graph.vp['name'][n] for n in nodes_gt]
+        debug('nodes =', nodes)
         if strategy == 'random':
-            print('random strategy')
             if parent_node and parent_node not in nodes:
                 nodes.append(parent_node)
             return random.choice(nodes)
         neighbor_targets = [n for n in nodes if n in mission.targets[0]]
         if neighbor_targets:
-            print_debug('target in neighbors')
+            debug('target in neighbors')
             return neighbor_targets[0]
 
         nodes = [n for n in nodes if n not in mission.visited]
-        candidates = {n: matrix[n, mission.targets_original[0]] for n in nodes}
+        pdb.set_trace()
+        candidates = {n: matrix[n, mission.targets[0][0]] for n in nodes}
         if not candidates:
             chosen_node = None  # abort search
-            print_debug('aborting search')
         else:
             chosen_node = max(candidates.iteritems(),
                               key=operator.itemgetter(1))[0]
-            if do_debug:
-                print_debug('candidates are:')
-                for k, v in candidates.items():
-                    print_debug(k, ttid2title[k], ':', v)
+            debug('candidates are:')
+            for k, v in candidates.items():
+                debug(k, ':', v)
         if chosen_node == parent_node:
-            print_debug('backtracking to node', parent_node)
+            debug('backtracking to node', parent_node)
             return None
-        if do_debug:
-            print_debug('going to ', ttid2title[chosen_node] if chosen_node else 'None')
-            pdb.set_trace()
+        debug('going to ', chosen_node)
         return chosen_node
 
 
 class DataSet(object):
-    mission_folder = 'missions'
-
-    def __init__(self, label, rec_types, div_types, Ns):
+    def __init__(self, label, rec_types, div_types, n_vals=(5, 10)):
         self.label = label
-        self.folder_graphs = os.path.join('..', label, 'graphs')
+        self.base_folder = os.path.join('..', 'data', self.label)
+        self.folder_graphs = os.path.join(self.base_folder, 'graphs')
+        self.folder_matrices = os.path.join(self.base_folder, 'matrices')
+        self.n_vals = n_vals
         self.rec_types = rec_types
-        self.Ns = Ns
         self.graphs = {}
         for rec_type in self.rec_types:
             self.graphs[rec_type] = [
                 os.path.join(
                     self.folder_graphs,
-                    rec_type + '_top_n_' + d + str(N) + '.gt')
-                for N in self.Ns
+                    rec_type + '_' + unicode(N) + d + '.gt')
+                for N in self.n_vals
                 for d in div_types
             ]
-        self.sim_matrix = SimilarityMatrix(
-            os.path.join('..', self.label, 'item2matrix.txt'),
-                                           'cluster2sims.obj')
+            self.compute_shortest_path_lengths(self.graphs[rec_type])
+
+        m_ptp = self.load_missions(Mission, u'missions.txt')
+        m_if = self.load_missions(IFMission, u'missions_if.txt')
+        m_bp = self.load_missions(BPMission, u'missions_bp.txt')
+        missions = {u'Greedy Search': m_ptp, u'Information Foraging': m_if,
+                    u'Berrypicking': m_bp}
 
         # Structure: self.matrices[rec_type][graph][strategy]
         # Structure: self.missions[rec_type][graph][strategy][scenario]
@@ -274,30 +266,62 @@ class DataSet(object):
             for graph in self.graphs[rec_type]:
                 self.matrices[rec_type][graph] = {}
                 self.missions[rec_type][graph] = {}
-                # self.matrices[rec_type][graph]['random'] = None
-                # self.matrices[rec_type][graph]['optimal'] = None
-                self.matrices[rec_type][graph]['title'] = self.sim_matrix
+                self.matrices[rec_type][graph]['random'] = [None, None]
+                self.matrices[rec_type][graph]['optimal'] = [None, None]
+                self.matrices[rec_type][graph]['title'] =\
+                    [os.path.join(self.folder_matrices, 'title_matrix.npy'),
+                     os.path.join(self.folder_matrices, 'title_matrix_c.npy')]
+                self.matrices[rec_type][graph]['wp_neighbors'] =\
+                    [os.path.join(self.folder_matrices, 'wp_neighbors.npy'),
+                     os.path.join(self.folder_matrices, 'wp_neighbors_c.npy')]
+                self.matrices[rec_type][graph]['neighbors'] =\
+                    [os.path.join(self.folder_matrices, rec_type + '_' + str(N) + '.npy'),
+                     os.path.join(self.folder_matrices, rec_type + '_' + str(N) + '_c.npy')]
                 for strategy in Strategy.strategies:
                     self.missions[rec_type][graph][strategy] = {}
-                    mpath = os.path.join(
-                        DataSet.mission_folder,
-                        'missions_' + graph.split(os.sep)[-1].split('.')[0] +
-                        '.txt'
-                    )
-                    m_if = self.load_missions(IFMission, mpath)
-                    missions = {u'Information Foraging': m_if}
                     for m in missions:
                         mc = copy.deepcopy(missions[m])
                         self.missions[rec_type][graph][strategy][m] = mc
 
+    def compute_shortest_path_lengths(self, graph_files):
+        for i, gfile in enumerate(graph_files):
+            print(gfile, i + 1, '/', len(graph_files))
+            sp_file = gfile.rsplit('.', 1)[0] + '.npy'
+            if os.path.exists(sp_file):
+                print('    file exists!')
+                continue
+            print('    computing...')
+            graph = load_graph(gfile)
+            vertices = [n for n in graph.vertices()]
+            dist = gt.shortest_distance(graph)
+            d_max = np.iinfo(np.int32).max  # graph-tool uses this to mean inf
+            sp = {}
+            for vidx, vertex in enumerate(vertices):
+                print('       ', vidx+1, '/', len(vertices), end='\r')
+                dists = zip(vertices, dist[vertex].a)
+                dists = {graph.vp['name'][v]: d for v, d in dists if d < d_max}
+                sp[graph.vp['name'][vertex]] = dists
+            with open(sp_file, 'wb') as outfile:
+                pickle.dump(sp, outfile, -1)
+        print('done computing path lengths')
+
     def load_missions(self, mission_class, mission_file):
-        with io.open(mission_file, encoding='utf-8') as infile:
+        fpath = os.path.join(self.base_folder, mission_file)
+        with io.open(fpath, encoding='utf-8') as infile:
             missions = []
+            start = None
+            targets = []
             for line in infile:
                 parts = line.strip().split('\t')
-                start = parts[0]
-                targets = [parts[1:]]
-                missions.append(mission_class(start, targets))
+                if line[0] != '*':
+                    if start:
+                        missions.append(mission_class(start, targets))
+                    start = parts[0]
+                    targets = [parts[1:]]
+                else:
+                    parts = line.strip().split('\t')
+                    targets.append(parts[1:])
+            missions.append(mission_class(start, targets))
             m = MissionCollection(missions)
         return m
 
@@ -313,9 +337,10 @@ class Navigator(object):
          background knowledge
         """
         print('    strategies...')
-        matrix_c = None
+        matrix_file = ''
         # run for all but the optimal version
         for data_set in self.data_sets:
+            item2matrix = os.path.join(data_set.base_folder, 'item2matrix.txt')
             for rec_type in data_set.graphs:
                 for graph in data_set.graphs[rec_type]:
                     print('        ', graph)
@@ -323,48 +348,60 @@ class Navigator(object):
                     for strategy in Strategy.strategies:
                         if strategy == 'optimal':
                             continue
-                        # print('            ', strategy)
-                        print_debug(strategy)
-                        matrix_c = data_set.matrices[rec_type][graph][strategy]
+                        debug(strategy)
+                        m_new = data_set.matrices[rec_type][graph][strategy][0]
+                        m_newc = data_set.matrices[rec_type][graph][strategy][1]
+                        if not m_new:
+                            matrix_s, matrix_c = None, None
+                        elif matrix_file != m_new:
+                            matrix_s = SimilarityMatrix(item2matrix, m_new)
+                            matrix_c = SimilarityMatrix(item2matrix, m_newc)
+                            matrix_file = m_new
                         for miss in data_set.missions[rec_type][graph][strategy]:
+                            if miss in ['Information Foraging', 'Berrypicking']:
+                                matrix = matrix_c
+                            else:
+                                matrix = matrix_s
                             for m in data_set.missions[rec_type][graph][strategy][miss]:
                                 for ti in xrange(len(m.targets_original)):
                                     start = m.path[-2] if m.path else m.start
-                                    print_debug('++++' * 16, 'mission', ti, '/',
+                                    debug('++++' * 16, 'mission', ti, '/',
                                           len(m.targets_original))
-                                    print_debug(m.targets_original[ti])
+                                    debug(m.targets_original[ti])
                                     self.navigate(gt_graph, strategy, m, start,
-                                                  None, matrix_c)
+                                                  None, matrix)
                                     if not (ti + 1) == len(m.targets_original):
                                         m.path.append(u'*')
                                     m.reset()
 
         # run the simulations for the optimal solution
-        # print('    optimal...')
-        # for data_set in self.data_sets:
-        #     for rec_type in data_set.graphs:
-        #         for graph in data_set.graphs[rec_type]:
-        #             print('        ', graph)
-        #             gt_graph = load_graph(graph)
-        #             for miss in data_set.missions[rec_type][graph]['optimal']:
-        #                 dist = collections.defaultdict(int)
-        #                 for m in data_set.missions[rec_type][graph]['optimal'][miss]:
-        #                     for ti in xrange(len(m.targets_original)):
-        #                         start = m.path[-2] if m.path else m.start
-        #                         print_debug('++++' * 16, 'mission', ti, '/',
-        #                               len(m.targets_original))
-        #                         print_debug(m.targets_original[ti])
-        #                         if miss == u'Greedy Search':
-        #                             # TODO: compute shortest path with graph-tool
-        #                             if m.targets_original[ti][0] in sp[start]:
-        #                                 s = sp[start][m.targets_original[ti][0]]
-        #                                 dist[s] += 1
-        #                             else:
-        #                                 dist[-1] += 1
-        #                         self.optimal_path(gt_graph, m, start, sp)
-        #                         if not (ti + 1) == len(m.targets_original):
-        #                             m.path.append(u'*')
-        #                         m.reset()
+        print('    optimal...')
+        for data_set in self.data_sets:
+            for rec_type in data_set.graphs:
+                for graph in data_set.graphs[rec_type]:
+                    print('        ', graph)
+                    gt_graph = load_graph(graph)
+                    sp_file = graph.rsplit('.', 1)[0] + '.npy'
+                    with open(sp_file, 'rb') as infile:
+                        sp = pickle.load(infile)
+                    for miss in data_set.missions[rec_type][graph]['optimal']:
+                        dist = collections.defaultdict(int)
+                        for m in data_set.missions[rec_type][graph]['optimal'][miss]:
+                            for ti in xrange(len(m.targets_original)):
+                                start = m.path[-2] if m.path else m.start
+                                debug('++++' * 16, 'mission', ti, '/',
+                                      len(m.targets_original))
+                                debug(m.targets_original[ti])
+                                if miss == u'Greedy Search':
+                                    if m.targets_original[ti][0] in sp[start]:
+                                        s = sp[start][m.targets_original[ti][0]]
+                                        dist[s] += 1
+                                    else:
+                                        dist[-1] += 1
+                                self.optimal_path(gt_graph, m, start, sp)
+                                if not (ti + 1) == len(m.targets_original):
+                                    m.path.append(u'*')
+                                m.reset()
 
         # write the results to a file
         self.write_paths()
@@ -388,17 +425,11 @@ class Navigator(object):
 
     def navigate(self, graph, strategy, mission, node, parent_node=None,
                  matrix=None):
-        if do_debug:
-            print_debug('-' * 32 + '\n')
-            print_debug('navigate called with', node, ttid2title[node],
-                  '(parent: ',
-                  ttid2title[parent_node] if parent_node else 'None', ')')
-            print_debug('targets:')
-            for m in mission.targets[0]:
-                print_debug('   ', m, ttid2title[m])
-            pdb.set_trace()
+        debug('-' * 32 + '\n')
+        debug('navigate called with', node, '(parent: ', parent_node, ')')
+        debug(mission.targets[0])
         if not mission.is_active() or node == -1 and not parent_node:
-            print_debug('aborting')
+            debug('aborting')
             return
         mission.add(node)
 
@@ -406,7 +437,7 @@ class Navigator(object):
         while mission.is_active():
             out_node = Strategy.find_next(graph, strategy, mission, node,
                                           parent_node, matrix)
-            print_debug('choosing node', out_node)
+            debug('choosing node', out_node)
             if not out_node:  # backtracking
                 if parent_node:
                     mission.add(parent_node)
@@ -415,19 +446,22 @@ class Navigator(object):
 
     def write_paths(self):
         for data_set in self.data_sets:
-            with io.open('paths.txt', 'w', encoding='utf-8') as outfile:
-                outfile.write(u'----' * 16 + u'\n')
+            with io.open(data_set.folder + 'paths.txt', 'w', encoding='utf-8')\
+                    as outfile:
+                outfile.write('----' * 16 + ' ' + data_set.folder + '\n')
                 for rec_type in data_set.graphs:
-                    outfile.write(u'----' * 16 + u' ' + rec_type + u'\n')
+                    outfile.write('----' * 16 + ' ' + rec_type + '\n')
                     for graph in data_set.graphs[rec_type]:
-                        outfile.write(u'----' * 8 + u' ' + graph + u'\n')
+                        outfile.write('----' * 8 + ' ' + graph + '\n')
                         for strategy in Strategy.strategies:
-                            outfile.write(u'----' * 4 + strategy + u'\n')
-                            for miss in [u'Information Foraging']:
-                                outfile.write(u'----' * 2 + miss + u'\n')
+                            outfile.write('----' * 4 + strategy + '\n')
+                            for miss in ['Greedy Search',
+                                         'Berrypicking',
+                                         'Information Foraging']:
+                                outfile.write('----' * 2 + miss + '\n')
                                 stras = data_set.missions[rec_type][graph][strategy][miss]
                                 for m in stras:
-                                    outfile.write(u'\t'.join(m.path) + u'\n')
+                                    outfile.write('\t'.join(m.path) + '\n')
 
 
 class PlotData(object):
@@ -453,9 +487,12 @@ class Evaluator(object):
 
         if not os.path.isdir('plots/'):
             os.makedirs('plots/')
-        self.sc2abb = {u'Information Foraging': u'if'}
-        self.colors = ['#FFA500', '#FF0000', '#0000FF', '#05FF05', '#000000']
-        self.hatches = ['', 'xxx', '///', '---']
+        self.sc2abb = {u'Greedy Search': u'ptp',
+                       u'Information Foraging': u'if',
+                       u'Berrypicking': u'bp'}
+        self.colors = [['#FFA500', '#05FF05', '#000000'],
+                       ['#FF0000', '#0000FF', '#000000']]
+        self.hatches = ['', 'xx', '//', '--']
 
     def compute(self):
         print('computing...')
@@ -466,14 +503,14 @@ class Evaluator(object):
             pt.folder_graphs = data_set.folder_graphs
             for i, rec_type in enumerate(data_set.missions):
                 pt.missions[rec_type] = {}
-                for j, g in enumerate(div_types):
-                    graph = data_set.folder_graphs + '/' + rec_type + \
-                            g + '.gt'
+                for j, g in enumerate((5, 10, 15, 20)):
+                    graph = data_set.folder_graphs + rec_type + '_' + \
+                            str(g) + '.txt'
                     pt.missions[rec_type][graph] = {}
-                    for strategy in ['title']:
+                    for strategy in Strategy.strategies:
                         pt.missions[rec_type][graph][strategy] = {}
-                        for scenario in [u'Information Foraging']:
-                            print_debug(rec_type, graph, strategy, scenario)
+                        for scenario in Mission.missions:
+                            debug(rec_type, graph, strategy, scenario)
                             m = data_set.missions[rec_type][graph][strategy][scenario]
                             m.compute_stats()
                             pt.missions[rec_type][graph][strategy][scenario] = m.stats
@@ -481,87 +518,220 @@ class Evaluator(object):
         print('saving to disk...')
         with open('data_sets_new.obj', 'wb') as outfile:
             pickle.dump(data_sets_new, outfile, -1)
-        self.data_sets = data_sets_new
+
+    def plot(self):
+        print('plot()')
+        for data_set in self.data_sets:
+            for scenario in Mission.missions:
+                fig, axes = plt.subplots(len(data_set.missions),
+                                         len(data_set.missions['cf_cosine']),
+                                         figsize=(14, 14))
+                for i, rec_type in enumerate(rec_types):
+                    for j, g in enumerate((5, 10, 15, 20)):
+                        graph = data_set.folder_graphs + rec_type + '_' + \
+                            unicode(g) + '.txt'
+                        for strategy in Strategy.strategies:
+                            debug(rec_type, graph, strategy, scenario)
+                            stats = data_set.missions[rec_type][graph][strategy][scenario]
+                            ppl.plot(axes[i, j],
+                                     np.arange(Navigator.steps_max + 1),
+                                     stats, label=strategy, linewidth=1)
+                            axes[i, j].set_ylim(0, 100)
+                            axes[i, j].set_xlim(0, Navigator.steps_max * 1.1)
+                            label = rec_type + ', Top' + str(g)
+                            axes[i, j].set_title(label, size=10)
+                fig.subplots_adjust(left=0.06, bottom=0.05, right=0.95,
+                                    top=0.98, wspace=0.30, hspace=0.30)
+                axes[0, 0].legend(loc=0, prop={'size': 6})
+
+                for i in range(axes.shape[0]):
+                    axes[i, 0].set_ylabel('Success Ratio')
+
+                for j in range(axes.shape[1]):
+                    axes[-1, j].set_xlabel('#Hops')
+
+                plt.savefig('plots/' + data_set.label + '_' +
+                            self.sc2abb[scenario] + '.pdf')
+
+    def plot_aggregated(self):
+        print('plot_aggregated()')
+        colors = [['#66C2A5', '#46AF8E', '#34836A', '#235847'],
+                  ['#FC8D62', '#FB6023', '#DC4204', '#A03003'],
+                  ['#8DA0CB', '#657EB8', '#47609A', '#334670']]
+        styles = ['-', ':', '-.', '--', '-', ':', '-.', '--']
+        # for j, g in enumerate((5, 10, 15, 20)):
+        fig, axes = plt.subplots(len(self.data_sets), len(self.sc2abb),
+                                 figsize=(18, 7))
+        for dind, data_set in enumerate(self.data_sets):
+            for sind, scenario in enumerate(Mission.missions):
+                debug(data_set.label, scenario)
+                ax = axes[dind, sind]
+                ax.set_title(scenario)
+                for i, rec_type in enumerate(rec_types):
+                    debug('    ', rec_type)
+                    # for j, g in enumerate((5, 10, 15, 20)):
+                    for j, g in enumerate((5, 20)):
+                        c_max = None
+                        val_max = -1
+                        graph = data_set.folder_graphs + rec_type + '_' + \
+                            unicode(g) + u'.txt'
+                        for k, strategy in enumerate(Strategy.strategies):
+                            if strategy in [u'random', u'optimal']:
+                                continue
+                            debug('        ', strategy, rec_type, g)
+                            stats = data_set.missions[rec_type][graph][strategy][scenario]
+                            auc = sum(stats)
+                            if auc > val_max:
+                                val_max = auc
+                                c_max = stats
+                        ls = styles[i]
+                        lab = rec_type
+                        if g == 5:
+                            lab += u' '
+                        lab += unicode(g)
+                        x = np.arange(Navigator.steps_max + 1)
+                        cidx = 0 if i < len(rec_types)/2 else 1
+                        ppl.plot(ax, x, c_max, label=lab, linewidth=2,
+                                 # linestyle=ls, color=colors[i][j])
+                                 linestyle=ls, color=colors[cidx][j])
+
+                ax.set_xlabel('#Hops')
+                ax.set_ylabel('Success Ratio')
+                ax.set_ylim(0, 70)
+                ax.set_xlim(0, Navigator.steps_max * 1.1)
+        for row in range(axes.shape[0]):
+            t_x = (axes[row][0].get_ylim()[0] + axes[row][0].get_ylim()[1]) / 2
+            label = [u'MovieLens', u'BookCrossing'][row]
+            axes[row][0].text(-55, t_x, label, size='x-large')
+        leg = plt.legend(bbox_to_anchor=(2.6, 1.25), loc='center right')
+        leg.get_frame().set_linewidth(0.0)
+        fig.subplots_adjust(left=0.2, bottom=0.08, right=0.75, top=0.93,
+                            wspace=0.31, hspace=0.42)
+        # plt.show()
+        # plt.savefig('plots/navigation_aggregated_' + unicode(g) + '.pdf')
+        plt.savefig('plots/navigation_aggregated.pdf')
 
     def plot_bar(self):
         print('plot_bar()')
 
-        # plot the legend in a separate plot
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        patches = [ax.bar([0], [0]) for i in range(4)]
-        for pidx, p in enumerate(patches):
-            p[0].set_fill(False)
-            p[0].set_edgecolor(self.colors[pidx])
-            p[0].set_hatch(self.hatches[pidx])
-        figlegend = plt.figure(figsize=(7.75, 0.465))
-        figlegend.legend(patches, ['No Diversification', 'ExpRel', 'Diversify', 'Random'], ncol=4)
-        fig.subplots_adjust(left=0.19, bottom=0.06, right=0.91, top=0.92,
-                            wspace=0.34, hspace=0.32)
-        # plt.show()
-        figlegend.savefig('plots/nav_legend.pdf')
+        # # plot the legend in a separate plot
+        # fig = plt.figure()
+        # ax = fig.add_subplot(111)
+        # patches = [ax.bar([0], [0]) for i in range(4)]
+        # for pidx, p in enumerate(patches):
+        #     p[0].set_fill(False)
+        #     p[0].set_edgecolor('black')
+        #     p[0].set_hatch(self.hatches[pidx])
+        # figlegend = plt.figure(figsize=(7.65, 0.465))
+        # figlegend.legend(patches, ['Standard', '+ Random', '+ Diversify', '+ ExpRel'], ncol=4)
+        # fig.subplots_adjust(left=0.19, bottom=0.06, right=0.91, top=0.92,
+        #                     wspace=0.34, hspace=0.32)
+        # # plt.show()
+        # figlegend.savefig('plots/nav_legend.pdf')
 
         # plot the scenarios
+        Ns = [5, 20]
         bars = None
-        for sind, scenario in enumerate([u'Information Foraging']):
-            print_debug('\n', scenario)
+        for sind, scenario in enumerate(Mission.missions):
+            debug('\n', scenario)
             for dind, data_set in enumerate(self.data_sets):
-                fig, axes = plt.subplots(1, len(div_types), figsize=(13, 3.25),
-                                         squeeze=False)
-                for nidx, rec_type in enumerate(rec_types):
-                    print_debug(data_set.label, rec_type)
-                    ax = axes[0, nidx]
-                    bar_vals = []
-                    for didx, div_type in enumerate(div_types):
-                        print_debug('    ', rec_type)
-                        graph = data_set.folder_graphs + '/' + rec_type +\
-                                div_type + '.gt'
-                        stats = data_set.missions[rec_type][graph]['title'][scenario]
-                        bar_vals.append(stats[-1])
-                    x = np.arange(len(div_types))
-                    bars = ax.bar(x, bar_vals)
-                    for bidx, bar in enumerate(bars):
-                        bar.set_fill(False)
-                        bar.set_hatch(self.hatches[bidx])
-                        bar.set_edgecolor(self.colors[bidx])
+                fig, axes = plt.subplots(len(Ns), 1, figsize=(3.25, 5), squeeze=False)
+                for nidx, N in enumerate(Ns):
+                    debug(data_set.label, 'N =', N)
+                    ax = axes[nidx, 0]
+                    for rtsidx, rec_type_split in enumerate([rec_types[:4], rec_types[4:]]):
+                        for ridx, rec_type in enumerate(rec_type_split):
+                            debug('    ', rec_type)
+                            bar_vals = [0 for r in rec_type_split]
+                            max_strategy = ''
+                            for k, strategy in enumerate(Strategy.strategies):
+                                if strategy in [u'random', u'optimal']:
+                                    continue
+                                graph = data_set.folder_graphs + rec_type + '_' + str(N) + '.txt'
+                                stats = data_set.missions[rec_type][graph][strategy][scenario]
+                                if stats[-1] > bar_vals[ridx]:
+                                    bar_vals[ridx] = stats[-1]
+                                    max_strategy = strategy
+                            debug('         ', max_strategy)
+                            x = np.arange(len(rec_type_split))
+                            x = [v + rtsidx * (len(rec_type_split) + 1) for v in x]
+                            bars = ax.bar(x, bar_vals)
+                            for bidx, bar in enumerate(bars):
+                                bar.set_fill(False)
+                                bar.set_hatch(self.hatches[bidx])
+                                bar.set_edgecolor(self.colors[rtsidx][dind])
 
-                    ax.set_title(rec_type[:2] + ' (' + rec_type[3:] + ')')
-                    ax.set_ylabel('Found nodes')
-                    ax.set_ylim(0, 5)
+                    ax.set_title('N = ' + str(N))
+                    ax.set_ylabel('Success Ratio (%)')
+                    ax.set_ylim(0, 80)
                     ax.set_xlim([-0.25, None])
-                    ax.set_xticks([])
+                    ax.set_xticks([2, 7])
+                    ax.set_xticklabels(['CF', 'CB'])
 
-                fig.subplots_adjust(left=0.06, bottom=0.14, right=0.98,
-                                    top=0.88, wspace=0.38, hspace=0.32)
+                fig.subplots_adjust(left=0.19, bottom=0.06, right=0.91, top=0.92,
+                                    wspace=0.34, hspace=0.32)
                 # plt.show()
-                plt.savefig('plots/nav_success_rate.pdf')
+                plt.savefig('plots/nav_' + scenario.replace(' ', '_').lower() +
+                            '_' + data_set.label + '.pdf')
+
+    def plot_sample(self):
+        """plot and save an example evaluation showing all types of background
+        knowledge used in the simulations
+        """
+        print(u'plot_sample()')
+        data_set = self.data_sets[1]
+        scenario = u'Greedy Search'
+        titles = [u'Collaborative Filtering', u'Content-based']
+        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+        for i, rec_type in enumerate(data_set.missions):
+            graph = data_set.folder_graphs + rec_type + '_' + str(15) + u'.txt'
+            for strategy in Strategy.strategies:
+                m = data_set.missions[rec_type][graph][strategy][scenario]
+                m.compute_stats()
+                ppl.plot(axes[i], np.arange(Navigator.steps_max + 1),
+                         m.stats, label=strategy, linewidth=2)
+                axes[i].set_xlabel(u'#Hops')
+                axes[i].set_ylabel(u'Success Ratio')
+                axes[i].set_ylim(0, 85)
+                axes[i].set_xlim(0, Navigator.steps_max * 1.01)
+                axes[i].set_title(titles[i])
+            ppl.legend(axes[i], loc=0)
+
+
+        # plt.suptitle(u'Greedy Search on the BookCrossing for N=15',
+        #              size='xx-large', x=0.5)
+        fig.subplots_adjust(left=0.08, right=0.97, top=0.9)
+
+        plt.savefig('plots/sample.png')
+        plt.savefig('plots/sample.pdf')
 
 
 rec_types = [
     'cb',
-    'rb',
-    'rbmf',
-    'rbar'
+    # 'rb',
+    # 'rbmf',
+    # 'rbar',
+    # 'rbiw',
 ]
 
 div_types = [
     '',
-    'div_random_',
-    'div_diversify_',
-    'div_exprel_'
+    '_div_random',
+    # '_div_diversify',
+    # '_div_exprel'
 ]
 
-Ns = [
+n_vals = [
     5,
-    10
+    # 10
 ]
 
 
 if __name__ == '__main__':
-    movies = DataSet('movielens', rec_types, div_types, Ns)
-    # nav = Navigator([movies])
-    # print('running...')
-    # nav.run()
+    movies = DataSet('movielens', rec_types, div_types, n_vals)
+    nav = Navigator([movies])
+    print('running...')
+    nav.run()
     # with open('data_sets.obj', 'wb') as outfile:
     #     pickle.dump([movies], outfile, -1)
     # try:
@@ -570,6 +740,6 @@ if __name__ == '__main__':
     # except OSError:
     #     pass
 
-    evaluator = Evaluator()
-    evaluator.plot_bar()
+    # evaluator = Evaluator()
+    # evaluator.plot_bar()
 

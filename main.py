@@ -54,7 +54,7 @@ class SimilarityMatrix(object):
 
 
 class RecommendationStrategy(object):
-    def __init__(self, similarity_matrix, ):
+    def __init__(self, similarity_matrix):
         self.sims = similarity_matrix
         self.label = ''
 
@@ -79,7 +79,6 @@ class RecommendationStrategy(object):
 class TopNRecommendationStrategy(RecommendationStrategy):
     def __init__(self, similarity_matrix):
         super(TopNRecommendationStrategy, self).__init__(similarity_matrix)
-        self.label = 'top_n'
 
     def get_recommendations(self, n):
         return self.get_top_n_recommendations(n).astype(int)
@@ -90,7 +89,7 @@ class TopNDivRandomRecommendationStrategy(RecommendationStrategy):
         super(TopNDivRandomRecommendationStrategy, self).__init__(
             similarity_matrix
         )
-        self.label = 'top_n_div_random'
+        self.label = '_div_random'
 
     def get_recommendations(self, n):
         nd = int(n * FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS)
@@ -111,7 +110,7 @@ class TopNDivDiversifyRecommendationStrategy(RecommendationStrategy):
         super(TopNDivDiversifyRecommendationStrategy, self).__init__(
             similarity_matrix
         )
-        self.label = 'top_n_div_diversify'
+        self.label = '_div_diversify'
 
     def get_recommendations(self, n):
         nd = int(n * FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS)
@@ -152,7 +151,7 @@ class TopNDivExpRelRecommendationStrategy(RecommendationStrategy):
         super(TopNDivExpRelRecommendationStrategy, self).__init__(
             similarity_matrix
         )
-        self.label = 'top_n_div_exprel'
+        self.label = '_div_exprel'
 
     def get_recommendations(self, n):
         nd = int(n * FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS)
@@ -237,7 +236,7 @@ class Recommender(object):
     def save_graph(self, recs, label, n):
         file_name = os.path.join(
             self.graph_folder,
-            self.label + '_' + label + '_' + unicode(n)
+            self.label + '_' + unicode(n) + label
         )
         with io.open(file_name + '.txt', 'w', encoding='utf-8') as outfile:
             for ridx, rec in enumerate(recs):
@@ -266,6 +265,7 @@ class Recommender(object):
             s = strategy(self.similarity_matrix)
             print(s.label)
             for n in NUMBER_OF_RECOMMENDATIONS:
+                print('   ', n)
                 recs = s.get_recommendations(n=n)
                 self.save_graph(recs, label=s.label, n=n)
 
@@ -386,6 +386,8 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
         q = self.factorize(um)
+        with open('f.obj', 'wb') as outfile:
+            pickle.dump(q, outfile, -1)
         # use the centered version for similarity computation
         q_centered = np.copy(q.astype(float).T)
         q_centered[np.where(q_centered == 0)] = np.nan
@@ -600,23 +602,23 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         ucount = um.shape[0]
         icount = um.shape[1]
 
-        coratings = {i: collections.defaultdict(int) for i in range(icount)}
-        for u in range(ucount):
-            print(u+1, '/', ucount, end='\r')
-            items = np.nonzero(um[u, :])[0]
-            for i in itertools.combinations(items, 2):
-                coratings[i[0]][i[1]] += 1
-                coratings[i[1]][i[0]] += 1
-        with open('coratings.obj', 'wb') as outfile:
-            pickle.dump(coratings, outfile, -1)
+        # coratings = {i: collections.defaultdict(int) for i in range(icount)}
+        # for u in range(ucount):
+        #     print(u+1, '/', ucount, end='\r')
+        #     items = np.nonzero(um[u, :])[0]
+        #     for i in itertools.combinations(items, 2):
+        #         coratings[i[0]][i[1]] += 1
+        #         coratings[i[1]][i[0]] += 1
+        # with open('coratings.obj', 'wb') as outfile:
+        #     pickle.dump(coratings, outfile, -1)
         # # debug helpers
         # self.rating_stats(um)
         # self.corating_stats(coratings, item_id=0)
         # self.ar_simple(um, coratings, 0, 2849)
         # self.ar_complex(um, coratings, 0, 2849)
         # self.ar_both(um, coratings, 0, 2849)
-        # with open('coratings.obj', 'rb') as infile:
-        #     coratings = pickle.load(infile)
+        with open('coratings.obj', 'rb') as infile:
+            coratings = pickle.load(infile)
 
         sims = np.zeros((icount, icount))
         sum_items = np.sum(um)
@@ -646,8 +648,8 @@ if __name__ == '__main__':
     start_time = datetime.now()
     # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
     # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
-    # rbmf = MatrixFactorizationRecommender(dataset='movielens'); rbmf.get_recommendations()
-    rbiw = InterpolationWeightRecommender(dataset='movielens'); rbiw.get_recommendations()
+    rbmf = MatrixFactorizationRecommender(dataset='movielens'); rbmf.get_recommendations()
+    # rbiw = InterpolationWeightRecommender(dataset='movielens'); rbiw.get_recommendations()
     # rbar = AssociationRuleRecommender(dataset='movielens'); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))

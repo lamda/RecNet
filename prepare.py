@@ -9,7 +9,6 @@ import cPickle as pickle
 import operator
 import os
 import pandas as pd
-pd.set_option('display.width', 1000)
 import pdb
 import random
 import sklearn.feature_extraction.text
@@ -19,6 +18,9 @@ from main import DATA_BASE_FOLDER
 import wikidump
 
 
+pd.set_option('display.width', 1000)
+
+
 class ItemCollection(object):
     def __init__(self, dataset):
         print(dataset)
@@ -26,10 +28,13 @@ class ItemCollection(object):
         self.data_folder = os.path.join(DATA_BASE_FOLDER, self.dataset)
         self.dataset_folder = os.path.join(self.data_folder, 'dataset')
         self.graph_folder = os.path.join(self.data_folder, 'graphs')
+        self.matrices_folder = os.path.join(self.data_folder, 'matrices')
+        for folder in [self.graph_folder, self.matrices_folder]:
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+
         self.db_file = os.path.join(self.data_folder, 'database.db')
         self.db_main_table = 'movies' if dataset == 'movielens' else 'books'
-        if not os.path.exists(self.graph_folder):
-            os.makedirs(self.graph_folder)
 
         conn = sqlite3.connect(self.db_file)
         cursor = conn.cursor()
@@ -160,8 +165,7 @@ class ItemCollection(object):
         selected_clusters = [c for c in cluster_items if 3 <= len(c) <= 30]
         mission_limit = 1200
         pairs = set()
-        numpairs = len(ids) * (len(ids) - 1) if len(
-            ids) < 35 else mission_limit
+        numpairs = len(ids) * (len(ids) - 1) if len(ids) < 35 else mission_limit
         while len(pairs) < numpairs:
             pairs.add(tuple(random.sample(ids, 2)))
 
@@ -187,7 +191,7 @@ class ItemCollection(object):
             if m not in perm:
                 perm.append(m)
 
-        fpath = os.path.join(self.data_folder + 'missions_bp.txt')
+        fpath = os.path.join(self.data_folder, 'missions_bp.txt')
         with io.open(fpath, 'w', encoding='utf-8') as outfile:
             for p in perm:
                 for ind, c in enumerate(p):
@@ -199,9 +203,10 @@ class ItemCollection(object):
                         outfile.write(unicode(node) + u'\t')
                     outfile.write(u'\n')
 
-        fpath = os.path.join(self.data_folder + 'item2matrix.txt')
+        fpath = os.path.join(self.data_folder, 'item2matrix.txt')
         with open(fpath, 'w') as outfile:
             item2matrix = {str(m): i for i, m in enumerate(ids)}
+            pdb.set_trace()
             for k in sorted(item2matrix.keys()):
                 outfile.write(k + '\t' + str(item2matrix[k]) + '\n')
 
@@ -279,62 +284,23 @@ class ItemCollection(object):
         graph_types = set(f[:f.rfind('_')]
                           for f in os.listdir(path)
                           if 'resolved' not in f)
-        graphs = [g + '_' + unicode(N) + '.txt'
-                  for N in [5, 10]
+        graphs = [g + '_' + unicode(N) + '.txt' for N in [5, 10]
                   for g in graph_types]
-        # graphs = [g for g in graphs if 'diversify' in g]
-        graphs = [
-            # 'cb_top_n_10.txt',
-            # 'cb_top_n_5.txt',
-            # 'cb_top_n_div_diversify_10.txt',
-            # 'cb_top_n_div_diversify_5.txt',
-            # 'cb_top_n_div_exprel_10.txt',
-            # 'cb_top_n_div_exprel_5.txt',
-            # 'cb_top_n_div_random_10.txt',
-            # 'cb_top_n_div_random_5.txt',
-            # 'rb_top_n_10.txt',
-            # 'rb_top_n_5.txt',
-            # 'rb_top_n_div_diversify_10.txt',
-            # 'rb_top_n_div_diversify_5.txt',
-            # 'rb_top_n_div_exprel_10.txt',
-            # 'rb_top_n_div_exprel_5.txt',
-            # 'rb_top_n_div_random_10.txt',
-            # 'rb_top_n_div_random_5.txt',
-            # 'rbar_top_n_10.txt',
-            # 'rbar_top_n_5.txt',
-            # 'rbar_top_n_div_diversify_10.txt',
-            'rbar_top_n_div_diversify_5.txt',
-            # 'rbar_top_n_div_exprel_10.txt',
-            # 'rbar_top_n_div_exprel_5.txt',
-            # 'rbar_top_n_div_random_10.txt',
-            # 'rbar_top_n_div_random_5.txt',
-            # 'rbmf_top_n_10.txt',
-            # 'rbmf_top_n_5.txt',
-            # 'rbmf_top_n_div_diversify_10.txt',
-            # 'rbmf_top_n_div_diversify_5.txt',
-            # 'rbmf_top_n_div_exprel_10.txt',
-            # 'rbmf_top_n_div_exprel_5.txt',
-            # 'rbmf_top_n_div_random_10.txt',
-            # 'rbmf_top_n_div_random_5.txt',
-        ]
-
+        graphs = graphs[31:]
         for index, g in enumerate(graphs):
             print(index + 1, '/', len(graphs), ': ', g)
             fg = os.path.join(self.data_folder, 'graphs', g)
             fc = os.path.join(self.data_folder, 'clusters.txt')
             fi = os.path.join(self.data_folder, 'item2matrix.txt')
-            m_cos, m_clus = self.calculate_clustered_cosine_matrix(fg, fc,
-                                                                   fi)
+            m_cos, m_clus = self.calculate_clustered_cosine_matrix(fg, fc, fi)
             dirpath = os.path.join(self.data_folder, 'matrices')
             if not os.path.isdir(dirpath):
                 os.makedirs(dirpath)
             np.save(os.path.join(dirpath, g.split('.')[0]), m_cos)
             np.save(os.path.join(dirpath, g.split('.')[0] + '_c'), m_clus)
 
-    def calculate_clustered_cosine_matrix(self, graph_file,
-                                          cluster_file,
-                                          item2matrix_file,
-                                          matrix_cos=None):
+    def calculate_clustered_cosine_matrix(self, graph_file, cluster_file,
+                                          item2matrix_file, matrix_cos=None):
         item2matrix = {}
         with io.open(item2matrix_file, encoding='utf-8-sig') as infile:
             for line in infile:
@@ -377,6 +343,7 @@ class ItemCollection(object):
 
     def calculate_cosine_matrix(self, graph_file):
         import networkx as nx
+
         def load_graph(graph_file):
             """ load a graph from a tab-separated edge list
             """
@@ -388,14 +355,13 @@ class ItemCollection(object):
             return graph
 
         graph = load_graph(graph_file)
-        adj = np.array(
-            nx.adjacency_matrix(graph, sorted(graph.nodes())).todense())
+        adj = nx.adjacency_matrix(graph, sorted(graph.nodes())).todense()
+        adj = np.array(adj)
         num = np.dot(adj, adj)
         sc = np.sum(adj, 0)
         sr = np.sum(adj, 1)
         denom = np.sqrt(np.outer(sr, sc))
-        with np.errstate(
-                all='ignore'):  # suppresses division by zero warnings
+        with np.errstate(all='ignore'):  # suppresses division by zero warnings
             cs = num / denom
         cs[np.isnan(cs)] = 0.0
         return cs
@@ -450,6 +416,6 @@ class ItemCollection(object):
 
 if __name__ == '__main__':
     ic = ItemCollection(dataset='movielens')
-    # ic.write_clusters_title_matrix()
+    ic.write_clusters_title_matrix()
     # ic.write_network_neighbors_matrix()
-    ic.write_wp_neighbors_matrix()
+    # ic.write_wp_neighbors_matrix()
