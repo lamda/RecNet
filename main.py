@@ -455,7 +455,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         return df
 
     # @decorators.Cached # TODO
-    def get_similarity_matrix(self, threshold=0.25):
+    def get_similarity_matrix(self, threshold=50):
         um = self.get_utility_matrix()
         ucount = um.shape[0]
         icount = um.shape[1]
@@ -513,7 +513,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         sims = np.zeros((icount, icount))
         for x in range(icount):
             for y in coratings[x]:
-                if coratings[x][y] < 50:  # confidence threshold
+                if coratings[x][y] < threshold:  # confidence threshold
                     continue
                 sims[x, y] = w[x, y]
 
@@ -593,30 +593,30 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         complex = self.ar_complex(um, coratings, x, y)
         print('s: %.4f, c: %.4f' % (simple, complex))
 
-    def get_similarity_matrix(self, threshold=0.25):
+    def get_similarity_matrix(self, threshold=10):
         um = self.get_utility_matrix()
         um = np.where(um == 0, um, 1)  # set all ratings to 1
         # um = np.where(um >= 4, 1, 0)  # set all high ratings to 1
         ucount = um.shape[0]
         icount = um.shape[1]
 
-        # coratings = {i: collections.defaultdict(int) for i in range(icount)}
-        # for u in range(ucount):
-        #     print(u+1, '/', ucount, end='\r')
-        #     items = np.nonzero(um[u, :])[0]
-        #     for i in itertools.combinations(items, 2):
-        #         coratings[i[0]][i[1]] += 1
-        #         coratings[i[1]][i[0]] += 1
-        # with open('coratings.obj', 'wb') as outfile:
-        #     pickle.dump(coratings, outfile, -1)
+        coratings = {i: collections.defaultdict(int) for i in range(icount)}
+        for u in range(ucount):
+            print(u+1, '/', ucount, end='\r')
+            items = np.nonzero(um[u, :])[0]
+            for i in itertools.combinations(items, 2):
+                coratings[i[0]][i[1]] += 1
+                coratings[i[1]][i[0]] += 1
+        with open('coratings.obj', 'wb') as outfile:
+            pickle.dump(coratings, outfile, -1)
         # # debug helpers
         # self.rating_stats(um)
         # self.corating_stats(coratings, item_id=0)
         # self.ar_simple(um, coratings, 0, 2849)
         # self.ar_complex(um, coratings, 0, 2849)
         # self.ar_both(um, coratings, 0, 2849)
-        with open('coratings.obj', 'rb') as infile:
-            coratings = pickle.load(infile)
+        # with open('coratings.obj', 'rb') as infile:
+        #     coratings = pickle.load(infile)
 
         sims = np.zeros((icount, icount))
         sum_items = np.sum(um)
@@ -625,7 +625,7 @@ class AssociationRuleRecommender(RatingBasedRecommender):
             is_x = np.sum(um[:, x])
             not_x = (sum_items - is_x)
             for y in coratings[x]:
-                if coratings[x][y] < 10:
+                if coratings[x][y] < threshold:
                     continue
                 # # (x and y) / x  simple version
                 # denominator = coratings[x][y]

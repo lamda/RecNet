@@ -30,7 +30,8 @@ class Plotter(object):
             'cb',
             'rb',
             'rbmf',
-            'rbar'
+            'rbar',
+            'rbiw',
         ]
         self.Ns = [
             '5',
@@ -44,6 +45,8 @@ class Plotter(object):
             'MF': ['rbmf_top_n_' + d + '10.txt_' + c
                    for c in self.Ns for d in self.div_types],
             'AR': ['rbar_top_n_' + d + '10.txt_' + c
+                   for c in self.Ns for d in self.div_types],
+            'IW': ['rbiw_top_n_' + d + '10.txt_' + c
                    for c in self.Ns for d in self.div_types],
         }
         self.div_labels = [
@@ -60,6 +63,8 @@ class Plotter(object):
             'MF': ['MF (' + c + d + ')'
                    for c in ['5', '10'] for d in self.div_labels],
             'AR': ['AR (' + c + d + ')'
+                   for c in ['5', '10'] for d in self.div_labels],
+            'IW': ['IW (' + c + d + ')'
                    for c in ['5', '10'] for d in self.div_labels],
         }
         self.graph_data = {}

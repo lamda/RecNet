@@ -278,7 +278,8 @@ if __name__ == '__main__':
         'cb',
         'rb',
         'rbmf',
-        'rbar'
+        'rbar',
+        'rbiw',
     ]
     div_types = [
         '',
