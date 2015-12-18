@@ -22,7 +22,7 @@ import numpy as np
 
 def debug(*text):
     """wrapper for the print function that can be turned on and off"""
-    if True:
+    if False:
         print(' '.join(str(t) for t in text))
 
 
@@ -185,11 +185,11 @@ class Strategy(object):
     During missions, thhe find_next method is called to select the next node
     """
     strategies = [
-        # u'random',
-        u'title',
+        u'random',
+        # u'title',
         # u'neighbors',
         # u'wp_neighbors',
-        # u'optimal'
+        u'optimal'
     ]
 
     def __init__(self):
@@ -205,7 +205,7 @@ class Strategy(object):
         nodes = [graph.vp['name'][n] for n in nodes_gt]
         debug('nodes =', nodes)
         if strategy == 'random':
-            if parent_node and parent_node not in nodes:
+            if parent_node is not None and parent_node not in nodes:
                 nodes.append(parent_node)
             return random.choice(nodes)
         neighbor_targets = [n for n in nodes if n in mission.targets[0]]
@@ -214,7 +214,6 @@ class Strategy(object):
             return neighbor_targets[0]
 
         nodes = [n for n in nodes if n not in mission.visited]
-        pdb.set_trace()
         candidates = {n: matrix[n, mission.targets[0][0]] for n in nodes}
         if not candidates:
             chosen_node = None  # abort search
@@ -405,6 +404,7 @@ class Navigator(object):
 
         # write the results to a file
         self.write_paths()
+        self.save()
 
     def optimal_path(self, graph, mission, start, sp):
         """write a fake path to the mission, that is of the correct length
@@ -446,9 +446,9 @@ class Navigator(object):
 
     def write_paths(self):
         for data_set in self.data_sets:
-            with io.open(data_set.folder + 'paths.txt', 'w', encoding='utf-8')\
-                    as outfile:
-                outfile.write('----' * 16 + ' ' + data_set.folder + '\n')
+            fpath = os.path.join(data_set.base_folder, 'paths.txt')
+            with open(fpath, 'w') as outfile:
+                outfile.write('----' * 16 + ' ' + data_set.base_folder + '\n')
                 for rec_type in data_set.graphs:
                     outfile.write('----' * 16 + ' ' + rec_type + '\n')
                     for graph in data_set.graphs[rec_type]:
@@ -462,6 +462,10 @@ class Navigator(object):
                                 stras = data_set.missions[rec_type][graph][strategy][miss]
                                 for m in stras:
                                     outfile.write('\t'.join(m.path) + '\n')
+
+    def save(self):
+        with open('data_sets.obj', 'wb') as outfile:
+            pickle.dump([movies], outfile, -1)
 
 
 class PlotData(object):
@@ -708,7 +712,7 @@ class Evaluator(object):
 
 rec_types = [
     'cb',
-    # 'rb',
+    'rb',
     # 'rbmf',
     # 'rbar',
     # 'rbiw',
@@ -732,8 +736,7 @@ if __name__ == '__main__':
     nav = Navigator([movies])
     print('running...')
     nav.run()
-    # with open('data_sets.obj', 'wb') as outfile:
-    #     pickle.dump([movies], outfile, -1)
+
     # try:
     #     os.remove('data_sets_new.obj')
     #     print('deleted')

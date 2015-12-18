@@ -14,8 +14,7 @@ import random
 import sklearn.feature_extraction.text
 import sqlite3
 
-from main import DATA_BASE_FOLDER
-import wikidump
+DATA_BASE_FOLDER = 'data'
 
 
 pd.set_option('display.width', 1000)
@@ -103,7 +102,7 @@ class ItemCollection(object):
         ids = self.ids
         try:
             ids = sorted(map(int, ids))
-        except:
+        except ValueError:
             ids = sorted(ids)
 
         def write_cluster(clusters, id2cat, fname):
@@ -206,7 +205,6 @@ class ItemCollection(object):
         fpath = os.path.join(self.data_folder, 'item2matrix.txt')
         with open(fpath, 'w') as outfile:
             item2matrix = {str(m): i for i, m in enumerate(ids)}
-            pdb.set_trace()
             for k in sorted(item2matrix.keys()):
                 outfile.write(k + '\t' + str(item2matrix[k]) + '\n')
 
@@ -368,6 +366,7 @@ class ItemCollection(object):
 
     def write_wp_neighbors_matrix(self):
         print('write_wp_neighbors_matrix()')
+        # import wikidump
         # conn = sqlite3.connect(self.db_file)
         # cursor = conn.cursor()
         # stmt = """SELECT id, wp_id FROM """ + self.db_main_table
@@ -416,6 +415,6 @@ class ItemCollection(object):
 
 if __name__ == '__main__':
     ic = ItemCollection(dataset='movielens')
-    ic.write_clusters_title_matrix()
+    # ic.write_clusters_title_matrix()
     # ic.write_network_neighbors_matrix()
-    # ic.write_wp_neighbors_matrix()
+    ic.write_wp_neighbors_matrix()

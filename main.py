@@ -21,7 +21,7 @@ import recsys
 
 
 # np.random.seed(2014)
-DEBUG = True
+# DEBUG = True
 DEBUG = False
 DEBUG_SIZE = 255
 # DEBUG_SIZE = 750
@@ -216,6 +216,9 @@ class Recommender(object):
             t[0]: t[1] for t in zip(self.df.index, self.df['original_title'])
         }
         self.title2id = {v: k for k, v in self.id2title.items()}
+        self.id2dataset_id = {
+            t[0]: t[1] for t in zip(self.df.index, self.df['movielens_id'])
+        }
         if DEBUG:
             self.df = self.df.iloc[:DEBUG_SIZE]
         self.similarity_matrix = None
@@ -241,7 +244,8 @@ class Recommender(object):
         with io.open(file_name + '.txt', 'w', encoding='utf-8') as outfile:
             for ridx, rec in enumerate(recs):
                 for r in rec:
-                    outfile.write(unicode(ridx) + '\t' + unicode(r) + '\n')
+                    outfile.write(unicode(self.id2dataset_id[ridx]) + '\t' +
+                                  unicode(self.id2dataset_id[r]) + '\n')
 
         with io.open(file_name + '_resolved.txt', 'w', encoding='utf-8')\
                 as outfile:
@@ -384,10 +388,13 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
 
     # @decorators.Cached # TODO
     def get_similarity_matrix(self):
-        um = self.get_utility_matrix()
-        q = self.factorize(um)
-        with open('f.obj', 'wb') as outfile:
-            pickle.dump(q, outfile, -1)
+        # um = self.get_utility_matrix()
+        # q = self.factorize(um)
+        # with open('f.obj', 'wb') as outfile:
+        #     pickle.dump(q, outfile, -1)
+        with open('f.obj', 'rb') as infile:
+            q = pickle.load(infile)
+
         # use the centered version for similarity computation
         q_centered = np.copy(q.astype(float).T)
         q_centered[np.where(q_centered == 0)] = np.nan
@@ -648,9 +655,9 @@ if __name__ == '__main__':
     start_time = datetime.now()
     # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
     # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
-    rbmf = MatrixFactorizationRecommender(dataset='movielens'); rbmf.get_recommendations()
+    # rbmf = MatrixFactorizationRecommender(dataset='movielens'); rbmf.get_recommendations()
     # rbiw = InterpolationWeightRecommender(dataset='movielens'); rbiw.get_recommendations()
-    # rbar = AssociationRuleRecommender(dataset='movielens'); rbar.get_recommendations()
+    rbar = AssociationRuleRecommender(dataset='movielens'); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 
