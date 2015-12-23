@@ -11,43 +11,29 @@ import numpy as np
 import os
 import pdb
 import cPickle as pickle
-import prettyplotlib as ppl
 
 
 class Plotter(object):
-    stats_folder = os.path.join('data', 'movielens', 'graphs', 'stats')
-
-    def __init__(self, use_sample=True):
+    def __init__(self, stats_folder, use_sample=True):
+        self.stats_folder = stats_folder
         self.use_sample = use_sample
         self.div_types = [
             '',
-            'div_exprel_',
-            'div_diversify_',
-            'div_random_',
+            '_div_exprel',
+            '_div_diversify',
+            '_div_random',
         ]
         self.graph_types = len(self.div_types)
-        rec_types = [
-            'cb',
-            'rb',
-            'rbmf',
-            'rbar',
-            'rbiw',
-        ]
         self.Ns = [
             '5',
             '10',
         ]
         self.graphs = {
-            'CB': ['cb_top_n_' + d + '10.txt_' + c
-                   for c in self.Ns for d in self.div_types],
-            'RB': ['rb_top_n_' + d + '10.txt_' + c
-                   for c in self.Ns for d in self.div_types],
-            'MF': ['rbmf_top_n_' + d + '10.txt_' + c
-                   for c in self.Ns for d in self.div_types],
-            'AR': ['rbar_top_n_' + d + '10.txt_' + c
-                   for c in self.Ns for d in self.div_types],
-            'IW': ['rbiw_top_n_' + d + '10.txt_' + c
-                   for c in self.Ns for d in self.div_types],
+            'CB': ['cb_' + c + d for c in self.Ns for d in self.div_types],
+            'RB': ['rb_' + c + d for c in self.Ns for d in self.div_types],
+            'MF': ['rbmf_' + c + d for c in self.Ns for d in self.div_types],
+            'AR': ['rbar_' + c + d for c in self.Ns for d in self.div_types],
+            'IW': ['rbiw_' + c + d for c in self.Ns for d in self.div_types],
         }
         self.div_labels = [
             '',
@@ -56,16 +42,11 @@ class Plotter(object):
             ', Random',
         ]
         self.graph_labels = {
-            'CB': ['CB (' + c + d + ')'
-                   for c in ['5', '10'] for d in self.div_labels],
-            'RB': ['RB (' + c + d + ')'
-                   for c in ['5', '10'] for d in self.div_labels],
-            'MF': ['MF (' + c + d + ')'
-                   for c in ['5', '10'] for d in self.div_labels],
-            'AR': ['AR (' + c + d + ')'
-                   for c in ['5', '10'] for d in self.div_labels],
-            'IW': ['IW (' + c + d + ')'
-                   for c in ['5', '10'] for d in self.div_labels],
+            'CB': ['CB (' + c + d + ')' for c in self.Ns for d in self.div_labels],
+            'RB': ['RB (' + c + d + ')' for c in self.Ns for d in self.div_labels],
+            'MF': ['MF (' + c + d + ')' for c in self.Ns for d in self.div_labels],
+            'AR': ['AR (' + c + d + ')' for c in self.Ns for d in self.div_labels],
+            'IW': ['IW (' + c + d + ')' for c in self.Ns for d in self.div_labels],
         }
         self.graph_data = {}
         self.bowtie_changes = {}
@@ -100,7 +81,7 @@ class Plotter(object):
                     graph_fname = graph_name[:3] + 'sample_' + graph_name[3:]
                 else:
                     graph_fname = graph_name
-                fpath = os.path.join(Plotter.stats_folder, graph_fname + '.obj')
+                fpath = os.path.join(self.stats_folder, graph_fname + '.obj')
                 with open(fpath, 'rb') as infile:
                     graph_data = pickle.load(infile)
                 self.graph_data[graph_name] = graph_data
@@ -255,7 +236,7 @@ class Plotter(object):
     def plot_alluvial(self):
         """ produce an alluvial diagram (sort of like a flow chart) for the
         bowtie membership changes over N"""
-        fpath = os.path.join(Plotter.stats_folder, 'bowtie_changes.obj')
+        fpath = os.path.join(self.stats_folder, 'bowtie_changes.obj')
         with open(fpath, 'rb') as infile:
             self.bowtie_changes = pickle.load(infile)
         labels = ['IN', 'SCC', 'OUT', 'TL_IN', 'TL_OUT', 'TUBE', 'OTHER']
@@ -330,4 +311,8 @@ class Plotter(object):
 
 
 if __name__ == '__main__':
-    p = Plotter(use_sample=False)
+    for sf in [
+        os.path.join('data', 'movielens', 'stats'),
+        # os.path.join('data', 'bookcrossing', 'stats'),
+    ]:
+        p = Plotter(sf, use_sample=False)

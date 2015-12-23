@@ -10,7 +10,6 @@ import cPickle as pickle
 import operator
 import os
 import pandas as pd
-pd.set_option('display.width', 1000)
 import pdb
 import scipy.spatial.distance
 import sklearn.feature_extraction.text
@@ -20,6 +19,7 @@ import decorators
 import recsys
 
 
+pd.set_option('display.width', 1000)
 # np.random.seed(2014)
 # DEBUG = True
 DEBUG = False
