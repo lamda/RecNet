@@ -495,6 +495,7 @@ def read_movie_lens_data():
 
     return r
 
+
 if __name__ == '__main__':
     start_time = datetime.datetime.now()
 

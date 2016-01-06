@@ -207,17 +207,18 @@ class Recommender(object):
         if not os.path.exists(self.graph_folder):
             os.makedirs(self.graph_folder)
 
-        data = self.query_db('SELECT * FROM ' + self.db_main_table)
+        data = self.query_db('SELECT id, cf_title, wp_title, wp_text, original_title, wp_id FROM ' + self.db_main_table)
         data = [(d[0], d[1], d[2], d[4], d[5], d[3]) for d in data]
-        cols = ['movielens_id', 'cf_title', 'wp_title', 'original_title',
+        cols = ['dataset_id', 'cf_title', 'wp_title', 'original_title',
                 'wp_id', 'wp_text']
         self.df = pd.DataFrame(data=data, columns=cols)
+        self.df['dataset_id'] = self.df['dataset_id'].apply(lambda i: unicode(i))
         self.id2title = {
             t[0]: t[1] for t in zip(self.df.index, self.df['original_title'])
         }
         self.title2id = {v: k for k, v in self.id2title.items()}
         self.id2dataset_id = {
-            t[0]: t[1] for t in zip(self.df.index, self.df['movielens_id'])
+            t[0]: t[1] for t in zip(self.df.index, self.df['dataset_id'])
         }
         if DEBUG:
             self.df = self.df.iloc[:DEBUG_SIZE]
@@ -244,7 +245,7 @@ class Recommender(object):
         with io.open(file_name + '.txt', 'w', encoding='utf-8') as outfile:
             for ridx, rec in enumerate(recs):
                 for r in rec:
-                    outfile.write(unicode(self.id2dataset_id[ridx]) + '\t' +
+                    outfile.write(self.id2dataset_id[ridx] + '\t' +
                                   unicode(self.id2dataset_id[r]) + '\n')
 
         with io.open(file_name + '_resolved.txt', 'w', encoding='utf-8')\
@@ -332,8 +333,8 @@ class RatingBasedRecommender(Recommender):
     # @decorators.Cached # TODO
     def get_utility_matrix(self):
         # load user ids
-        item_ids = set(map(str, self.df['movielens_id']))
-        item2matrix = {m: i for i, m in enumerate(self.df['movielens_id'])}
+        item_ids = set(map(str, self.df['dataset_id']))
+        item2matrix = {m: i for i, m in enumerate(self.df['dataset_id'])}
         user_ids = set()
         path_ratings = os.path.join(self.dataset_folder, 'ratings.dat')
         with io.open(path_ratings, encoding='latin-1') as infile:
@@ -355,7 +356,7 @@ class RatingBasedRecommender(Recommender):
                 user = int(user)
                 rat = float(rat)
                 if user in user_ids and item in item_ids:
-                    matrix[user2matrix[user], item2matrix[int(item)]] = rat
+                    matrix[user2matrix[user], item2matrix[item]] = rat
         return matrix.astype(int)
 
     # @decorators.Cached # TODO
@@ -421,6 +422,9 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         m[m == 0] = np.nan
         um = recsys.UtilityMatrix(m)
         # f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, eta=eta)
+        # for MovieLens:
+        #     k=15, nsteps=1000, eta_type='bold_driver', regularize=True,
+        #     eta=0.00001, lamda=0.05,init='random'
         f = recsys.Factors(um, k=15, nsteps=1000, eta_type='bold_driver',
                            regularize=True, eta=0.00001, lamda=0.05,
                            init='random')
@@ -536,13 +540,15 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
         um = recsys.UtilityMatrix(m_nan)
+
         # with open('m.obj', 'wb') as outfile:
         #     pickle.dump(m, outfile)
         # sys.exit()
-        # wf = recsys.WeightedCFNN(um, eta_type='constant', k=10, eta=0.0001, regularize=True, init_sim=True)
+        # for MovieLens:
+        #    eta_type='increasing', k=10, eta=0.000001, regularize=True,
+        #    init='random'
         wf = recsys.WeightedCFNN(um, eta_type='increasing', k=10, eta=0.000001, regularize=True, init='zeros')
-        # wf = recsys.WeightedCFNN(um, eta_type='bold_driver', k=10, eta=0.0001, regularize=True, init_sim=False)
-        # server oben: k=10, unten k=15
+
         with open('um.obj', 'wb') as outfile:
             pickle.dump(wf.m, outfile)
         with open('iw.obj', 'wb') as outfile:
@@ -627,6 +633,9 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         with open('coratings.obj', 'rb') as infile:
             coratings = pickle.load(infile)
 
+        # MovieLens:
+        #    threshold=10
+
         sims = np.zeros((icount, icount))
         sum_items = np.sum(um)
         sums_coratings = {x: sum(coratings[x].values()) for x in coratings}
@@ -653,11 +662,15 @@ class AssociationRuleRecommender(RatingBasedRecommender):
 if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
-    # cbr = ContentBasedRecommender(dataset='movielens'); cbr.get_recommendations()
-    # rbr = RatingBasedRecommender(dataset='movielens'); rbr.get_recommendations()
-    # rbmf = MatrixFactorizationRecommender(dataset='movielens'); rbmf.get_recommendations()
-    # rbiw = InterpolationWeightRecommender(dataset='movielens'); rbiw.get_recommendations()
-    rbar = AssociationRuleRecommender(dataset='movielens'); rbar.get_recommendations()
+    for dataset in [
+        # 'movielens',
+        'bookcrossing',
+    ]:
+        # cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
+        rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
+        # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
+        # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
+        # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 

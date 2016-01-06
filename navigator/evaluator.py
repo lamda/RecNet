@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import division, print_function
-import os
 import cPickle as pickle
-import pdb
-
 import matplotlib
-matplotlib.use('Agg')
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+import pdb
+
+from navigator import rec_types, div_types, n_vals, Mission
 
 
 def debug(*text):
@@ -40,7 +40,9 @@ class Evaluator(object):
 
         if not os.path.isdir('plots/'):
             os.makedirs('plots/')
-        self.sc2abb = {u'Information Foraging': u'if'}
+        self.sc2abb = {u'Greedy Search': u'ptp',
+                       u'Information Foraging': u'if',
+                       u'Berrypicking': u'bp'}
         self.colors = [['#FFA500', '#05FF05', '#000000'],
                        ['#FF0000', '#0000FF', '#000000']]
         self.hatches = ['', 'xx', '//', '--']
@@ -55,12 +57,11 @@ class Evaluator(object):
             for i, rec_type in enumerate(data_set.missions):
                 pt.missions[rec_type] = {}
                 for j, g in enumerate(div_types):
-                    graph = data_set.folder_graphs + '/' + rec_type + \
-                            g + '.gt'
+                    graph = os.path.join(data_set.folder_graphs, rec_type + g + '.gt')
                     pt.missions[rec_type][graph] = {}
                     for strategy in ['title']:
                         pt.missions[rec_type][graph][strategy] = {}
-                        for scenario in [u'Information Foraging']:
+                        for scenario in Mission.missions:
                             debug(rec_type, graph, strategy, scenario)
                             m = data_set.missions[rec_type][graph][strategy][scenario]
                             m.compute_stats()
@@ -135,19 +136,6 @@ class Evaluator(object):
                 # plt.show()
                 plt.savefig('plots/nav_success_rate.pdf')
 
-rec_types = [
-    'CF_6',
-    'CF_12',
-    'CB_5',
-    'CB_10',
-]
-div_types = [
-    '',
-    '_div_exprel',
-    '_div_diversify',
-    '_div_random',
-]
-
 if __name__ == '__main__':
     evaluator = Evaluator()
-    evaluator.plot_bar()
+    # evaluator.plot_bar()

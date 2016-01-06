@@ -279,12 +279,8 @@ class ItemCollection(object):
         print('write_network_neighbors_matrix()')
 
         path = os.path.join(self.data_folder, 'graphs')
-        graph_types = set(f[:f.rfind('_')]
-                          for f in os.listdir(path)
-                          if 'resolved' not in f)
-        graphs = [g + '_' + unicode(N) + '.txt' for N in [5, 10]
-                  for g in graph_types]
-        graphs = graphs[31:]
+        graphs = set(f[:f.rfind('.')] + '.txt'
+                     for f in os.listdir(path) if 'resolved' not in f)
         for index, g in enumerate(graphs):
             print(index + 1, '/', len(graphs), ': ', g)
             fg = os.path.join(self.data_folder, 'graphs', g)
@@ -416,5 +412,5 @@ class ItemCollection(object):
 if __name__ == '__main__':
     ic = ItemCollection(dataset='movielens')
     # ic.write_clusters_title_matrix()
-    # ic.write_network_neighbors_matrix()
-    ic.write_wp_neighbors_matrix()
+    ic.write_network_neighbors_matrix()
+    # ic.write_wp_neighbors_matrix()

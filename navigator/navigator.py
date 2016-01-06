@@ -12,10 +12,14 @@ import random
 import cPickle as pickle
 import pdb
 
-# import matplotlib
-# matplotlib.use('Agg')
-# matplotlib.rc('pdf', fonttype=42)
-import graph_tool.all as gt
+import matplotlib
+matplotlib.use('Agg')
+matplotlib.rc('pdf', fonttype=42)
+import matplotlib.pyplot as plt
+try:
+    import graph_tool.all as gt
+except ImportError:
+    pass  # useful to import stuff from this script in other scripts
 import numpy as np
 # import matplotlib.pyplot as plt
 
@@ -186,9 +190,9 @@ class Strategy(object):
     """
     strategies = [
         u'random',
-        # u'title',
-        # u'neighbors',
-        # u'wp_neighbors',
+        u'title',
+        u'neighbors',
+        u'wp_neighbors',
         u'optimal'
     ]
 
@@ -489,8 +493,8 @@ class Evaluator(object):
             print('loaded')
             self.compute()
 
-        if not os.path.isdir('plots/'):
-            os.makedirs('plots/')
+        if not os.path.isdir('plots'):
+            os.makedirs('plots')
         self.sc2abb = {u'Greedy Search': u'ptp',
                        u'Information Foraging': u'if',
                        u'Berrypicking': u'bp'}
@@ -507,21 +511,23 @@ class Evaluator(object):
             pt.folder_graphs = data_set.folder_graphs
             for i, rec_type in enumerate(data_set.missions):
                 pt.missions[rec_type] = {}
-                for j, g in enumerate((5, 10, 15, 20)):
-                    graph = data_set.folder_graphs + rec_type + '_' + \
-                            str(g) + '.txt'
-                    pt.missions[rec_type][graph] = {}
-                    for strategy in Strategy.strategies:
-                        pt.missions[rec_type][graph][strategy] = {}
-                        for scenario in Mission.missions:
-                            debug(rec_type, graph, strategy, scenario)
-                            m = data_set.missions[rec_type][graph][strategy][scenario]
-                            m.compute_stats()
-                            pt.missions[rec_type][graph][strategy][scenario] = m.stats
+                for dtype in div_types:
+                    for j, g in enumerate(n_vals):
+                        graph = data_set.folder_graphs + '/' + rec_type + '_' + unicode(g) + dtype + '.gt'
+                        pt.missions[rec_type][graph] = {}
+                        # for strategy in Strategy.strategies:
+                        for strategy in Strategy.strategies:
+                            pt.missions[rec_type][graph][strategy] = {}
+                            for scenario in Mission.missions:
+                                debug(rec_type, graph, strategy, scenario)
+                                m = data_set.missions[rec_type][graph][strategy][scenario]
+                                m.compute_stats()
+                                pt.missions[rec_type][graph][strategy][scenario] = m.stats
             data_sets_new.append(pt)
         print('saving to disk...')
         with open('data_sets_new.obj', 'wb') as outfile:
             pickle.dump(data_sets_new, outfile, -1)
+        self.data_sets = data_sets_new
 
     def plot(self):
         print('plot()')
@@ -634,13 +640,13 @@ class Evaluator(object):
         # figlegend.savefig('plots/nav_legend.pdf')
 
         # plot the scenarios
-        Ns = [5, 20]
         bars = None
         for sind, scenario in enumerate(Mission.missions):
             debug('\n', scenario)
             for dind, data_set in enumerate(self.data_sets):
-                fig, axes = plt.subplots(len(Ns), 1, figsize=(3.25, 5), squeeze=False)
-                for nidx, N in enumerate(Ns):
+                fig, axes = plt.subplots(len(n_vals), 1, figsize=(3.25, 5),
+                                         squeeze=False)
+                for nidx, N in enumerate(n_vals):
                     debug(data_set.label, 'N =', N)
                     ax = axes[nidx, 0]
                     for rtsidx, rec_type_split in enumerate([rec_types[:4], rec_types[4:]]):
@@ -651,7 +657,7 @@ class Evaluator(object):
                             for k, strategy in enumerate(Strategy.strategies):
                                 if strategy in [u'random', u'optimal']:
                                     continue
-                                graph = data_set.folder_graphs + rec_type + '_' + str(N) + '.txt'
+                                graph = data_set.folder_graphs + '/' + rec_type + '_' + str(N) + '.gt'
                                 stats = data_set.missions[rec_type][graph][strategy][scenario]
                                 if stats[-1] > bar_vals[ridx]:
                                     bar_vals[ridx] = stats[-1]
@@ -660,6 +666,7 @@ class Evaluator(object):
                             x = np.arange(len(rec_type_split))
                             x = [v + rtsidx * (len(rec_type_split) + 1) for v in x]
                             bars = ax.bar(x, bar_vals)
+
                             for bidx, bar in enumerate(bars):
                                 bar.set_fill(False)
                                 bar.set_hatch(self.hatches[bidx])
@@ -713,29 +720,29 @@ class Evaluator(object):
 rec_types = [
     'cb',
     'rb',
-    # 'rbmf',
-    # 'rbar',
-    # 'rbiw',
+    'rbmf',
+    'rbar',
+    'rbiw',
 ]
 
 div_types = [
     '',
     '_div_random',
-    # '_div_diversify',
-    # '_div_exprel'
+    '_div_diversify',
+    '_div_exprel'
 ]
 
 n_vals = [
     5,
-    # 10
+    10
 ]
 
 
 if __name__ == '__main__':
-    movies = DataSet('movielens', rec_types, div_types, n_vals)
-    nav = Navigator([movies])
-    print('running...')
-    nav.run()
+    # movies = DataSet('movielens', rec_types, div_types, n_vals)
+    # nav = Navigator([movies])
+    # print('running...')
+    # nav.run()
 
     # try:
     #     os.remove('data_sets_new.obj')
@@ -743,6 +750,6 @@ if __name__ == '__main__':
     # except OSError:
     #     pass
 
-    # evaluator = Evaluator()
-    # evaluator.plot_bar()
+    evaluator = Evaluator()
+    evaluator.plot_bar()
 
