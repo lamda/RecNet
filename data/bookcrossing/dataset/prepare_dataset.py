@@ -25,9 +25,11 @@ IGNORE 1 LINES
 """
 
 
-from __future__ import division #, unicode_literals
+from __future__ import division, unicode_literals, print_function
+import collections
 import io
 import MySQLdb as mdb
+import pandas as pd
 import pdb
 import random
 import sys
@@ -54,7 +56,7 @@ def extract_from_db():
     cursor.execute(stmt)
     users = cursor.fetchall()
     users = set([u[0] for u in users])
-    print len(users), 'users'
+    print(len(users), 'users')
 
     # books
     stmt = """SELECT DISTINCT `ISBN` FROM ratings
@@ -72,14 +74,14 @@ def extract_from_db():
             WHERE `ISBN` in (%s)""" % ', '.join([b for b in books])
     cursor.execute(stmt)
     books = cursor.fetchall()
-    print len(books), 'books'
+    print(len(books), 'books')
 
     # ratings
     stmt = """SELECT * FROM ratings
             WHERE `User-ID` in (%s)""" % ', '.join([str(u) for u in users])
     cursor.execute(stmt)
     ratings = cursor.fetchall()
-    print len(ratings), 'ratings'
+    print(len(ratings), 'ratings')
 
     # write to files
     with open('users.dat', 'w') as outfile:
@@ -114,7 +116,7 @@ def extract_random_sample(n, exclude_fnames):
     for fe in exclude_fnames:
         id2line = get_id2line(fe)
         if set(feid2line.keys()) & set(id2line.keys()):
-            print "Error - shouldn't get here"
+            print("Error - shouldn't get here")
         for k, v in id2line.items():
             feid2line[k] = v
     id2line = {k: v for k, v in full_id2line.items() if not k in feid2line}
@@ -139,9 +141,74 @@ def get_titles():
         titlesdb.add(line.strip())     
     td = titlesdb
     tf = titlesfiltered
-    pdb.set_trace()        
-            
+    pdb.set_trace()
+
+
+def prepare_data():
+    # delete implicit ratings
+    print('getting ratings...')
+    user, isbn, rating = [], [], []
+    with open('BX-SQL-Dump/BX-Book-Ratings.csv') as infile:
+        for line in infile:
+            try:
+                line = line.encode('utf-8', 'ignore')
+            except UnicodeDecodeError:
+                # skip ratings with garbage bytes in the ISBN
+                continue
+            parts = line.strip().split(';')
+            parts = [p.strip('"') for p in parts]
+            if parts[-1] == '0':
+                continue
+            user.append(parts[0])
+            isbn.append(parts[1])
+            rating.append(parts[2])
+    df_ratings = pd.DataFrame(data=zip(user, isbn, rating),
+                              columns=['user', 'isbn', 'rating'])
+
+    # merge books with identical titles and authors
+    print('getting books...')
+    isbn, title, author, year = [], [], [], []
+    with open('BX-SQL-Dump/BX-Books.csv') as infile:
+        for line in infile:
+            try:
+                line = line.rsplit('";"', 4)[0].encode('utf-8', 'ignore')
+            except UnicodeDecodeError:
+                continue
+            parts = line.strip().split('";"')
+            parts = [p.strip('"') for p in parts]
+            isbn.append(parts[0])
+            title.append(parts[1])
+            author.append(parts[2])
+            year.append(parts[3])
+    df_books = pd.DataFrame(data=zip(isbn, title, author, year),
+                            columns=['isbn', 'title', 'author', 'year'])
+
+    print('finding duplicates...')
+    title_author2isbn = collections.defaultdict(list)
+    for ridx, row in df_books.iterrows():
+        key = (row['title'].lower(), row['author'].lower())
+        title_author2isbn[key].append(row['isbn'])
+    duplicates = [sorted(v) for v in title_author2isbn.values() if len(v) > 1]
+
+    print('merging duplicates...')
+    to_drop = set()
+    for dsidx, ds in enumerate(duplicates):
+        print('\r', dsidx+1, '/', len(duplicates), end='')
+        isbn_keep = ds[0]
+        for d in ds[1:]:
+            df_ratings['isbn'].replace(d, isbn_keep, inplace=True)
+            to_drop.add(d)
+    df_books = df_books[~df_books['isbn'].isin(to_drop)]
+    print()
+
+    print('saving...')
+    df_ratings.to_pickle('df_ratings.obj')
+    df_books.to_pickle('df_books.obj')
+
+
 if __name__ == '__main__':
     # extract_from_db()
     # extract_random_sample(60000)
-    get_titles()
+    # get_titles()
+
+    prepare_data()
