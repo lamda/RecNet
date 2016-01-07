@@ -261,9 +261,9 @@ class Recommender(object):
     def get_recommendations(self):
         strategies = [
             TopNRecommendationStrategy,
-            TopNDivRandomRecommendationStrategy,
-            TopNDivDiversifyRecommendationStrategy,
-            TopNDivExpRelRecommendationStrategy,
+            # TopNDivRandomRecommendationStrategy,
+            # TopNDivDiversifyRecommendationStrategy,
+            # TopNDivExpRelRecommendationStrategy,
         ]
 
         for strategy in strategies:
@@ -574,7 +574,7 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         print('coratings for item %d %s:' % (item_id, self.id2title[item_id]))
         for r in sorted(coratings[item_id].items(), key=operator.itemgetter(1),
                         reverse=True)[:10]:
-            print('   ', r[1], self.id2title[r[0]])
+            print('   ', r[1], self.id2title[r[0]], '(', r[0], ')')
 
     def ar_simple(self, um, coratings, x, y):
         denominator = coratings[x][y]
@@ -622,16 +622,19 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         #     for i in itertools.combinations(items, 2):
         #         coratings[i[0]][i[1]] += 1
         #         coratings[i[1]][i[0]] += 1
-        # with open('coratings.obj', 'wb') as outfile:
+        # with open('coratings_' + self.dataset + '.obj', 'wb') as outfile:
         #     pickle.dump(coratings, outfile, -1)
-        # # debug helpers
+        # sys.exit()
+        # debug helpers
         # self.rating_stats(um)
         # self.corating_stats(coratings, item_id=0)
         # self.ar_simple(um, coratings, 0, 2849)
         # self.ar_complex(um, coratings, 0, 2849)
         # self.ar_both(um, coratings, 0, 2849)
-        with open('coratings.obj', 'rb') as infile:
+        with open('coratings_' + self.dataset + '.obj', 'rb') as infile:
             coratings = pickle.load(infile)
+        pdb.set_trace()
+        # TODO: check coratings of known books for plausibility
 
         # MovieLens:
         #    threshold=10
@@ -666,8 +669,8 @@ if __name__ == '__main__':
         # 'movielens',
         'bookcrossing',
     ]:
-        # cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
-        rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
+        cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
+        # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
         # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
         # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
         # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
