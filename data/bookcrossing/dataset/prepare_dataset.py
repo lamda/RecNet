@@ -11,7 +11,7 @@ To use this, import the Bookcrossing data set into MySQL first
 mysql -u root -p books < BX-Users.sql
 mysql -u root -p books < BX-Books.sql
 mysql -u root -p books < BX-Book-Ratings.sql
-Before doing this, add 'SET autocommit=0;' to the beginnen and 'COMMIT;' to the 
+Before doing this, add 'SET autocommit=0;' to the beginnen and 'COMMIT;' to the
 end of the files to massively speed up importing.
 
 Should this not work, try importing the CSV dump as follows:
@@ -61,7 +61,7 @@ def extract_from_db():
     # books
     stmt = """SELECT DISTINCT `ISBN` FROM ratings
             WHERE `User-ID` IN (%s)
-            AND `ISBN` IN 
+            AND `ISBN` IN
                 (SELECT `ISBN` FROM ratings
                  GROUP BY `ISBN` HAVING COUNT(`ISBN`) >= 20);
             """ % ', '.join([str(u) for u in users])
@@ -69,7 +69,7 @@ def extract_from_db():
     books = cursor.fetchall()
     books = set([u[0] for u in books])
     books = ["'" + b + "'" for b in books]
-    
+
     stmt = """SELECT `ISBN`, `Book-Title`, `Book-Author`, `Year-Of-Publication` FROM books
             WHERE `ISBN` in (%s)""" % ', '.join([b for b in books])
     cursor.execute(stmt)
@@ -97,7 +97,7 @@ def extract_from_db():
         for u, i, r in ratings:
             outfile.write(str(u) + '::' + i + '::' + str(r) + '\n')
 
-            
+
 def extract_random_sample(n, exclude_fnames):
     """ extract a random sample from the full data file
     may exclude books from other sampled files (exclude_fnames)"""
@@ -109,9 +109,9 @@ def extract_random_sample(n, exclude_fnames):
                     continue
                 id2line[line.split('::')[0]] = line
         return id2line
-    
+
     full_id2line = get_id2line('books_full.dat')
-    
+
     feid2line = {}
     for fe in exclude_fnames:
         id2line = get_id2line(fe)
@@ -120,32 +120,31 @@ def extract_random_sample(n, exclude_fnames):
         for k, v in id2line.items():
             feid2line[k] = v
     id2line = {k: v for k, v in full_id2line.items() if not k in feid2line}
-             
+
     ids = random.sample(id2line.keys(), n)
     with io.open('books.dat', 'w', encoding='utf-8') as outfile:
         for i in sorted(ids):
             outfile.write(id2line[i].decode('ISO-8859-1'))
-            
-            
+
+
 def get_titles():
     # titles = []
     # with open('books.dat') as infile, open('titles_books.txt', 'w') as outfile:
         # for line in infile:
             # t = line.split('::')[1].rsplit('(', 1)[0]
             # outfile.write(t + '\n')
-            
+
     titlesdb, titlesfiltered = set(), set()
     for line in open('titles_books.txt'):
         titlesfiltered.add(line.strip())
     for line in open('titles_db.txt'):
-        titlesdb.add(line.strip())     
+        titlesdb.add(line.strip())
     td = titlesdb
     tf = titlesfiltered
     pdb.set_trace()
 
 
 def prepare_data():
-    # delete implicit ratings
     print('getting ratings...')
     user, isbn, rating = [], [], []
     with open('BX-SQL-Dump/BX-Book-Ratings.csv') as infile:
@@ -165,7 +164,6 @@ def prepare_data():
     df_ratings = pd.DataFrame(data=zip(user, isbn, rating),
                               columns=['user', 'isbn', 'rating'])
 
-    # merge books with identical titles and authors
     print('getting books...')
     isbn, title, author, year = [], [], [], []
     with open('BX-SQL-Dump/BX-Books.csv') as infile:
@@ -211,8 +209,8 @@ def prepare_data():
 def condense_data(user_ratings=5, book_ratings=10):
     df_ratings = pd.read_pickle('df_ratings.obj')
     df_books = pd.read_pickle('df_books.obj')
-    df_ratings[['user', 'rating']] = df_ratings[['user', 'rating']].astype(int)
-    df_books['year'] = df_books['year'].astype(int)
+    valid_isbns = set(df_books['isbn'])
+    df_ratings = df_ratings[df_ratings['isbn'].isin(valid_isbns)]
 
     agg = df_ratings.groupby('isbn').count()
     books_to_keep = set(agg[agg['user'] > book_ratings].index)
@@ -227,15 +225,32 @@ def condense_data(user_ratings=5, book_ratings=10):
     df_ratings.to_pickle('df_ratings_condensed.obj')
 
 
+def export_data():
+    df_ratings = pd.read_pickle('df_ratings_condensed.obj')
+    df_books = pd.read_pickle('df_books.obj')
+
+    with open('books.dat', 'w') as outfile:
+        for ridx, row in df_books.iterrows():
+            outfile.write(row['isbn'] + '::' + row['title'] + ' (' +
+                          str(row['year']) + ')::' + row['author'] + '\n')
+
+    with open('ratings.dat', 'w') as outfile:
+        for ridx, row in df_ratings.iterrows():
+            outfile.write(str(row['user']) + '::' + row['isbn'] + '::' +
+                          str(row['rating']) + '\n')
+
+
 if __name__ == '__main__':
+    from datetime import datetime
+    start_time = datetime.now()
+
     # extract_from_db()
     # extract_random_sample(60000)
     # get_titles()
 
     # prepare_data()
     # condense_data()
-    pdb.set_trace()
-    for ur, br in [
-        ()
-    ]:
-        condense_data(ur, br)
+    export_data()
+    end_time = datetime.now()
+
+    print('Duration: {}'.format(end_time - start_time))
