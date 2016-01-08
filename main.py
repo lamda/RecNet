@@ -202,7 +202,7 @@ class Recommender(object):
         self.data_folder = os.path.join(DATA_BASE_FOLDER, self.dataset)
         self.dataset_folder = os.path.join(self.data_folder, 'dataset')
         self.graph_folder = os.path.join(self.data_folder, 'graphs')
-        self.db_file = os.path.join(self.data_folder, 'database.db')
+        self.db_file = os.path.join(self.data_folder, 'database_new.db')
         self.db_main_table = 'movies' if dataset == 'movielens' else 'books'
         if not os.path.exists(self.graph_folder):
             os.makedirs(self.graph_folder)
@@ -669,8 +669,8 @@ if __name__ == '__main__':
         # 'movielens',
         'bookcrossing',
     ]:
-        cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
-        # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
+        # cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
+        rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
         # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
         # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
         # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()

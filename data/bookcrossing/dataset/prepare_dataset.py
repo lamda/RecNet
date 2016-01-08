@@ -221,14 +221,16 @@ def condense_data(user_ratings=5, book_ratings=10):
 
     df_ratings = df_ratings[df_ratings['isbn'].isin(books_to_keep)]
     df_ratings = df_ratings[df_ratings['user'].isin(users_to_keep)]
+    df_books = df_books[df_books['isbn'].isin(books_to_keep)]
     print('%d/%d: found %d books with %d ratings' %
           (user_ratings, book_ratings, len(books_to_keep), df_ratings.shape[0]))
     df_ratings.to_pickle('df_ratings_condensed.obj')
+    df_books.to_pickle('df_books_condensed.obj')
 
 
 def export_data():
     df_ratings = pd.read_pickle('df_ratings_condensed.obj')
-    df_books = pd.read_pickle('df_books.obj')
+    df_books = pd.read_pickle('df_books_condensed.obj')
 
     with open('books.dat', 'w') as outfile:
         for ridx, row in df_books.iterrows():
@@ -295,7 +297,7 @@ def create_database():
 
 
 def populate_database():
-    df_books = pd.read_pickle('df_books.obj')
+    df_books = pd.read_pickle('df_books_condensed.obj')
     db_file = 'database_new.db'
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
@@ -321,9 +323,9 @@ if __name__ == '__main__':
     # get_titles()
 
     # prepare_data()
-    # condense_data()
-    # export_data()
-    # create_database()
+    condense_data()
+    export_data()
+    create_database()
     populate_database()
 
     end_time = datetime.now()
