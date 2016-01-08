@@ -322,18 +322,27 @@ def populate_database():
     response = cursor.fetchall()
     db_ids = set([i[0] for i in response])
     wp_ids = set([i[1] for i in response])
-    counter = max(db_ids) if db_ids else 0
+    df_books.index = range(0, df_books.shape[0])
 
-    for ridx, row in df_books.iterrows():
+    max_counter = -1
+    for db_id in db_ids:
+        idx = df_books[df_books['isbn'] == db_id].index.tolist()[0]
+        if idx > max_counter:
+            max_counter = idx
+
+    counter = max_counter if max_counter > 0 else 0
+    print('starting at id', counter)
+
+    for ridx, row in df_books.iloc[counter:].iterrows():
         counter += 1
-        # if counter < 24:
-        #     continue
-        print(counter, '/', df_books.shape[0] - len(db_ids), end=' ')
+        print(counter, '/', df_books.shape[0] - len(db_ids),
+              row['title'], '|', row['author'])
         if row['isbn'] in db_ids:
+            print('    already in database')
             continue
         if row['year'] < 1000:
+            print('    no year present')
             continue  # year of publication must be present
-        print(row['title'], '|', row['author'])
         it = Book(row['title'] + ' (' + str(row['year']), row['isbn'], row['author'])
         it.generate_title_candidates()
         it.get_wiki_texts()
