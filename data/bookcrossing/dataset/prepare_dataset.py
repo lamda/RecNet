@@ -29,10 +29,11 @@ from __future__ import division, unicode_literals, print_function
 import collections
 import io
 import MySQLdb as mdb
+import os
 import pandas as pd
 import pdb
 import random
-import sys
+import sqlite3
 
 
 def extract_from_db():
@@ -240,6 +241,77 @@ def export_data():
                           str(row['rating']) + '\n')
 
 
+def create_database():
+        """set up the database scheme (SQLITE)"""
+        db_file = 'database_new.db'
+        try:
+            os.remove(db_file)
+        except OSError:
+            pass
+        conn = sqlite3.connect(db_file)
+        cursor = conn.cursor()
+        label = 'books'
+
+        # create item table
+        if label == 'movies':
+            pkey = 'id INTEGER PRIMARY KEY, '
+        else:
+            pkey = 'id VARCHAR(13) PRIMARY KEY, '
+
+        create_stmt = """CREATE TABLE """ + label + """ (""" + \
+                      pkey + \
+                      """original_title TEXT,
+                         cf_title TEXT,
+                         wp_title TEXT,
+                         wp_text TEXT,
+                         wp_id INT)"""
+        cursor.execute(create_stmt)
+        conn.commit()
+
+        # create category table
+        cursor.execute(""" PRAGMA foreign_keys = ON;""")
+        pkey = 'id INTEGER PRIMARY KEY,'
+        create_stmt = """CREATE TABLE categories (""" + \
+                      pkey + \
+                      """name TEXT)"""
+        cursor.execute(create_stmt)
+        conn.commit()
+
+        # create item-category relation table
+        pkey = 'id INTEGER PRIMARY KEY, '
+        if label == 'movies':
+            item_id = 'item_id INTEGER, '
+        else:
+            item_id = 'item_id VARCHAR(13),'
+        create_stmt = """CREATE TABLE item_cat (""" + \
+                      pkey + \
+                      item_id + \
+                      """cat_id INTEGER,
+                      FOREIGN KEY(item_id) REFERENCES """ + label + \
+                      """(id),
+                      FOREIGN KEY (cat_id) REFERENCES categories(id))"""
+        cursor.execute(create_stmt)
+        conn.commit()
+
+
+def populate_database():
+    df_books = pd.read_pickle('df_books.obj')
+    db_file = 'database_new.db'
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    for ridx, row in df_books.iterrows():
+        stmt = '''INSERT OR REPLACE INTO `books`
+                  (id, original_title, cf_title)
+                  VALUES (?, ?, ?)'''
+        data = (row['isbn'], row['title'] + ' (' + str(row['year']) + ')',
+                row['title'])
+        cursor.execute(stmt, data)
+        if (ridx % 100) == 0:
+            print('\r', ridx, '/', df_books.shape[0], end='')
+            conn.commit()
+
+
 if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
@@ -250,7 +322,9 @@ if __name__ == '__main__':
 
     # prepare_data()
     # condense_data()
-    export_data()
-    end_time = datetime.now()
+    # export_data()
+    # create_database()
+    populate_database()
 
+    end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
