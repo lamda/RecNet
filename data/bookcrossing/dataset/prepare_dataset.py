@@ -202,8 +202,29 @@ def prepare_data():
     print()
 
     print('saving...')
+    df_ratings[['user', 'rating']] = df_ratings[['user', 'rating']].astype(int)
+    df_books['year'] = df_books['year'].astype(int)
     df_ratings.to_pickle('df_ratings.obj')
     df_books.to_pickle('df_books.obj')
+
+
+def condense_data(user_ratings=5, book_ratings=10):
+    df_ratings = pd.read_pickle('df_ratings.obj')
+    df_books = pd.read_pickle('df_books.obj')
+    df_ratings[['user', 'rating']] = df_ratings[['user', 'rating']].astype(int)
+    df_books['year'] = df_books['year'].astype(int)
+
+    agg = df_ratings.groupby('isbn').count()
+    books_to_keep = set(agg[agg['user'] > book_ratings].index)
+
+    agg = df_ratings.groupby('user').count()
+    users_to_keep = set(agg[agg['isbn'] > user_ratings].index)
+
+    df_ratings = df_ratings[df_ratings['isbn'].isin(books_to_keep)]
+    df_ratings = df_ratings[df_ratings['user'].isin(users_to_keep)]
+    print('%d/%d: found %d books with %d ratings' %
+          (user_ratings, book_ratings, len(books_to_keep), df_ratings.shape[0]))
+    df_ratings.to_pickle('df_ratings_condensed.obj')
 
 
 if __name__ == '__main__':
@@ -211,4 +232,10 @@ if __name__ == '__main__':
     # extract_random_sample(60000)
     # get_titles()
 
-    prepare_data()
+    # prepare_data()
+    # condense_data()
+    pdb.set_trace()
+    for ur, br in [
+        ()
+    ]:
+        condense_data(ur, br)
