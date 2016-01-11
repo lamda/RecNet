@@ -335,7 +335,7 @@ def populate_database():
 
     for ridx, row in df_books.iloc[counter:].iterrows():
         counter += 1
-        print(counter, '/', df_books.shape[0] - len(db_ids),
+        print(counter, '/', df_books.shape[0],
               row['title'], '|', row['author'])
         if row['isbn'] in db_ids:
             print('    already in database')
@@ -361,6 +361,62 @@ def populate_database():
         print(it.wikipedia_title)
         it.wikipedia_text = ''
         print('----------------')
+
+
+def add_genres():
+    db_file = 'database_new.db'
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    # get items already in the database
+    stmt = 'SELECT id, wp_id, original_title, wp_text FROM books ORDER BY id ASC'
+    cursor.execute(stmt)
+    response = cursor.fetchall()
+    df = pd.DataFrame(data=response,
+                      columns=['isbn', 'wp_id', 'original_title', 'wp_text'])
+    wp_text = 1
+
+    for ridx, row in df.iterrows():
+        print(ridx+1, '/', df.shape[0], row['original_title'])
+        if DEBUG:
+            t = 1
+            print('DEBUG')
+        else:
+            t = random.randint(10, 19)
+        print('sleeping for', t, 'seconds')
+        time.sleep(t)
+        url = u'http://www.goodreads.com/search?q=' + row['isbn']
+        try:
+            request = urllib2.Request(url)
+            # choose a random user agent
+            ua = random.choice(Item.url_headers)
+            request.add_header('User-agent', ua)
+            data = Item.url_opener.open(request).read()
+            data = data.decode('utf-8')
+        except (urllib2.HTTPError, urllib2.URLError) as e:
+            print('!+!+!+!+!+!+!+!+ URLLIB ERROR !+!+!+!+!+!+!+!+')
+            print('URLError', e)
+            pdb.set_trace()
+        pdb.set_trace()
+        rexes = [
+            # r'<span class="kno-a-v">([^</]+)',
+            #  r'<span class="answer_slist_item_title nonrich">([^</]+)',
+            #  r'<span class="answer_slist_item_title">([^</]+)',
+            r'Genres\s*(?:</span>)?(?:</a>)?:\s*(?:</span>)?\s*<span class="[-\_\sa-zA-Z]+">([^</]+)',
+            r'Genre</td><td(?:[^</]*)>([^</]+)',
+            r'Genre</th></tr><td(?:[^</]*)>([^</]+)',
+        ]
+        re_cat = re.compile('|'.join(rexes))
+        cats = [e for g in re.findall(re_cat, data) for e in g if e]
+        # cats = [g for g in re.findall(re_cat, data) if g]
+        print(self.wikipedia_title)
+        print(cats)
+        if DEBUG:
+            pdb.set_trace()
+        cats = list(set(cats))
+        if not cats:  # sanity check
+            self.wikipedia_text = ''
+        return cats
 
 
 class Item(object):
@@ -482,6 +538,7 @@ class Item(object):
             output = Item.parser.parse(preprocessed_text.leaves())
         except (AttributeError, IncompleteParse), e:
             print('!+!+!+!+!+!+!+!+ PARSER ERROR !+!+!+!+!+!+!+!+')
+            print(self.wikipedia_title)
             print(e)
             if trials >= 5:  # avoid endless repetition
                 pdb.set_trace()
@@ -619,9 +676,12 @@ class Book(Item):
             new_keys.add(' '.join(parts_new))
         keys |= new_keys
 
-        book = [k + ' (book)' for k in keys]
+        author_last = self.author.rsplit(' ', 1)[-1]
+        book = [k + ' (' + author_last + ' book)' for k in keys]
+        booka = [k + ' (book)' for k in keys]
         novel = [k + ' (novel)' for k in keys]
-        keys.update(set(book), set(novel))
+        novela = [k + ' (' + author_last + ' novel)' for k in keys]
+        keys.update(set(book), set(novel), set(booka), set(novela))
         self.title_candidates = {k: '' for k in keys}
 
     def select_title(self):
@@ -717,7 +777,9 @@ if __name__ == '__main__':
     # condense_data()
     # export_data()
     # create_database()
-    populate_database()
+    # populate_database()
+
+    add_genres()
 
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
