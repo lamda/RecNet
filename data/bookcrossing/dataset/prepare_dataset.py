@@ -171,7 +171,7 @@ def prepare_data():
                 continue
             parts = line.strip().split(';')
             parts = [p.strip('"') for p in parts]
-            if parts[-1] == '0':
+            if parts[-1] == '0': # TODO test run
                 continue
             user.append(parts[0])
             isbn.append(parts[1])
@@ -199,6 +199,7 @@ def prepare_data():
     print('finding duplicates...')
     title_author2isbn = collections.defaultdict(list)
     for ridx, row in df_books.iterrows():
+        print('\r', ridx+1, '/', df_books.shape[0], end='')
         key = (row['title'].lower(), row['author'].lower())
         title_author2isbn[key].append(row['isbn'])
     duplicates = [sorted(v) for v in title_author2isbn.values() if len(v) > 1]
@@ -253,8 +254,13 @@ def export_data():
 
     with open('ratings.dat', 'w') as outfile:
         for ridx, row in df_ratings.iterrows():
-            outfile.write(str(row['user']) + '::' + row['isbn'] + '::' +
-                          str(row['rating']) + '\n')
+            outfile.write(str(row['user']) + '::' + row['isbn'] + '::')
+            outfile.write(row['rating'])
+            # if row['rating'] > 0:
+            #   outfile.write('1')
+            # else:
+            #     outfile.write('0')
+            outfile.write('\n')
 
 
 def create_database():
@@ -310,7 +316,7 @@ def create_database():
         conn.commit()
 
 
-def populate_database():
+def populate_database(wp_text=False):
     df_books = pd.read_pickle('df_books_condensed.obj')
     db_file = 'database_new.db'
     conn = sqlite3.connect(db_file)
@@ -333,34 +339,48 @@ def populate_database():
     counter = max_counter if max_counter > 0 else 0
     print('starting at id', counter)
 
-    for ridx, row in df_books.iloc[counter:].iterrows():
-        counter += 1
-        print(counter, '/', df_books.shape[0],
-              row['title'], '|', row['author'])
-        if row['isbn'] in db_ids:
-            print('    already in database')
-            continue
-        if row['year'] < 1000:
-            print('    no year present')
-            continue  # year of publication must be present
-        it = Book(row['title'] + ' (' + str(row['year']), row['isbn'], row['author'])
-        it.generate_title_candidates()
-        it.get_wiki_texts()
-        it.select_title()
-        if it.wp_id in wp_ids:
+    if wp_text:
+        for ridx, row in df_books.iloc[counter:].iterrows():
+            counter += 1
+            print(counter, '/', df_books.shape[0],
+                  row['title'], '|', row['author'])
+            if row['isbn'] in db_ids:
+                print('    already in database')
+                continue
+            if row['year'] < 1000:
+                print('    no year present')
+                continue  # year of publication must be present
+            it = Book(row['title'] + ' (' + str(row['year']) + ')', row['isbn'],
+                      row['author'])
+            it.generate_title_candidates()
+            it.get_wiki_texts()
+            it.select_title()
+            if it.wp_id in wp_ids:
+                it.wikipedia_text = ''
+                print('item already in database')
+            # if it.wikipedia_text:
+            #     it.categories = it.obtain_categories()
+            if it.wikipedia_text:
+                it.write_to_database(db_file)
+                print('YES -', end='')
+                wp_ids.add(it.wp_id)
+            else:
+                print('NO -', end='')
+            print(it.wikipedia_title)
             it.wikipedia_text = ''
-            print('item already in database')
-        # if it.wikipedia_text:
-        #     it.categories = it.obtain_categories()
-        if it.wikipedia_text:
-            it.write_to_database(db_file)
-            print('YES -', end='')
-            wp_ids.add(it.wp_id)
-        else:
-            print('NO -', end='')
-        print(it.wikipedia_title)
-        it.wikipedia_text = ''
-        print('----------------')
+            print('----------------')
+    else:
+        for ridx, row in df_books.iloc[counter:].iterrows():
+            print('\r', ridx+1, '/', df_books.shape[0], end='')
+            stmt = 'INSERT OR REPLACE INTO books' +\
+                   '(id, cf_title, original_title)' +\
+                   'VALUES (?, ?, ?)'
+            data = (row['isbn'], row['title'],
+                    row['title'] + ' (' + str(row['year']) + ')')
+            cursor.execute(stmt, data)
+            if (ridx % 100) == 0:
+                conn.commit()
+        conn.commit()
 
 
 def add_genres():
@@ -417,6 +437,50 @@ def add_genres():
         if not cats:  # sanity check
             self.wikipedia_text = ''
         return cats
+
+
+def export_data_after_wikipedia():
+    df_ratings = pd.read_pickle('df_ratings_condensed.obj')
+    df_books = pd.read_pickle('df_books_condensed.obj')
+    db_file = 'database_new.db'
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    # get items already in the database
+    stmt = 'SELECT id, original_title FROM books ORDER BY id ASC'
+    cursor.execute(stmt)
+    response = cursor.fetchall()
+    df = pd.DataFrame(data=response, columns=['isbn', 'original_title'])
+    valid_isbns = set(df['isbn'])
+    df_ratings = df_ratings[df_ratings['isbn'].isin(valid_isbns)]
+
+    agg = df_ratings.groupby('isbn').count()
+    books_to_keep = set(agg[agg['user'] > book_ratings].index)
+
+    agg = df_ratings.groupby('user').count()
+    users_to_keep = set(agg[agg['isbn'] > user_ratings].index)
+
+    df_ratings = df_ratings[df_ratings['isbn'].isin(books_to_keep)]
+    df_ratings = df_ratings[df_ratings['user'].isin(users_to_keep)]
+    df_books = df_books[df_books['isbn'].isin(books_to_keep)]
+    print('%d/%d: found %d books with %d ratings' %
+          (user_ratings, book_ratings, len(books_to_keep), df_ratings.shape[0]))
+    pdb.set_trace()
+
+    with open('books.dat', 'w') as outfile:
+        for ridx, row in df_books.iterrows():
+            outfile.write(row['isbn'] + '::' + row['title'] + ' (' +
+                          str(row['year']) + ')::' + row['author'] + '\n')
+
+    with open('ratings.dat', 'w') as outfile:
+        for ridx, row in df_ratings.iterrows():
+            outfile.write(str(row['user']) + '::' + row['isbn'] + '::')
+            outfile.write(row['rating'])
+            # if row['rating'] > 0:
+            #   outfile.write('1')
+            # else:
+            #     outfile.write('0')
+            outfile.write('\n')
 
 
 class Item(object):
@@ -774,12 +838,13 @@ if __name__ == '__main__':
     # get_titles()
 
     # prepare_data()
+    # pdb.set_trace()
     # condense_data()
     # export_data()
     # create_database()
     # populate_database()
-
-    add_genres()
+    # add_genres()
+    export_data_after_wikipedia()
 
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))

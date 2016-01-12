@@ -389,11 +389,11 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
 
     # @decorators.Cached # TODO
     def get_similarity_matrix(self):
-        # um = self.get_utility_matrix()
-        # q = self.factorize(um)
-        # with open('f.obj', 'wb') as outfile:
-        #     pickle.dump(q, outfile, -1)
-        with open('f.obj', 'rb') as infile:
+        um = self.get_utility_matrix()
+        q = self.factorize(um)
+        with open('f_bookcrossing.obj', 'wb') as outfile:
+            pickle.dump(q, outfile, -1)
+        with open('f_bookcrossing.obj', 'rb') as infile:
             q = pickle.load(infile)
 
         # use the centered version for similarity computation
@@ -425,7 +425,7 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         # for MovieLens:
         #     k=15, nsteps=1000, eta_type='bold_driver', regularize=True,
         #     eta=0.00001, lamda=0.05,init='random'
-        f = recsys.Factors(um, k=15, nsteps=1000, eta_type='bold_driver',
+        f = recsys.Factors(um, k=5, nsteps=100, eta_type='bold_driver',
                            regularize=True, eta=0.00001, lamda=0.05,
                            init='random')
         return f.q
@@ -608,22 +608,22 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         complex = self.ar_complex(um, coratings, x, y)
         print('s: %.4f, c: %.4f' % (simple, complex))
 
-    def get_similarity_matrix(self, threshold=10):
+    def get_similarity_matrix(self, threshold=2):
         um = self.get_utility_matrix()
         um = np.where(um == 0, um, 1)  # set all ratings to 1
         # um = np.where(um >= 4, 1, 0)  # set all high ratings to 1
         ucount = um.shape[0]
         icount = um.shape[1]
 
-        # coratings = {i: collections.defaultdict(int) for i in range(icount)}
-        # for u in range(ucount):
-        #     print(u+1, '/', ucount, end='\r')
-        #     items = np.nonzero(um[u, :])[0]
-        #     for i in itertools.combinations(items, 2):
-        #         coratings[i[0]][i[1]] += 1
-        #         coratings[i[1]][i[0]] += 1
-        # with open('coratings_' + self.dataset + '.obj', 'wb') as outfile:
-        #     pickle.dump(coratings, outfile, -1)
+        coratings = {i: collections.defaultdict(int) for i in range(icount)}
+        for u in range(ucount):
+            print(u+1, '/', ucount, end='\r')
+            items = np.nonzero(um[u, :])[0]
+            for i in itertools.combinations(items, 2):
+                coratings[i[0]][i[1]] += 1
+                coratings[i[1]][i[0]] += 1
+        with open('coratings_' + self.dataset + '.obj', 'wb') as outfile:
+            pickle.dump(coratings, outfile, -1)
         # sys.exit()
         # debug helpers
         # self.rating_stats(um)
@@ -631,8 +631,8 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         # self.ar_simple(um, coratings, 0, 2849)
         # self.ar_complex(um, coratings, 0, 2849)
         # self.ar_both(um, coratings, 0, 2849)
-        with open('coratings_' + self.dataset + '.obj', 'rb') as infile:
-            coratings = pickle.load(infile)
+        # with open('coratings_' + self.dataset + '.obj', 'rb') as infile:
+        #     coratings = pickle.load(infile)
         pdb.set_trace()
         # TODO: check coratings of known books for plausibility
 
@@ -670,10 +670,10 @@ if __name__ == '__main__':
         'bookcrossing',
     ]:
         # cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
-        rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
+        # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
         # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
         # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
-        # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
+        rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 
