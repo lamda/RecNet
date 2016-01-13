@@ -379,17 +379,23 @@ def populate_database(wp_text=False):
 
 
 def add_genres():
-    db_file = 'database_new.db'
+    db_file = os.path.join('..', 'database_new.db')
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
 
     # get items already in the database
-    stmt = 'SELECT id, wp_id, original_title, wp_text FROM books ORDER BY id ASC'
+    stmt = '''SELECT id, wp_id, original_title, wp_text
+              FROM books ORDER BY id ASC'''
     cursor.execute(stmt)
     response = cursor.fetchall()
     df = pd.DataFrame(data=response,
                       columns=['isbn', 'wp_id', 'original_title', 'wp_text'])
-    wp_text = 1
+
+    stmt = """SELECT id, name from categories"""
+    cursor.execute(stmt)
+    db_cat2id = {c[1]: c[0] for c in cursor.fetchall()}
+
+    # TODO: get ids of items already in item_cat, skip them in what follows
 
     for ridx, row in df.iterrows():
         print(ridx+1, '/', df.shape[0], row['original_title'])
@@ -412,26 +418,34 @@ def add_genres():
             print('!+!+!+!+!+!+!+!+ URLLIB ERROR !+!+!+!+!+!+!+!+')
             print('URLError', e)
             pdb.set_trace()
-        pdb.set_trace()
         rexes = [
-            # r'<span class="kno-a-v">([^</]+)',
-            #  r'<span class="answer_slist_item_title nonrich">([^</]+)',
-            #  r'<span class="answer_slist_item_title">([^</]+)',
-            r'Genres\s*(?:</span>)?(?:</a>)?:\s*(?:</span>)?\s*<span class="[-\_\sa-zA-Z]+">([^</]+)',
-            r'Genre</td><td(?:[^</]*)>([^</]+)',
-            r'Genre</th></tr><td(?:[^</]*)>([^</]+)',
+            r'bookPageGenreLink"\s*href="[^"]+">([^<]+)',
         ]
         re_cat = re.compile('|'.join(rexes))
-        cats = [e for g in re.findall(re_cat, data) for e in g if e]
-        # cats = [g for g in re.findall(re_cat, data) if g]
-        print(self.wikipedia_title)
-        print(cats)
-        if DEBUG:
-            pdb.set_trace()
+        cats = [e for e in re.findall(re_cat, data)]
+        # remove duplicates from e.g., "A > AB" and "A" both being present
         cats = list(set(cats))
+        print(row['original_title'])
+        print(cats)
         if not cats:  # sanity check
-            self.wikipedia_text = ''
-        return cats
+            print('no cats found')
+            pdb.set_trace()
+
+        # write to databse
+        for c in cats:
+            if c not in db_cat2id:
+                # insert category if not yet present
+                stmt = """INSERT INTO categories(id, name) VALUES (?, ?)"""
+                i = len(db_cat2id)
+                data = (i, c)
+                cursor.execute(stmt, data)
+                conn.commit()
+                db_cat2id[c] = i
+            # insert item-category relation
+            stmt = """INSERT INTO item_cat(item_id, cat_id) VALUES (?, ?)"""
+            data = (row['isbn'], db_cat2id[c])
+            cursor.execute(stmt, data)
+            conn.commit()
 
 
 def export_data_after_wikipedia():
@@ -821,7 +835,7 @@ class Book(Item):
         super(Book, self).write_to_database('books', db_file)
 
 
-DEBUG = False
+DEBUG = False  # TODO
 
 
 if __name__ == '__main__':
@@ -837,7 +851,8 @@ if __name__ == '__main__':
     # export_data()
     # create_database()
     # populate_database()
-    # add_genres()
+
+    add_genres()
     # export_data_after_wikipedia()
 
     end_time = datetime.now()
