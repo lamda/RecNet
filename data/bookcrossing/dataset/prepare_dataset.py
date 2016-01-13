@@ -432,25 +432,26 @@ def add_genres():
         cats = list(set(cats))
         print('   ', row['original_title'])
         print('   ', cats)
-        if not cats:  # sanity check
+        if not cats:  # mark item to delete from books table
             print('    no cats found')
-            pdb.set_trace()
-
-        # write to databse
-        for c in cats:
-            if c not in db_cat2id:
-                # insert category if not yet present
-                stmt = """INSERT INTO categories(id, name) VALUES (?, ?)"""
-                i = len(db_cat2id)
-                data = (i, c)
+            with open('books_to_delete.txt', 'a') as outfile:
+                outfile.write(row['isbn'])
+        else:
+            # write categories to databse
+            for c in cats:
+                if c not in db_cat2id:
+                    # insert category if not yet present
+                    stmt = """INSERT INTO categories(id, name) VALUES (?, ?)"""
+                    i = len(db_cat2id)
+                    data = (i, c)
+                    cursor.execute(stmt, data)
+                    conn.commit()
+                    db_cat2id[c] = i
+                # insert item-category relation
+                stmt = """INSERT INTO item_cat(item_id, cat_id) VALUES (?, ?)"""
+                data = (row['isbn'], db_cat2id[c])
                 cursor.execute(stmt, data)
                 conn.commit()
-                db_cat2id[c] = i
-            # insert item-category relation
-            stmt = """INSERT INTO item_cat(item_id, cat_id) VALUES (?, ?)"""
-            data = (row['isbn'], db_cat2id[c])
-            cursor.execute(stmt, data)
-            conn.commit()
 
 
 def export_data_after_wikipedia():

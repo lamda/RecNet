@@ -43,13 +43,12 @@ class UtilityMatrix:
         return rt, hidden
 
     def get_similarities(self, r):
-        rc = r - np.nanmean(r, axis=0)
+        rc = r - np.nanmean(r, axis=0)  # ratings - item average
         rc[np.isnan(rc)] = 0.0
         # ignore division errors, set the resulting nans to zero
         with np.errstate(all='ignore'):
             s = np.corrcoef(rc.T)
         s[np.isnan(s)] = 0.0
-
         return s
 
     def get_coratings(self, k):
@@ -97,7 +96,7 @@ class Recommender:
         self.m = m
         self.rmse = []
 
-    def predict(self, u, i):
+    def predict(self, u, i, dbg=False):
         raise NotImplementedError
 
     def training_error(self):
@@ -111,11 +110,17 @@ class Recommender:
 
     def test_error(self):
         sse = 0.0
+        errs = []
         for u, i in self.m.hidden.T:
             err = self.m.r[u, i] - self.predict(u, i)
             sse += err ** 2
+            errs.append(err)
+            if err > 100:
+                print(err, self.m.r[u, i], self.predict(u, i))
+                self.predict(u, i, dbg=True)
 
         # return np.sqrt(sse) / self.m.hidden.shape[1]
+        # pdb.set_trace()
         return np.sqrt(sse / self.m.hidden.shape[1])
 
     def plot_rmse(self, title='', suffix=None):
@@ -134,9 +139,10 @@ class CFNN(Recommender):
         self.w = self.m.s_rt
         self.k = k
         self.normalize = True
+        # self.normalize = False
         print('k =', k)
 
-    def predict(self, u, i):
+    def predict(self, u, i, dbg=False):
         # predict an item-based CF rating based on the training data
         b_xi = self.m.mu + self.m.b_u[u] + self.m.b_i[i]
         if np.isnan(b_xi):
@@ -150,12 +156,24 @@ class CFNN(Recommender):
         n_u_i = self.m.similar_items(u, i, self.k)
         r = 0
         for j in n_u_i:
+            if self.w[i, j] < 0:  # resolve problems with near-zero weight sums
+                continue
             diff = self.m.r[u, j] - (self.m.mu + self.m.b_u[u] + self.m.b_i[j])
             r += self.w[i, j] * diff
+        if dbg:
+            print('r =', r)
+            print('r (normalized) =', r / sum(self.w[i, j] for j in n_u_i))
+            s = sum(self.w[i, j] for j in n_u_i)
+            print('s =', s)
+            pdb.set_trace()
         if self.normalize:
             if r != 0:
-                s = sum(self.w[i, j] for j in n_u_i)
-                if not np.isfinite(r/sum(self.w[i, j] for j in n_u_i)) or np.isnan(r/sum(self.w[i, j] for j in n_u_i)):
+                s = sum(self.w[i, j] for j in n_u_i
+                        # resolve problems with near-zero weight sums
+                        if self.w[i, j] > 0
+                        )
+                if not np.isfinite(r/sum(self.w[i, j] for j in n_u_i)) or\
+                        np.isnan(r/sum(self.w[i, j] for j in n_u_i)):
                     pdb.set_trace()
                 r /= s
         return b_xi + r
@@ -499,9 +517,11 @@ def read_movie_lens_data():
 if __name__ == '__main__':
     start_time = datetime.datetime.now()
 
-    # with open('m.obj', 'rb') as infile:  # complete MovieLens matrix
-    #     m = pickle.load(infile).astype(float)
-    # m[m == 0] = np.nan
+    # complete MovieLens matrix
+    # with open('um_bookcrossing.obj', 'rb') as infile:
+    with open('um_movielens.obj', 'rb') as infile:
+        m = pickle.load(infile).astype(float)
+    m[m == 0] = np.nan
 
     # with open('m255.obj', 'rb') as infile: # sample of 255 from MovieLens
     #     m = pickle.load(infile).astype(float)
@@ -526,27 +546,27 @@ if __name__ == '__main__':
     # ])
     # um = UtilityMatrix(m, hidden=hidden)
 
-    m = np.array([  # simple test case 2
-        [1, 5, 5, np.NAN, np.NAN, np.NAN],
-        [2, 4, 3, np.NAN, np.NAN, np.NAN],
-        [1, 4, 5, np.NAN, np.NAN, np.NAN],
-        [1, 5, 5, np.NAN, np.NAN, np.NAN],
+    # m = np.array([  # simple test case 2
+    #     [1, 5, 5, np.NAN, np.NAN, np.NAN],
+    #     [2, 4, 3, np.NAN, np.NAN, np.NAN],
+    #     [1, 4, 5, np.NAN, np.NAN, np.NAN],
+    #     [1, 5, 5, np.NAN, np.NAN, np.NAN],
+    #
+    #     [np.NAN, np.NAN, np.NAN, 1, 2, 3],
+    #     [np.NAN, np.NAN, np.NAN, 2, 1, 3],
+    #     [np.NAN, np.NAN, np.NAN, 3, 2, 2],
+    #     [np.NAN, np.NAN, np.NAN, 4, 3, 3],
+    # ])
+    # hidden = np.array([
+    #     [0, 1, 3, 4, 5],
+    #     [1, 2, 0, 4, 5]
+    # ])
+    # um = UtilityMatrix(m, hidden=hidden)
 
-        [np.NAN, np.NAN, np.NAN, 1, 2, 3],
-        [np.NAN, np.NAN, np.NAN, 2, 1, 3],
-        [np.NAN, np.NAN, np.NAN, 3, 2, 2],
-        [np.NAN, np.NAN, np.NAN, 4, 3, 3],
-    ])
-    hidden = np.array([
-        [0, 1, 3, 4, 5],
-        [1, 2, 0, 4, 5]
-    ])
-    um = UtilityMatrix(m, hidden=hidden)
-
-    # um = UtilityMatrix(m)
-    # cfnn = CFNN(um, k=15); print(cfnn.test_error())
+    um = UtilityMatrix(m)
+    cfnn = CFNN(um, k=2); print(cfnn.test_error())
     # f = Factors(um, k=5, eta_type='bold_driver', eta=0.00001, regularize=True, init_svd=False)
-    w = WeightedCFNN(um, eta_type='constant', k=5, eta=0.001, regularize=True, init='sim')
+    # w = WeightedCFNN(um, eta_type='constant', k=5, eta=0.001, regularize=True, init='sim')
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
     pdb.set_trace()

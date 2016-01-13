@@ -330,7 +330,7 @@ class RatingBasedRecommender(Recommender):
         self.similarity_matrix = self.get_similarity_matrix()
         super(RatingBasedRecommender, self).get_recommendations()
 
-    # @decorators.Cached # TODO
+    @decorators.Cached # TODO
     def get_utility_matrix(self):
         # load user ids
         item_ids = set(map(str, self.df['dataset_id']))
@@ -362,6 +362,9 @@ class RatingBasedRecommender(Recommender):
     # @decorators.Cached # TODO
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
+        # with open('um_' + self.dataset + '.obj', 'wb') as outfile:
+        #     pickle.dump(um, outfile, -1)
+        # sys.exit()
 
         # use the centered version for similarity computation
         um_centered = np.copy(um.astype(float))
@@ -391,10 +394,10 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
         q = self.factorize(um)
-        with open('f_bookcrossing.obj', 'wb') as outfile:
-            pickle.dump(q, outfile, -1)
-        with open('f_bookcrossing.obj', 'rb') as infile:
-            q = pickle.load(infile)
+        # with open('f_bookcrossing.obj', 'wb') as outfile:
+        #     pickle.dump(q, outfile, -1)
+        # with open('f_bookcrossing.obj', 'rb') as infile:
+        #     q = pickle.load(infile)
 
         # use the centered version for similarity computation
         q_centered = np.copy(q.astype(float).T)
@@ -425,7 +428,7 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         # for MovieLens:
         #     k=15, nsteps=1000, eta_type='bold_driver', regularize=True,
         #     eta=0.00001, lamda=0.05,init='random'
-        f = recsys.Factors(um, k=5, nsteps=100, eta_type='bold_driver',
+        f = recsys.Factors(um, k=20, nsteps=1000, eta_type='bold_driver',
                            regularize=True, eta=0.00001, lamda=0.05,
                            init='random')
         return f.q
@@ -671,9 +674,9 @@ if __name__ == '__main__':
     ]:
         # cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
         # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
-        # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
+        rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
         # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
-        rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
+        # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 
