@@ -395,16 +395,21 @@ def add_genres():
     cursor.execute(stmt)
     db_cat2id = {c[1]: c[0] for c in cursor.fetchall()}
 
-    # TODO: get ids of items already in item_cat, skip them in what follows
-
+    # get items already in the item_cat database
+    stmt = 'SELECT item_id FROM item_cat'
+    cursor.execute(stmt)
+    response = cursor.fetchall()
+    categories_present = set(r[0] for r in response)
+    item_count = df.shape[0]
+    df = df[~df['isbn'].isin(categories_present)]
     for ridx, row in df.iterrows():
-        print(ridx+1, '/', df.shape[0], row['original_title'])
+        print(ridx, '/', item_count, row['original_title'])
         if DEBUG:
             t = 1
-            print('DEBUG')
+            print('    DEBUG')
         else:
-            t = random.randint(10, 19)
-        print('sleeping for', t, 'seconds')
+            t = random.randint(5, 15)
+        print('    sleeping for', t, 'seconds')
         time.sleep(t)
         url = u'http://www.goodreads.com/search?q=' + row['isbn']
         try:
@@ -415,8 +420,8 @@ def add_genres():
             data = Item.url_opener.open(request).read()
             data = data.decode('utf-8')
         except (urllib2.HTTPError, urllib2.URLError) as e:
-            print('!+!+!+!+!+!+!+!+ URLLIB ERROR !+!+!+!+!+!+!+!+')
-            print('URLError', e)
+            print('    !+!+!+!+!+!+!+!+ URLLIB ERROR !+!+!+!+!+!+!+!+')
+            print('    URLError', e)
             pdb.set_trace()
         rexes = [
             r'bookPageGenreLink"\s*href="[^"]+">([^<]+)',
@@ -425,10 +430,10 @@ def add_genres():
         cats = [e for e in re.findall(re_cat, data)]
         # remove duplicates from e.g., "A > AB" and "A" both being present
         cats = list(set(cats))
-        print(row['original_title'])
-        print(cats)
+        print('   ', row['original_title'])
+        print('   ', cats)
         if not cats:  # sanity check
-            print('no cats found')
+            print('    no cats found')
             pdb.set_trace()
 
         # write to databse
@@ -852,9 +857,6 @@ if __name__ == '__main__':
     # export_data()
     # create_database()
     # populate_database()
-    # add_genres()
-    export_data_after_wikipedia()
-
     add_genres()
     # export_data_after_wikipedia()
 
