@@ -171,7 +171,7 @@ def prepare_data():
                 continue
             parts = line.strip().split(';')
             parts = [p.strip('"') for p in parts]
-            if parts[-1] == '0':
+            if parts[-1] == '0': # TODO test run
                 continue
             user.append(parts[0])
             isbn.append(parts[1])
@@ -847,10 +847,13 @@ if __name__ == '__main__':
     # get_titles()
 
     # prepare_data()
+    # pdb.set_trace()
     # condense_data()
     # export_data()
     # create_database()
     # populate_database()
+    # add_genres()
+    export_data_after_wikipedia()
 
     add_genres()
     # export_data_after_wikipedia()
