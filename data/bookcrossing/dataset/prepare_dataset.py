@@ -311,6 +311,29 @@ def create_database():
         conn.commit()
 
 
+def prune_database():
+    df_books = pd.read_pickle('df_books_condensed.obj')
+    df_ids = set(df_books['isbn'])
+
+    db_file = 'database_new_full.db'
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    # get items already in the database
+    stmt = 'SELECT id FROM books ORDER BY id ASC'
+    cursor.execute(stmt)
+    response = cursor.fetchall()
+    db_ids = set([i[0] for i in response])
+
+    ids_to_delete = db_ids - (df_ids & db_ids)
+    for isbn in ids_to_delete:
+        stmt = 'DELETE FROM books WHERE id=?;'
+        data = (isbn.strip(),)
+        cursor.execute(stmt, data)
+    conn.commit()
+
+
+
 def populate_database(wp_text=False):
     df_books = pd.read_pickle('df_books_condensed.obj')
     db_file = 'database_new.db'
@@ -452,6 +475,22 @@ def add_genres():
                 data = (row['isbn'], db_cat2id[c])
                 cursor.execute(stmt, data)
                 conn.commit()
+
+
+def delete_genreless():
+    with open('books_to_delete.txt') as infile:
+        isbns = infile.readlines()
+
+    db_file = os.path.join('..', 'database_new.db')
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    for isbn in isbns:
+        print(isbn)
+        stmt = 'DELETE FROM books WHERE id=?;'
+        data = (isbn.strip(),)
+        cursor.execute(stmt, data)
+        conn.commit()
 
 
 def export_data_after_wikipedia():
@@ -855,10 +894,12 @@ if __name__ == '__main__':
     # prepare_data()
     # pdb.set_trace()
     # condense_data()
+    prune_database()
     # export_data()
     # create_database()
     # populate_database()
-    add_genres()
+    # add_genres()
+    # delete_genreless()
     # export_data_after_wikipedia()
 
     end_time = datetime.now()

@@ -115,6 +115,8 @@ class Recommender:
             err = self.m.r[u, i] - self.predict(u, i)
             sse += err ** 2
             errs.append(err)
+            # print(self.m.r[u, i], self.predict(u, i), err)
+            # pdb.set_trace()
             if err > 100:
                 print(err, self.m.r[u, i], self.predict(u, i))
                 self.predict(u, i, dbg=True)
@@ -122,6 +124,10 @@ class Recommender:
         # return np.sqrt(sse) / self.m.hidden.shape[1]
         # pdb.set_trace()
         return np.sqrt(sse / self.m.hidden.shape[1])
+
+    def print_test_error(self):
+        print('%.4f - Test Error %s' %
+              (self.test_error(), self.__class__.__name__))
 
     def plot_rmse(self, title='', suffix=None):
         plt.plot(range(len(self.rmse)), self.rmse)
@@ -131,6 +137,31 @@ class Recommender:
                   ' | ' + datetime.datetime.now().strftime("%H:%M:%S"))
         plt.savefig('rmse' + ('_' + suffix if suffix is not None else '') +
                     '.png')
+
+
+class GlobalAverageRecommender(Recommender):
+    def __init__(self, m):
+        Recommender.__init__(self, m)
+
+    def predict(self, u, i, dbg=False):
+        return self.m.mu
+
+
+class UserItemAverageRecommender(Recommender):
+    def __init__(self, m):
+        Recommender.__init__(self, m)
+
+    def predict(self, u, i, dbg=False):
+        # predict an item-based CF rating based on the training data
+        b_xi = self.m.mu + self.m.b_u[u] + self.m.b_i[i]
+        if np.isnan(b_xi):
+            if np.isnan(self.m.b_u[u]) and np.isnan(self.m.b_i[i]):
+                return self.m.mu
+            elif np.isnan(self.m.b_u[u]):
+                return self.m.mu + self.m.b_i[i]
+            else:
+                return self.m.mu + self.m.b_u[u]
+        return b_xi
 
 
 class CFNN(Recommender):
@@ -232,7 +263,7 @@ class Factors(Recommender):
         self.plot_rmse('%.4f' % diff, suffix='init')
         print('test error: %.4f' % self.test_error())
 
-    def predict(self, u, i):
+    def predict(self, u, i, dbg=False):
         p_u = self.p[u, :]
         q_i = self.q[i, :]
         return np.dot(p_u, q_i.T)
@@ -365,6 +396,8 @@ class WeightedCFNN(CFNN):
             self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))
         elif init == 'zeros':
             self.w = np.zeros((self.m.rt.shape[1], self.m.rt.shape[1]))
+        else:
+            print('init method not supported')
         w_init = np.copy(self.w)
 
         print('init =', init)
@@ -518,8 +551,8 @@ if __name__ == '__main__':
     start_time = datetime.datetime.now()
 
     # complete MovieLens matrix
-    # with open('um_bookcrossing.obj', 'rb') as infile:
-    with open('um_movielens.obj', 'rb') as infile:
+    with open('um_bookcrossing.obj', 'rb') as infile:
+    # with open('um_movielens.obj', 'rb') as infile:
         m = pickle.load(infile).astype(float)
     m[m == 0] = np.nan
 
@@ -564,12 +597,16 @@ if __name__ == '__main__':
     # um = UtilityMatrix(m, hidden=hidden)
 
     um = UtilityMatrix(m)
-    cfnn = CFNN(um, k=2); print(cfnn.test_error())
-    # f = Factors(um, k=5, eta_type='bold_driver', eta=0.00001, regularize=True, init_svd=False)
-    # w = WeightedCFNN(um, eta_type='constant', k=5, eta=0.001, regularize=True, init='sim')
+    gar = GlobalAverageRecommender(um); gar.print_test_error()
+    uiar = UserItemAverageRecommender(um); uiar.print_test_error()
+    for k in [1, 2, 5, 10, 15, 20]:
+        cfnn = CFNN(um, k=k); cfnn.print_test_error()
+    # cfnn = CFNN(um, k=10); print(cfnn.test_error())
+    # f = Factors(um, k=2, nsteps=500, eta_type='increasing', regularize=True, eta=0.00001, init='random')
+    # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.000001, regularize=True, init='random')
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
-    pdb.set_trace()
+    # pdb.set_trace()
 
     # errors = []
     # for i in range(10):

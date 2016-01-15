@@ -202,7 +202,8 @@ class Recommender(object):
         self.data_folder = os.path.join(DATA_BASE_FOLDER, self.dataset)
         self.dataset_folder = os.path.join(self.data_folder, 'dataset')
         self.graph_folder = os.path.join(self.data_folder, 'graphs')
-        self.db_file = os.path.join(self.data_folder, 'database_new.db')
+        db_file = 'database.db' if dataset == 'movielens' else 'database_new.db'
+        self.db_file = os.path.join(self.data_folder, db_file)
         self.db_main_table = 'movies' if dataset == 'movielens' else 'books'
         if not os.path.exists(self.graph_folder):
             os.makedirs(self.graph_folder)
@@ -330,7 +331,7 @@ class RatingBasedRecommender(Recommender):
         self.similarity_matrix = self.get_similarity_matrix()
         super(RatingBasedRecommender, self).get_recommendations()
 
-    @decorators.Cached # TODO
+    # @decorators.Cached # TODO
     def get_utility_matrix(self):
         # load user ids
         item_ids = set(map(str, self.df['dataset_id']))
@@ -342,10 +343,7 @@ class RatingBasedRecommender(Recommender):
                 user, item = line.split('::')[:2]
                 if item in item_ids:
                     user_ids.add(int(user))
-        # if DEBUG:
-        #     user_ids = set(
-        #         np.random.choice(list(user_ids), DEBUG_SIZE, replace=False)
-        #     )
+
         user2matrix = {u: i for i, u in enumerate(sorted(user_ids))}
         matrix = np.zeros((len(user_ids), len(item_ids)))
 
@@ -357,14 +355,27 @@ class RatingBasedRecommender(Recommender):
                 rat = float(rat)
                 if user in user_ids and item in item_ids:
                     matrix[user2matrix[user], item2matrix[item]] = rat
-        return matrix.astype(int)
+
+        um = matrix
+        old_shape = (0, 0)
+        while um.shape != old_shape:
+            old_shape = um.shape
+            print(old_shape, um.shape)
+            um2 = np.array([row for row in um if np.count_nonzero(row) >= 5])
+            um3 = np.array([col for col in um2.T if np.count_nonzero(col) >= 20]).T
+            um = um3
+        # rows = [np.count_nonzero(row) for row in um]
+        # cols = [np.count_nonzero(col) for col in um.T]
+        # pdb.set_trace()
+
+        return um.astype(int)
 
     # @decorators.Cached # TODO
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
-        # with open('um_' + self.dataset + '.obj', 'wb') as outfile:
-        #     pickle.dump(um, outfile, -1)
-        # sys.exit()
+        with open('um_' + self.dataset + '.obj', 'wb') as outfile:
+            pickle.dump(um, outfile, -1)
+        sys.exit()
 
         # use the centered version for similarity computation
         um_centered = np.copy(um.astype(float))
@@ -419,7 +430,7 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
 
     # @profile
     # @decorators.Cached
-    def factorize(self, m, k=15, eta=0.000005, nsteps=1000):
+    def factorize(self, m):
         # k should be smaller than #users and #items (2-300?)
         m = m.astype(float)
         m[m == 0] = np.nan
@@ -428,7 +439,7 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         # for MovieLens:
         #     k=15, nsteps=1000, eta_type='bold_driver', regularize=True,
         #     eta=0.00001, lamda=0.05,init='random'
-        f = recsys.Factors(um, k=20, nsteps=1000, eta_type='bold_driver',
+        f = recsys.Factors(um, k=1, nsteps=1000, eta_type='increasing',
                            regularize=True, eta=0.00001, lamda=0.05,
                            init='random')
         return f.q
@@ -471,26 +482,36 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         return df
 
     # @decorators.Cached # TODO
-    def get_similarity_matrix(self, threshold=50):
+    def get_similarity_matrix(self, threshold=5):
+        # threshold = 50 for movielens
+        # threshold = 2 for bookcrossing
         um = self.get_utility_matrix()
         ucount = um.shape[0]
         icount = um.shape[1]
 
+        w, k = self.get_interpolation_weights(um)
+        # with open('iw.obj', 'rb') as infile:
+        #     print('DEBUG: loading IW matrix')
+        #     w = pickle.load(infile)
+        # df = self.get_coratings(mid=0, w=w, k=10, coratings_top_10=coratings)
+        # print(df.sort_values('similarity'))
+        # print(coratings[0][1140])
+
         # compute coratings
-        # from recsys import UtilityMatrix
-        # m_nan = np.copy(um.astype(float))
-        # m_nan[m_nan == 0] = np.nan
-        # umrs = UtilityMatrix(m_nan)
-        # coratings = {i: collections.defaultdict(int) for i in range(icount)}
-        # not_nan_indices = umrs.get_not_nan_indices(umrs.r)
-        # idx_count = len(not_nan_indices)
-        # for idx, (u, i) in enumerate(not_nan_indices):
-        #     if ((idx+1) % 10000) == 0:
-        #         print(idx+1, '/', idx_count, end='\r')
-        #     s_u_i = umrs.similar_items(u, i, 10, use_all=True)
-        #     for ci in s_u_i:
-        #         coratings[i][ci] += 1
-        # with open('coratings_top_10.obj', 'wb') as outfile:
+        from recsys import UtilityMatrix
+        m_nan = np.copy(um.astype(float))
+        m_nan[m_nan == 0] = np.nan
+        umrs = UtilityMatrix(m_nan)
+        coratings = {i: collections.defaultdict(int) for i in range(icount)}
+        not_nan_indices = umrs.get_not_nan_indices(umrs.r)
+        idx_count = len(not_nan_indices)
+        for idx, (u, i) in enumerate(not_nan_indices):
+            if ((idx+1) % 10000) == 0:
+                print(idx+1, '/', idx_count, end='\r')
+            s_u_i = umrs.similar_items(u, i, k, use_all=True)
+            for ci in s_u_i:
+                coratings[i][ci] += 1
+        # with open('coratings_top_10_' + self.dataset + '.obj', 'wb') as outfile:
         #     pickle.dump(coratings, outfile, -1)
         # sys.exit()
 
@@ -510,21 +531,13 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         #     pickle.dump(coratings, outfile, -1)
         # sys.exit()
 
-        with open('coratings_top_10.obj', 'rb') as infile:
-            print('DEBUG: loading coratings')
-            coratings = pickle.load(infile)
+        # with open('coratings_top_10_' + dataset + '.obj', 'rb') as infile:
+        #     print('DEBUG: loading coratings')
+        #     coratings = pickle.load(infile)
         # with open('coratings_top_10_alternative.obj', 'rb') as infile:
         #     print('DEBUG: loading coratings')
         #     coratings_alt = pickle.load(infile)
         # pdb.set_trace()
-
-        # w = self.get_interpolation_weights(um)
-        with open('iw.obj', 'rb') as infile:
-            print('DEBUG: loading IW matrix')
-            w = pickle.load(infile)
-        # df = self.get_coratings(mid=0, w=w, k=10, coratings_top_10=coratings)
-        # print(df.sort_values('similarity'))
-        # print(coratings[0][1140])
 
         sims = np.zeros((icount, icount))
         for x in range(icount):
@@ -532,7 +545,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                 if coratings[x][y] < threshold:  # confidence threshold
                     continue
                 sims[x, y] = w[x, y]
-
+        print('threshold =', threshold)
         return SimilarityMatrix(sims)
 
     # @profile
@@ -550,13 +563,14 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         # for MovieLens:
         #    eta_type='increasing', k=10, eta=0.000001, regularize=True,
         #    init='random'
-        wf = recsys.WeightedCFNN(um, eta_type='increasing', k=10, eta=0.000001, regularize=True, init='zeros')
+        wf = recsys.WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.00001,
+                                 regularize=True, init='sim')
 
-        with open('um.obj', 'wb') as outfile:
-            pickle.dump(wf.m, outfile)
-        with open('iw.obj', 'wb') as outfile:
-            pickle.dump(wf.w, outfile)
-        return wf.w
+        # with open('um.obj', 'wb') as outfile:
+        #     pickle.dump(wf.m, outfile)
+        # with open('iw.obj', 'wb') as outfile:
+        #     pickle.dump(wf.w, outfile)
+        return wf.w, wf.k
 
 
 class AssociationRuleRecommender(RatingBasedRecommender):
@@ -636,7 +650,7 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         # self.ar_both(um, coratings, 0, 2849)
         # with open('coratings_' + self.dataset + '.obj', 'rb') as infile:
         #     coratings = pickle.load(infile)
-        pdb.set_trace()
+        # pdb.set_trace()
         # TODO: check coratings of known books for plausibility
 
         # MovieLens:
@@ -673,8 +687,8 @@ if __name__ == '__main__':
         'bookcrossing',
     ]:
         # cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
-        # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
-        rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
+        rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
+        # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
         # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
         # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
     end_time = datetime.now()
