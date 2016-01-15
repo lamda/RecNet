@@ -104,8 +104,6 @@ class Recommender:
         for u, i in self.m.rt_not_nan_indices:
             err = self.m.rt[u, i] - self.predict(u, i)
             sse += err ** 2
-
-        # return np.sqrt(sse) / len(self.m.rt_not_nan_indices)
         return np.sqrt(sse / len(self.m.rt_not_nan_indices))
 
     def test_error(self):
@@ -126,7 +124,7 @@ class Recommender:
         return np.sqrt(sse / self.m.hidden.shape[1])
 
     def print_test_error(self):
-        print('%.4f - Test Error %s' %
+        print('%.3f - Test Error %s' %
               (self.test_error(), self.__class__.__name__))
 
     def plot_rmse(self, title='', suffix=None):
@@ -170,8 +168,26 @@ class CFNN(Recommender):
         self.w = self.m.s_rt
         self.k = k
         self.normalize = True
-        # self.normalize = False
         print('k =', k)
+
+    def predict_basic(self, u, i, dbg=False):
+        n_u_i = self.m.similar_items(u, i, self.k)
+        r = 0
+        for j in n_u_i:
+            if self.w[i, j] < 0:  # resolve problems with near-zero weight sums
+                continue
+            r += self.w[i, j] * self.m.r[u, j]
+        if self.normalize:
+            if r != 0:
+                s = sum(self.w[i, j] for j in n_u_i
+                        # resolve problems with near-zero weight sums
+                        if self.w[i, j] > 0
+                        )
+                if not np.isfinite(r/sum(self.w[i, j] for j in n_u_i)) or\
+                        np.isnan(r/sum(self.w[i, j] for j in n_u_i)):
+                    pdb.set_trace()
+                r /= s
+        return r
 
     def predict(self, u, i, dbg=False):
         # predict an item-based CF rating based on the training data
@@ -236,6 +252,10 @@ class Factors(Recommender):
             self.eta *= 15  # use a higher eta for random initialization
             self.p = np.random.random((self.m.rt.shape[0], self.k))
             self.q = np.random.random((self.m.rt.shape[1], self.k))
+        elif init == 'random_small':
+            self.eta *= 100  # use a higher eta for random initialization
+            self.p = np.random.random((self.m.rt.shape[0], self.k)) / 100
+            self.q = np.random.random((self.m.rt.shape[1], self.k)) / 100
         else:
             print('init method not supported')
             pdb.set_trace()
@@ -597,16 +617,17 @@ if __name__ == '__main__':
     # um = UtilityMatrix(m, hidden=hidden)
 
     um = UtilityMatrix(m)
+
+    # cfnn = CFNN(um, k=10); print(cfnn.test_error())
+    # f = Factors(um, k=5, nsteps=500, eta_type='increasing', regularize=True, eta=0.00001, init='random')
+    # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.000001, regularize=True, init='random')
+    # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
+    # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
+
     gar = GlobalAverageRecommender(um); gar.print_test_error()
     uiar = UserItemAverageRecommender(um); uiar.print_test_error()
     for k in [1, 2, 5, 10, 15, 20]:
         cfnn = CFNN(um, k=k); cfnn.print_test_error()
-    # cfnn = CFNN(um, k=10); print(cfnn.test_error())
-    # f = Factors(um, k=2, nsteps=500, eta_type='increasing', regularize=True, eta=0.00001, init='random')
-    # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.000001, regularize=True, init='random')
-    # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
-    # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
-    # pdb.set_trace()
 
     # errors = []
     # for i in range(10):

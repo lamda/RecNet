@@ -159,6 +159,9 @@ def get_titles():
     pdb.set_trace()
 
 
+# -----------------------------
+
+
 def prepare_data():
     print('getting ratings...')
     user, isbn, rating = [], [], []
@@ -176,6 +179,7 @@ def prepare_data():
             user.append(parts[0])
             isbn.append(parts[1])
             rating.append(parts[2])
+            # rating.append(1) # TODO test run
     df_ratings = pd.DataFrame(data=zip(user, isbn, rating),
                               columns=['user', 'isbn', 'rating'])
 
@@ -196,13 +200,85 @@ def prepare_data():
     df_books = pd.DataFrame(data=zip(isbn, title, author, year),
                             columns=['isbn', 'title', 'author', 'year'])
 
+    print('saving...')
+    df_ratings[['user', 'rating']] = df_ratings[['user', 'rating']].astype(int)
+    df_books['year'] = df_books['year'].astype(int)
+    df_ratings.to_pickle('df_ratings.obj')
+    df_books.to_pickle('df_books.obj')
+
+
+def eliminate_duplicates():
+    df_ratings = pd.read_pickle('df_ratings.obj')
+    df_books = pd.read_pickle('df_books.obj')
+    print(df_ratings.shape, df_books.shape)
+
+    # elminate all users with < 5 ratings
+    agg = df_ratings.groupby('user').count()
+    users_to_keep = set(agg[agg['isbn'] >= 5].index)
+    df_ratings = df_ratings[df_ratings['user'].isin(users_to_keep)]
+
+    # eliminate all books with 0 ratings
+    isbns = set(df_ratings['isbn'])
+    df_books = df_books[df_books['isbn'].isin(isbns)]
+    df_books.index = range(0, df_books.shape[0])
+    print(df_ratings.shape, df_books.shape)
+
+    # compute Jaccard distances between titles
+    # df_books = df_books.iloc[:2500]
+    # titles_original = df_books['title'].tolist()
+    # authors = df_books['author'].tolist()
+    # isbns = df_books['isbn'].tolist()
+    # years = df_books['year'].tolist()
+    # titles = [frozenset(t.lower().split(' ')) for t in titles_original]
+    # titles = [t - {'the', 'a', 'an'} for t in titles]
+    # idx2title = {t: i for t, i in enumerate(titles_original)}
+    # idx2author = {t: i for t, i in enumerate(authors)}
+    # idx2isbn = {t: i for t, i in enumerate(isbns)}
+    # idx2year = {t: i for t, i in enumerate(years)}
+    #
+    # merges = collections.defaultdict(list)
+    # for idx1, t1 in enumerate(titles):
+    #     print('\r', idx1, '/', len(titles), end=' | ')
+    #     for idx2, t2 in enumerate(titles):
+    #         if idx2 >= idx1:
+    #             continue
+    #         jcd = (len(t1 & t2) / len(t1 | t2))
+    #         if jcd >= 0.8:
+    #             if idx2year[idx1] != idx2year[idx2]:
+    #                 continue
+    #             merges[idx2isbn[idx1]].append(idx2isbn[idx2])
+    #             if 0.8 <= jcd < 1:
+    #                 print('%.2f %d %d\n%s (%s)\n%s (%s)\n' %
+    #                       (jcd, idx1, idx2, idx2title[idx1], idx2author[idx1],
+    #                        idx2title[idx2], idx2author[idx2]))
+    # duplicates = [[[k] + v] for k, v in merges.items()]
+    # print('\nfound %d duplicates' % len(duplicates))
+
+    # # merge all books with identical titles and authors
+    # title_author2isbn = collections.defaultdict(list)
+    # print('finding duplicates...')
+    # for ridx, row in df_books.iterrows():
+    #     print('\r', ridx+1, '/', df_books.shape[0], end='')
+    #     key = (row['title'].lower(), row['author'].lower())
+    #     title_author2isbn[key].append(row['isbn'])
+    # print()
+    # duplicates = [sorted(v) for v in title_author2isbn.values() if len(v) > 1]
+
+    # merge all books with identical titles
+    # df_books = df_books.iloc[:2500]
+    title2isbn = collections.defaultdict(list)
     print('finding duplicates...')
-    title_author2isbn = collections.defaultdict(list)
+    titles = df_books['title'].tolist()
+    titles = [re.sub(r'[\(\),!\.\?\-]', '', t.lower()) for t in titles]
+    titles = [frozenset(t.split(' ')) for t in titles]
+    stopwords = {'the', 'a', 'an', ' ', 'unabridged', 'paperback', 'hardcover'}
+    titles = [t - stopwords for t in titles]
     for ridx, row in df_books.iterrows():
         print('\r', ridx+1, '/', df_books.shape[0], end='')
-        key = (row['title'].lower(), row['author'].lower())
-        title_author2isbn[key].append(row['isbn'])
-    duplicates = [sorted(v) for v in title_author2isbn.values() if len(v) > 1]
+        key = titles[ridx]
+        title2isbn[key].append(row['isbn'])
+    print()
+    duplicates = [sorted(v) for v in title2isbn.values() if len(v) > 1]
 
     print('merging duplicates...')
     to_drop = set()
@@ -212,31 +288,32 @@ def prepare_data():
         for d in ds[1:]:
             df_ratings['isbn'].replace(d, isbn_keep, inplace=True)
             to_drop.add(d)
-    df_books = df_books[~df_books['isbn'].isin(to_drop)]
     print()
-
-    print('saving...')
-    df_ratings[['user', 'rating']] = df_ratings[['user', 'rating']].astype(int)
-    df_books['year'] = df_books['year'].astype(int)
-    df_ratings.to_pickle('df_ratings.obj')
-    df_books.to_pickle('df_books.obj')
+    df_books = df_books[~df_books['isbn'].isin(to_drop)]
+    df_ratings.to_pickle('df_ratings_merged.obj')
+    df_books.to_pickle('df_books_merged.obj')
 
 
-def condense_data(user_ratings=5, book_ratings=10):
-    df_ratings = pd.read_pickle('df_ratings.obj')
-    df_books = pd.read_pickle('df_books.obj')
+def condense_data(user_ratings=5, book_ratings=20):
+    df_ratings = pd.read_pickle('df_ratings_merged.obj')
+    df_books = pd.read_pickle('df_books_merged.obj')
     valid_isbns = set(df_books['isbn'])
     df_ratings = df_ratings[df_ratings['isbn'].isin(valid_isbns)]
 
-    agg = df_ratings.groupby('isbn').count()
-    books_to_keep = set(agg[agg['user'] > book_ratings].index)
+    old_shape = (0, 0)
+    while old_shape != df_ratings.shape:
+        print(df_ratings.shape)
+        old_shape = df_ratings.shape
+        agg = df_ratings.groupby('isbn').count()
+        books_to_keep = set(agg[agg['user'] > book_ratings].index)
 
-    agg = df_ratings.groupby('user').count()
-    users_to_keep = set(agg[agg['isbn'] > user_ratings].index)
+        agg = df_ratings.groupby('user').count()
+        users_to_keep = set(agg[agg['isbn'] > user_ratings].index)
 
-    df_ratings = df_ratings[df_ratings['isbn'].isin(books_to_keep)]
-    df_ratings = df_ratings[df_ratings['user'].isin(users_to_keep)]
-    df_books = df_books[df_books['isbn'].isin(books_to_keep)]
+        df_ratings = df_ratings[df_ratings['isbn'].isin(books_to_keep)]
+        df_ratings = df_ratings[df_ratings['user'].isin(users_to_keep)]
+        df_books = df_books[df_books['isbn'].isin(books_to_keep)]
+
     print('%d/%d: found %d books with %d ratings' %
           (user_ratings, book_ratings, len(books_to_keep), df_ratings.shape[0]))
     df_ratings.to_pickle('df_ratings_condensed.obj')
@@ -260,7 +337,7 @@ def export_data():
 
 def create_database():
         """set up the database scheme (SQLITE)"""
-        db_file = 'database_new.db'
+        db_file = '../database_new.db'
         try:
             os.remove(db_file)
         except OSError:
@@ -333,10 +410,9 @@ def prune_database():
     conn.commit()
 
 
-
 def populate_database(wp_text=False):
     df_books = pd.read_pickle('df_books_condensed.obj')
-    db_file = 'database_new.db'
+    db_file = '../database_new.db'
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
 
@@ -431,7 +507,7 @@ def add_genres():
             t = 1
             print('    DEBUG')
         else:
-            t = random.randint(5, 15)
+            t = random.randint(2, 10)
         print('    sleeping for', t, 'seconds')
         time.sleep(t)
         url = u'http://www.goodreads.com/search?q=' + row['isbn']
@@ -892,13 +968,13 @@ if __name__ == '__main__':
     # get_titles()
 
     # prepare_data()
-    # pdb.set_trace()
-    # condense_data()
-    prune_database()
+    # eliminate_duplicates()
+    # condense_data(user_ratings=20, book_ratings=5)
+    # prune_database()
     # export_data()
     # create_database()
-    # populate_database()
-    # add_genres()
+    # populate_database(wp_text=False)
+    add_genres()
     # delete_genreless()
     # export_data_after_wikipedia()
 

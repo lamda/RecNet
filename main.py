@@ -357,13 +357,13 @@ class RatingBasedRecommender(Recommender):
                     matrix[user2matrix[user], item2matrix[item]] = rat
 
         um = matrix
-        old_shape = (0, 0)
-        while um.shape != old_shape:
-            old_shape = um.shape
-            print(old_shape, um.shape)
-            um2 = np.array([row for row in um if np.count_nonzero(row) >= 5])
-            um3 = np.array([col for col in um2.T if np.count_nonzero(col) >= 20]).T
-            um = um3
+        # old_shape = (0, 0)  # TODO
+        # while um.shape != old_shape:
+        #     old_shape = um.shape
+        #     print(old_shape, um.shape)
+        #     um2 = np.array([row for row in um if np.count_nonzero(row) >= 5])
+        #     um3 = np.array([col for col in um2.T if np.count_nonzero(col) >= 20]).T
+        #     um = um3
         # rows = [np.count_nonzero(row) for row in um]
         # cols = [np.count_nonzero(col) for col in um.T]
         # pdb.set_trace()
@@ -373,9 +373,9 @@ class RatingBasedRecommender(Recommender):
     # @decorators.Cached # TODO
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
-        with open('um_' + self.dataset + '.obj', 'wb') as outfile:
-            pickle.dump(um, outfile, -1)
-        sys.exit()
+        # with open('um_' + self.dataset + '.obj', 'wb') as outfile:
+        #     pickle.dump(um, outfile, -1)
+        # sys.exit()
 
         # use the centered version for similarity computation
         um_centered = np.copy(um.astype(float))
@@ -438,10 +438,12 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         # f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, eta=eta)
         # for MovieLens:
         #     k=15, nsteps=1000, eta_type='bold_driver', regularize=True,
-        #     eta=0.00001, lamda=0.05,init='random'
-        f = recsys.Factors(um, k=1, nsteps=1000, eta_type='increasing',
-                           regularize=True, eta=0.00001, lamda=0.05,
-                           init='random')
+        #     eta=0.00001, init='random'
+        # for BookCrossing:
+        #       k=5, nsteps=500, eta_type='increasing', regularize=True,
+        #       eta=0.00001, init='random'
+        f = recsys.Factors(um, k=5, nsteps=500, eta_type='increasing',
+                           regularize=True, eta=0.001, init='random')
         return f.q
 
 
@@ -563,8 +565,11 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         # for MovieLens:
         #    eta_type='increasing', k=10, eta=0.000001, regularize=True,
         #    init='random'
-        wf = recsys.WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.00001,
-                                 regularize=True, init='sim')
+        # for BookCrossing:
+        #    eta_type='bold_driver', k=20, eta=0.00001, regularize=True,
+        #    init='zeros'
+        wf = recsys.WeightedCFNN(um, k=20, eta_type='bold_driver', eta=0.00001,
+                                 regularize=True, init='zeros', nsteps=500)
 
         # with open('um.obj', 'wb') as outfile:
         #     pickle.dump(wf.m, outfile)
@@ -625,7 +630,7 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         complex = self.ar_complex(um, coratings, x, y)
         print('s: %.4f, c: %.4f' % (simple, complex))
 
-    def get_similarity_matrix(self, threshold=2):
+    def get_similarity_matrix(self, threshold=5):
         um = self.get_utility_matrix()
         um = np.where(um == 0, um, 1)  # set all ratings to 1
         # um = np.where(um >= 4, 1, 0)  # set all high ratings to 1
@@ -687,7 +692,7 @@ if __name__ == '__main__':
         'bookcrossing',
     ]:
         # cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
-        rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
+        # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
         # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
         # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
         # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
