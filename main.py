@@ -262,9 +262,9 @@ class Recommender(object):
     def get_recommendations(self):
         strategies = [
             TopNRecommendationStrategy,
-            # TopNDivRandomRecommendationStrategy,
-            # TopNDivDiversifyRecommendationStrategy,
-            # TopNDivExpRelRecommendationStrategy,
+            TopNDivRandomRecommendationStrategy,
+            TopNDivDiversifyRecommendationStrategy,
+            TopNDivExpRelRecommendationStrategy,
         ]
 
         for strategy in strategies:
@@ -284,7 +284,7 @@ class ContentBasedRecommender(Recommender):
         self.similarity_matrix = self.get_similarity_matrix()
         super(ContentBasedRecommender, self).get_recommendations()
 
-    @decorators.Cached
+    # @decorators.Cached
     def get_similarity_matrix(self):
         """get the TF-IDF similarity values of a given list of text"""
         import nltk
@@ -436,14 +436,19 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         m[m == 0] = np.nan
         um = recsys.UtilityMatrix(m)
         # f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, eta=eta)
-        # for MovieLens:
-        #     k=15, nsteps=1000, eta_type='bold_driver', regularize=True,
-        #     eta=0.00001, init='random'
-        # for BookCrossing:
-        #       k=5, nsteps=500, eta_type='increasing', regularize=True,
-        #       eta=0.00001, init='random'
-        f = recsys.Factors(um, k=5, nsteps=500, eta_type='increasing',
-                           regularize=True, eta=0.001, init='random')
+        if self.dataset == 'movielens':
+            # for MovieLens:
+            #     k=15, nsteps=1000, eta_type='bold_driver', regularize=True,
+            #     eta=0.00001, init='random'
+            f = recsys.Factors(um, k=15, nsteps=1000, eta_type='bold_driver',
+                               regularize=True, eta=0.00001, init='random')
+        elif self.dataset == 'bookcrossing':
+            # for BookCrossing:
+            #       k=5, nsteps=500, eta_type='increasing', regularize=True,
+            #       eta=0.00001, init='random'
+            f = recsys.Factors(um, k=5, nsteps=500, eta_type='increasing',
+                               regularize=True, eta=0.00001, init='random')
+
         return f.q
 
 
@@ -562,14 +567,20 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         # with open('m.obj', 'wb') as outfile:
         #     pickle.dump(m, outfile)
         # sys.exit()
-        # for MovieLens:
-        #    eta_type='increasing', k=10, eta=0.000001, regularize=True,
-        #    init='random'
-        # for BookCrossing:
-        #    eta_type='bold_driver', k=20, eta=0.00001, regularize=True,
-        #    init='zeros'
-        wf = recsys.WeightedCFNN(um, k=20, eta_type='bold_driver', eta=0.00001,
-                                 regularize=True, init='zeros', nsteps=500)
+        if self.dataset == 'movielens':
+            # for MovieLens:
+            #    eta_type='increasing', k=10, eta=0.000001, regularize=True,
+            #    init='random'
+            wf = recsys.WeightedCFNN(um, eta_type='increasing', k=10,
+                                     eta=0.000001, regularize=True,
+                                     init='random', nsteps=500)
+        elif self.dataset == 'bookcrossing':
+            # for BookCrossing:
+            #    eta_type='bold_driver', k=20, eta=0.00001, regularize=True,
+            #    init='zeros'
+            wf = recsys.WeightedCFNN(um, k=20, eta_type='bold_driver',
+                                     eta=0.00001, regularize=True, init='zeros',
+                                     nsteps=500)
 
         # with open('um.obj', 'wb') as outfile:
         #     pickle.dump(wf.m, outfile)
@@ -694,7 +705,7 @@ if __name__ == '__main__':
         # cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
         # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
         # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
-        # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
+        rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
         # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))

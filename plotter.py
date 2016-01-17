@@ -29,7 +29,7 @@ class Plotter(object):
             '10',
         ]
         self.graphs = {
-            'CB': ['cb_' + c + d for c in self.Ns for d in self.div_types],
+            # 'CB': ['cb_' + c + d for c in self.Ns for d in self.div_types],
             'RB': ['rb_' + c + d for c in self.Ns for d in self.div_types],
             'MF': ['rbmf_' + c + d for c in self.Ns for d in self.div_types],
             'AR': ['rbar_' + c + d for c in self.Ns for d in self.div_types],
@@ -42,7 +42,7 @@ class Plotter(object):
             ', Random',
         ]
         self.graph_labels = {
-            'CB': ['CB (' + c + d + ')' for c in self.Ns for d in self.div_labels],
+            # 'CB': ['CB (' + c + d + ')' for c in self.Ns for d in self.div_labels],
             'RB': ['RB (' + c + d + ')' for c in self.Ns for d in self.div_labels],
             'MF': ['MF (' + c + d + ')' for c in self.Ns for d in self.div_labels],
             'AR': ['AR (' + c + d + ')' for c in self.Ns for d in self.div_labels],
@@ -61,13 +61,13 @@ class Plotter(object):
             + range(self.graph_types+2, 2*self.graph_types+2)
         self.plot_file_types = [
             '.png',
-            '.pdf',
+            # '.pdf',
         ]
 
         for prop in [
             'cp_size',
-            'cp_count',
-            'cc',
+            # 'cp_count',
+            # 'cc',
         ]:
             self.plot(prop)
         # self.plot_ecc()
@@ -312,7 +312,7 @@ class Plotter(object):
 
 if __name__ == '__main__':
     for sf in [
-        os.path.join('data', 'movielens', 'stats'),
-        # os.path.join('data', 'bookcrossing', 'stats'),
+        # os.path.join('data', 'movielens', 'stats'),
+        os.path.join('data', 'bookcrossing', 'stats'),
     ]:
         p = Plotter(sf, use_sample=False)

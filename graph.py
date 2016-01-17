@@ -274,7 +274,7 @@ class Graph(object):
 
 if __name__ == '__main__':
     rec_types = [
-        'cb',
+        # 'cb',
         'rb',
         'rbmf',
         'rbar',
@@ -296,6 +296,7 @@ if __name__ == '__main__':
         for div_type in div_types:
             for N in Ns:
                 fname = rec_type + '_' + unicode(N) + div_type
-                g = Graph(dataset='movielens', fname=fname, N=N, use_sample=False, refresh=False)
+                g = Graph(dataset='bookcrossing', fname=fname, N=N,
+                          use_sample=False, refresh=False)
                 g.load_graph()
                 g.compute_stats()

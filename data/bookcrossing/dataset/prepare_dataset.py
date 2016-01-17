@@ -532,9 +532,9 @@ def add_genres():
         print('   ', row['original_title'])
         print('   ', cats)
         if not cats:  # mark item to delete from books table
-            print('    no cats found')
+            print('    no cats found for', row['isbn'])
             with open('books_to_delete.txt', 'a') as outfile:
-                outfile.write(row['isbn'])
+                outfile.write(row['isbn'] + '\n')
         else:
             # write categories to databse
             for c in cats:
@@ -974,8 +974,8 @@ if __name__ == '__main__':
     # export_data()
     # create_database()
     # populate_database(wp_text=False)
-    add_genres()
-    # delete_genreless()
+    # add_genres()
+    delete_genreless()
     # export_data_after_wikipedia()
 
     end_time = datetime.now()
