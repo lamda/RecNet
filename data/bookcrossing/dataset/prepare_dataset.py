@@ -50,118 +50,6 @@ from mediawiki_parser.preprocessor import make_parser as make_prep_parser
 from mediawiki_parser.text import make_parser
 
 
-def extract_from_db():
-    """do some preprocessing on the database
-    and write it to MovieLens style dataset files
-    """
-    conn = mdb.connect('localhost', 'root', 'master', 'books')
-    cursor = conn.cursor()
-
-    # ignore implicit ratings
-    stmt = """DELETE FROM ratings WHERE `Book-Rating` = 0"""
-    cursor.execute(stmt)
-    conn.commit()
-
-    # users
-    stmt = """SELECT DISTINCT `User-ID` FROM ratings
-              WHERE `User-ID` IN
-                  (SELECT `User-ID` FROM ratings
-                   GROUP BY `User-ID` HAVING COUNT(`User-ID`) >= 5)
-            """
-    cursor.execute(stmt)
-    users = cursor.fetchall()
-    users = set([u[0] for u in users])
-    print(len(users), 'users')
-
-    # books
-    stmt = """SELECT DISTINCT `ISBN` FROM ratings
-            WHERE `User-ID` IN (%s)
-            AND `ISBN` IN
-                (SELECT `ISBN` FROM ratings
-                 GROUP BY `ISBN` HAVING COUNT(`ISBN`) >= 20);
-            """ % ', '.join([str(u) for u in users])
-    cursor.execute(stmt)
-    books = cursor.fetchall()
-    books = set([u[0] for u in books])
-    books = ["'" + b + "'" for b in books]
-
-    stmt = """SELECT `ISBN`, `Book-Title`, `Book-Author`, `Year-Of-Publication` FROM books
-            WHERE `ISBN` in (%s)""" % ', '.join([b for b in books])
-    cursor.execute(stmt)
-    books = cursor.fetchall()
-    print(len(books), 'books')
-
-    # ratings
-    stmt = """SELECT * FROM ratings
-            WHERE `User-ID` in (%s)""" % ', '.join([str(u) for u in users])
-    cursor.execute(stmt)
-    ratings = cursor.fetchall()
-    print(len(ratings), 'ratings')
-
-    # write to files
-    with open('users.dat', 'w') as outfile:
-        for u in sorted(users):
-            outfile.write(str(u) + '\n')
-
-    with open('books_full.dat', 'w') as outfile:
-        for i, t, a, y in sorted(books):
-            #outfile.write(i + '::' + t + '\n')
-            outfile.write(i + '::' + t + ' (' + str(y) + ')::' + a + '\n')
-
-    with open('ratings.dat', 'w') as outfile:
-        for u, i, r in ratings:
-            outfile.write(str(u) + '::' + i + '::' + str(r) + '\n')
-
-
-def extract_random_sample(n, exclude_fnames):
-    """ extract a random sample from the full data file
-    may exclude books from other sampled files (exclude_fnames)"""
-    def get_id2line(fname):
-        id2line = {}
-        with open(fname) as infile:
-            for line in infile:
-                if not line.strip():
-                    continue
-                id2line[line.split('::')[0]] = line
-        return id2line
-
-    full_id2line = get_id2line('books_full.dat')
-
-    feid2line = {}
-    for fe in exclude_fnames:
-        id2line = get_id2line(fe)
-        if set(feid2line.keys()) & set(id2line.keys()):
-            print("Error - shouldn't get here")
-        for k, v in id2line.items():
-            feid2line[k] = v
-    id2line = {k: v for k, v in full_id2line.items() if not k in feid2line}
-
-    ids = random.sample(id2line.keys(), n)
-    with io.open('books.dat', 'w', encoding='utf-8') as outfile:
-        for i in sorted(ids):
-            outfile.write(id2line[i].decode('ISO-8859-1'))
-
-
-def get_titles():
-    # titles = []
-    # with open('books.dat') as infile, open('titles_books.txt', 'w') as outfile:
-        # for line in infile:
-            # t = line.split('::')[1].rsplit('(', 1)[0]
-            # outfile.write(t + '\n')
-
-    titlesdb, titlesfiltered = set(), set()
-    for line in open('titles_books.txt'):
-        titlesfiltered.add(line.strip())
-    for line in open('titles_db.txt'):
-        titlesdb.add(line.strip())
-    td = titlesdb
-    tf = titlesfiltered
-    pdb.set_trace()
-
-
-# -----------------------------
-
-
 def prepare_data():
     print('getting ratings...')
     user, isbn, rating = [], [], []
@@ -297,6 +185,7 @@ def eliminate_duplicates():
 def condense_data(user_ratings=5, book_ratings=20):
     df_ratings = pd.read_pickle('df_ratings_merged.obj')
     df_books = pd.read_pickle('df_books_merged.obj')
+    df_books = df_books[df_books['year'] > 1500]
     valid_isbns = set(df_books['isbn'])
     df_ratings = df_ratings[df_ratings['isbn'].isin(valid_isbns)]
 
@@ -316,6 +205,7 @@ def condense_data(user_ratings=5, book_ratings=20):
 
     print('%d/%d: found %d books with %d ratings' %
           (user_ratings, book_ratings, len(books_to_keep), df_ratings.shape[0]))
+
     df_ratings.to_pickle('df_ratings_condensed.obj')
     df_books.to_pickle('df_books_condensed.obj')
 
@@ -569,6 +459,90 @@ def delete_genreless():
         conn.commit()
 
 
+def delete_yearless():
+    isbns = [u'0571197639', u'0349101779', u'0099771519', u'0330312367',
+             u'0450411435', u'0316639842', u'0099521016', u'0099993805',
+             u'0330306839', u'0330262130', u'0330267388', u'0451082028',
+             u'0316095133', u'0006480764', u'0140276904', u'0099478110',
+             u'0553107003', u'0330282565', u'0553227041', u'0330294008',
+             u'0330305735', u'0553100777', u'0439078415', u'0002242591',
+             u'0330330276', u'0099479419', u'0099760118', u'0571173004',
+             u'0140048332', u'0006548539', u'0330345605', u'0001046438',
+             u'0099201410', u'0002558122', u'014026583X', u'0006546684',
+             u'0451110129', u'0099288559', u'0440846536', u'059044168X',
+             u'0590433180', u'0002243962', u'034068478X', u'0684174693',
+             u'0440118697', u'0140118365', u'0099268817', u'0099283417',
+             u'0099750813', u'0445002972', u'0006716652', u'0590479865',
+             u'0553200674', u'0340128720', u'0425043657', u'0739413317',
+             u'0340546727', u'0140037896']
+    db_file = '../database_new.db'
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    for isbn in isbns:
+        stmt = 'DELETE FROM books WHERE id=?;'
+        data = (isbn.strip(),)
+        cursor.execute(stmt, data)
+    conn.commit()
+
+
+def add_text():
+    db_file = os.path.join('..', 'database_new.db')
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    # get items already in the database
+    stmt = '''SELECT id, wp_id, original_title, wp_text
+              FROM books ORDER BY id ASC'''
+    cursor.execute(stmt)
+    response = cursor.fetchall()
+    df = pd.DataFrame(data=response,
+                      columns=['isbn', 'wp_id', 'original_title', 'wp_text'])
+    item_count = df.shape[0]
+    df = df[pd.isnull(df['wp_text'])]
+    for ridx, row in df.iterrows():
+        print(ridx+1, '/', item_count, row['original_title'], row['isbn'])
+        if DEBUG:
+            t = 1
+            print('    DEBUG')
+        else:
+            t = random.randint(2, 10)
+        print('    sleeping for', t, 'seconds')
+        time.sleep(t)
+        url = u'http://www.goodreads.com/search?q=' + row['isbn']
+        data = ''
+        trials = 0
+        while not data:
+            try:
+                request = urllib2.Request(url)
+                # choose a random user agent
+                ua = random.choice(Item.url_headers)
+                request.add_header('User-agent', ua)
+                data = Item.url_opener.open(request).read()
+                data = data.decode('utf-8')
+            except (urllib2.HTTPError, urllib2.URLError) as e:
+                print('    !+!+!+!+!+!+!+!+ URLLIB ERROR !+!+!+!+!+!+!+!+')
+                print('    URLError', e)
+                if trials > 5:
+                    pdb.set_trace()
+        re_text = r'<div id="descriptionContainer">(.+?)(?:</div>|<a)'
+        text = re.findall(re_text, data, flags=re.DOTALL)[0]
+        # remove HTML tags
+        text = re.sub(r'<[^>]+>', '', text)
+        text = text.strip('\n ')
+        text = text.replace('\n', '')
+
+        # write to database
+        stmt = 'UPDATE books SET wp_text = ? WHERE id = ?'
+        data = (text, row['isbn'])
+        cursor.execute(stmt, data)
+        conn.commit()
+
+
+def delete_textless():
+    pdb.set_trace()
+
+
 def export_data_after_wikipedia():
     df_ratings = pd.read_pickle('df_ratings_condensed.obj')
     df_books = pd.read_pickle('df_books_condensed.obj')
@@ -621,7 +595,8 @@ class Item(object):
     url_opener = urllib2.build_opener()
     with io.open('user_agents.txt', encoding='utf-8-sig') as infile:
         url_headers = infile.readlines()
-    url_headers = [u.strip('"') for u in url_headers]
+    url_headers = [u.strip('"\n') for u in url_headers]
+
     # url_headers = ['Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:25.0) Gecko/20100101 Firefox/25.0',
     #                'Mozilla/5.0 (Windows NT 6.1; rv:21.0) Gecko/20130328 Firefox/21.0',
     #                'Mozilla/5.0 (Windows NT 6.2; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1667.0 Safari/537.36',
@@ -963,10 +938,6 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    # extract_from_db()
-    # extract_random_sample(60000)
-    # get_titles()
-
     # prepare_data()
     # eliminate_duplicates()
     # condense_data(user_ratings=20, book_ratings=5)
@@ -975,7 +946,9 @@ if __name__ == '__main__':
     # create_database()
     # populate_database(wp_text=False)
     # add_genres()
-    delete_genreless()
+    # delete_genreless()
+    # delete_yearless()
+    add_text()
     # export_data_after_wikipedia()
 
     end_time = datetime.now()
