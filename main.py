@@ -202,7 +202,7 @@ class Recommender(object):
         self.data_folder = os.path.join(DATA_BASE_FOLDER, self.dataset)
         self.dataset_folder = os.path.join(self.data_folder, 'dataset')
         self.graph_folder = os.path.join(self.data_folder, 'graphs')
-        db_file = 'database.db' if dataset == 'movielens' else 'database_new.db'
+        db_file = 'database_new.db'
         self.db_file = os.path.join(self.data_folder, db_file)
         self.db_main_table = 'movies' if dataset == 'movielens' else 'books'
         if not os.path.exists(self.graph_folder):
@@ -489,9 +489,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         return df
 
     # @decorators.Cached # TODO
-    def get_similarity_matrix(self, threshold=5):
-        # threshold = 50 for movielens
-        # threshold = 2 for bookcrossing
+    def get_similarity_matrix(self):
         um = self.get_utility_matrix()
         ucount = um.shape[0]
         icount = um.shape[1]
@@ -545,6 +543,11 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         #     print('DEBUG: loading coratings')
         #     coratings_alt = pickle.load(infile)
         # pdb.set_trace()
+
+        if self.dataset == 'movielens':
+            threshold = 50
+        elif self.dataset == 'bookcrossing':
+            threshold = 2
 
         sims = np.zeros((icount, icount))
         for x in range(icount):
@@ -641,7 +644,7 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         complex = self.ar_complex(um, coratings, x, y)
         print('s: %.4f, c: %.4f' % (simple, complex))
 
-    def get_similarity_matrix(self, threshold=5):
+    def get_similarity_matrix(self):
         um = self.get_utility_matrix()
         um = np.where(um == 0, um, 1)  # set all ratings to 1
         # um = np.where(um >= 4, 1, 0)  # set all high ratings to 1
@@ -657,6 +660,7 @@ class AssociationRuleRecommender(RatingBasedRecommender):
                 coratings[i[1]][i[0]] += 1
         with open('coratings_' + self.dataset + '.obj', 'wb') as outfile:
             pickle.dump(coratings, outfile, -1)
+        print('computed the coratings matrix')
         # sys.exit()
         # debug helpers
         # self.rating_stats(um)
@@ -667,10 +671,11 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         # with open('coratings_' + self.dataset + '.obj', 'rb') as infile:
         #     coratings = pickle.load(infile)
         # pdb.set_trace()
-        # TODO: check coratings of known books for plausibility
 
-        # MovieLens:
-        #    threshold=10
+        if self.dataset == 'movielens':
+            threshold = 10
+        elif self.dataset == 'bookcrossing':
+            threshold = 2
 
         sims = np.zeros((icount, icount))
         sum_items = np.sum(um)
@@ -699,13 +704,13 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
     for dataset in [
-        # 'movielens',
-        'bookcrossing',
+        'movielens',
+        # 'bookcrossing',
     ]:
-        # cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
+        # ' cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
         # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
-        # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
-        rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
+        rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
+        # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
         # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))

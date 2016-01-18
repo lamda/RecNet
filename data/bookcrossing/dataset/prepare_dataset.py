@@ -944,11 +944,11 @@ if __name__ == '__main__':
     # prune_database()
     # export_data()
     # create_database()
-    # populate_database(wp_text=False)
+    populate_database(wp_text=False)
     # add_genres()
     # delete_genreless()
     # delete_yearless()
-    add_text()
+    # add_text()
     # export_data_after_wikipedia()
 
     end_time = datetime.now()
