@@ -16,7 +16,8 @@ import random
 class Graph(object):
     def __init__(self, dataset, fname='', graph=None, N=None, use_sample=False,
                  refresh=False, suffix=''):
-        print(fname, N, 'use_sample =', use_sample, 'refresh =', refresh)
+        print(dataset, fname, N, 'use_sample =', use_sample,
+              'refresh =', refresh)
         self.graph_folder = os.path.join('data', dataset, 'graphs')
         self.matrix_folder = 'matrix'
         self.stats_folder = os.path.join('data', dataset, 'stats')
@@ -24,7 +25,8 @@ class Graph(object):
             os.makedirs(self.stats_folder)
         self.use_sample = use_sample
         self.graph_name = fname if not use_sample else fname + '_sample'
-        self.graph_file_path = os.path.join(self.graph_folder, self.graph_name + '.txt')
+        self.graph_file_path = os.path.join(self.graph_folder,
+                                            self.graph_name + '.txt')
         self.N = N
         self.gt_file_path = os.path.join(
             self.graph_folder,
@@ -108,8 +110,8 @@ class Graph(object):
             'outdegree_av'] = data
         stats['cc'] = self.clustering_coefficient()
         stats['cp_size'], stats['cp_count'] = self.largest_component()
-        # stats['bow_tie'] = self.bow_tie()
-        # stats['lc_ecc'] = self.eccentricity()
+        stats['bow_tie'] = self.bow_tie()
+        stats['lc_ecc'] = self.eccentricity()
 
         print('saving...')
         with open(self.stats_file_path, 'wb') as outfile:
@@ -247,32 +249,38 @@ class Graph(object):
                    bow_tie]
         return bow_tie
 
-    def eccentricity(self):
-            component, histogram = gt.label_components(self.graph)
-            label_of_largest_component = np.argmax(histogram)
-            largest_component = (component.a == label_of_largest_component)
-            graph_copy = self.graph.copy()
-            lcp = gt.GraphView(graph_copy, vfilt=largest_component)
-            lcp.purge_vertices()
-            lcp.clear_filters()
+    def eccentricity(self, use_sample=False):
+        component, histogram = gt.label_components(self.graph)
+        label_of_largest_component = np.argmax(histogram)
+        largest_component = (component.a == label_of_largest_component)
+        graph_copy = self.graph.copy()
+        lcp = gt.GraphView(graph_copy, vfilt=largest_component)
+        lcp.purge_vertices()
+        lcp.clear_filters()
 
-            print('eccentricity() for lcp of', lcp.num_vertices(), 'vertices')
-            ecc = collections.defaultdict(int)
-            vertices = [int(v) for v in lcp.vertices()]
+        print('eccentricity() for lcp of', lcp.num_vertices(), 'vertices')
+        ecc = collections.defaultdict(int)
+        vertices = [int(v) for v in lcp.vertices()]
+        if use_sample:
             sample_size = int(0.15 * lcp.num_vertices())
             if sample_size == 0:
                 sample_size = lcp.num_vertices()
             sample = random.sample(vertices, sample_size)
-            for idx, node in enumerate(sample):
-                print(idx + 1, '/', len(sample), end='\r')
-                dist = gt.shortest_distance(lcp, source=node).a
-                ecc[max(dist)] += 1
-            ecc = [ecc[i] for i in range(max(ecc.keys()) + 2)]
-            lc_ecc = [100 * v / sum(ecc) for v in ecc]
-            return lc_ecc
+            vertices = sample
+        for idx, node in enumerate(vertices):
+            print(idx + 1, '/', len(vertices), end='\r')
+            dist = gt.shortest_distance(lcp, source=node).a
+            ecc[max(dist)] += 1
+        ecc = [ecc[i] for i in range(max(ecc.keys()) + 2)]
+        lc_ecc = [100 * v / sum(ecc) for v in ecc]
+        return lc_ecc
 
 
 if __name__ == '__main__':
+    datasets = [
+        'movielens',
+        'bookcrossing',
+    ]
     rec_types = [
         # 'cb',
         'rb',
@@ -292,11 +300,12 @@ if __name__ == '__main__':
         5,
         10
     ]
-    for rec_type in rec_types:
-        for div_type in div_types:
-            for N in Ns:
-                fname = rec_type + '_' + unicode(N) + div_type
-                g = Graph(dataset='bookcrossing', fname=fname, N=N,
-                          use_sample=False, refresh=False)
-                g.load_graph()
-                g.compute_stats()
+    for dataset in datasets:
+        for rec_type in rec_types:
+            for div_type in div_types:
+                for N in Ns:
+                    fname = rec_type + '_' + unicode(N) + div_type
+                    g = Graph(dataset=dataset, fname=fname, N=N,
+                              use_sample=False, refresh=False)
+                    g.load_graph()
+                    g.compute_stats()

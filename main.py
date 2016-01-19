@@ -704,8 +704,8 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
     for dataset in [
-        'movielens',
-        # 'bookcrossing',
+        # 'movielens',
+        'bookcrossing',
     ]:
         # ' cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
         # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()

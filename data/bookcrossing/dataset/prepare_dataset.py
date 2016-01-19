@@ -543,50 +543,6 @@ def delete_textless():
     pdb.set_trace()
 
 
-def export_data_after_wikipedia():
-    df_ratings = pd.read_pickle('df_ratings_condensed.obj')
-    df_books = pd.read_pickle('df_books_condensed.obj')
-    db_file = 'database_new.db'
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-
-    # get items already in the database
-    stmt = 'SELECT id, original_title FROM books ORDER BY id ASC'
-    cursor.execute(stmt)
-    response = cursor.fetchall()
-    df = pd.DataFrame(data=response, columns=['isbn', 'original_title'])
-    valid_isbns = set(df['isbn'])
-    df_ratings = df_ratings[df_ratings['isbn'].isin(valid_isbns)]
-
-    agg = df_ratings.groupby('isbn').count()
-    books_to_keep = set(agg[agg['user'] > book_ratings].index)
-
-    agg = df_ratings.groupby('user').count()
-    users_to_keep = set(agg[agg['isbn'] > user_ratings].index)
-
-    df_ratings = df_ratings[df_ratings['isbn'].isin(books_to_keep)]
-    df_ratings = df_ratings[df_ratings['user'].isin(users_to_keep)]
-    df_books = df_books[df_books['isbn'].isin(books_to_keep)]
-    print('%d/%d: found %d books with %d ratings' %
-          (user_ratings, book_ratings, len(books_to_keep), df_ratings.shape[0]))
-    pdb.set_trace()
-
-    with open('books.dat', 'w') as outfile:
-        for ridx, row in df_books.iterrows():
-            outfile.write(row['isbn'] + '::' + row['title'] + ' (' +
-                          str(row['year']) + ')::' + row['author'] + '\n')
-
-    with open('ratings.dat', 'w') as outfile:
-        for ridx, row in df_ratings.iterrows():
-            outfile.write(str(row['user']) + '::' + row['isbn'] + '::')
-            outfile.write(row['rating'])
-            # if row['rating'] > 0:
-            #   outfile.write('1')
-            # else:
-            #     outfile.write('0')
-            outfile.write('\n')
-
-
 class Item(object):
     # init static members
     preprocessor = make_prep_parser({})
@@ -944,12 +900,12 @@ if __name__ == '__main__':
     # prune_database()
     # export_data()
     # create_database()
-    populate_database(wp_text=False)
+    # populate_database(wp_text=False)
     # add_genres()
     # delete_genreless()
     # delete_yearless()
     # add_text()
-    # export_data_after_wikipedia()
+    delete_textless()
 
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
