@@ -67,10 +67,7 @@ def create_database():
         label = 'movies'
 
         # create item table
-        if label == 'movies':
-            pkey = 'id INTEGER PRIMARY KEY, '
-        else:
-            pkey = 'id VARCHAR(13) PRIMARY KEY, '
+        pkey = 'id VARCHAR(13) PRIMARY KEY, '
 
         create_stmt = """CREATE TABLE """ + label + """ (""" + \
                       pkey + \
@@ -112,7 +109,7 @@ def striplines(s):
     return s.replace('\n', ' ')
 
 
-def populate_database():
+def retrieve_and_condense():
     print('getting movie data...')
     db_connector = DbConnector()
     stmt = '''SELECT movie_id, title, title2, title3,
@@ -163,12 +160,94 @@ def populate_database():
     df_ratings.to_pickle('df_ratings_condensed.obj')
     df_titles.to_pickle('df_titles_condensed.obj')
 
+
+def populate_database_titles():
+    df = pd.read_pickle('df_titles_condensed.obj')
+    df.index = range(0, df.shape[0])
+    db_file = '../database_new.db'
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    for ridx, row in df.iterrows():
+        print('\r', ridx+1, '/', df.shape[0], end='')
+        stmt = '''INSERT OR REPLACE INTO movies
+                  (id, cf_title, original_title, wp_text)
+                  VALUES (?, ?, ?, ?)'''
+        title = row['title']  #.decode('utf-8')
+        text = ' '.join(
+                row[t] for t in ['title', 'title2', 'title3', 'plot', 'storyline']
+                if isinstance(row[t], unicode))
+        data = (row['movie_id'], title,
+                title + ' (' + unicode(row['years'] + ')'), text)
+        try:
+            cursor.execute(stmt, data)
+        except sqlite3.IntegrityError, e:
+            pdb.set_trace()
+        if (ridx % 10000) == 0:
+            conn.commit()
+    conn.commit()
+    print()
+
+
+def populate_database_genres():
+    df = pd.read_pickle('df_titles_condensed.obj')
+    df.index = range(0, df.shape[0])
+    db_file = '../database_new.db'
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    for stmt in [
+        'DELETE FROM categories;',
+        'DELETE FROM item_cat;'
+    ]:
+        cursor.execute(stmt)
+        conn.commit()
+
+    db_cat2id = {}
+    for ridx, row in df.iterrows():
+        print('\r', ridx+1, '/', df.shape[0], end='')
+        genres = row['genre'].strip().replace('; ', ';').split(';')
+        genres = [g for g in genres if g != '']
+        for c in genres:
+            if c not in db_cat2id:
+                # insert category if not yet present
+                stmt = 'INSERT INTO categories(id, name) VALUES (?, ?)'
+                i = len(db_cat2id)
+                data = (i, c)
+                cursor.execute(stmt, data)
+                conn.commit()
+                db_cat2id[c] = i
+            # insert item-category relation
+            stmt = 'INSERT INTO item_cat(item_id, cat_id) VALUES (?, ?)'
+            data = (row['movie_id'], db_cat2id[c])
+            cursor.execute(stmt, data)
+        if (ridx % 10000) == 0:
+            conn.commit()
+    conn.commit()
+    print()
+
+
+def export_ratings():
+    df = pd.read_pickle('df_ratings_condensed.obj')
+    df.index = range(0, df.shape[0])
+
+    with open('ratings.dat', 'w') as outfile:
+        for ridx, row in df.iterrows():
+            if (ridx % 1000) == 0:
+                print('\r', ridx, '/', df.shape[0], end='')
+            outfile.write(str(row['user_id']) + '::' + row['movie_id'] + '::')
+            outfile.write(str(row['rating']) + '\n')
+
+
 if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
     # create_database()
-    populate_database()
+    # retrieve_and_condense()
+    # populate_database_titles()
+    # populate_database_genres()
+    export_ratings()
 
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))

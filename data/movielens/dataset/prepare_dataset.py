@@ -59,56 +59,56 @@ class DbConnector(object):
 
 
 def create_database():
-        """set up the database scheme (SQLITE)"""
-        db_file = '../database_new.db'
-        try:
-            os.remove(db_file)
-        except OSError:
-            pass
-        conn = sqlite3.connect(db_file)
-        cursor = conn.cursor()
-        label = 'movies'
+    """set up the database scheme (SQLITE)"""
+    db_file = '../database_new.db'
+    try:
+        os.remove(db_file)
+    except OSError:
+        pass
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+    label = 'movies'
 
-        # create item table
-        if label == 'movies':
-            pkey = 'id INTEGER PRIMARY KEY, '
-        else:
-            pkey = 'id VARCHAR(13) PRIMARY KEY, '
-
-        create_stmt = """CREATE TABLE """ + label + """ (""" + \
-                      pkey + \
-                      """original_title TEXT,
-                         cf_title TEXT,
-                         wp_title TEXT,
-                         wp_text TEXT,
-                         wp_id INT)"""
-        cursor.execute(create_stmt)
-        conn.commit()
-
-        # create category table
-        cursor.execute(""" PRAGMA foreign_keys = ON;""")
-        pkey = 'id INTEGER PRIMARY KEY,'
-        create_stmt = """CREATE TABLE categories (""" + \
-                      pkey + \
-                      """name TEXT)"""
-        cursor.execute(create_stmt)
-        conn.commit()
-
-        # create item-category relation table
+    # create item table
+    if label == 'movies':
         pkey = 'id INTEGER PRIMARY KEY, '
-        if label == 'movies':
-            item_id = 'item_id INTEGER, '
-        else:
-            item_id = 'item_id VARCHAR(13),'
-        create_stmt = """CREATE TABLE item_cat (""" + \
-                      pkey + \
-                      item_id + \
-                      """cat_id INTEGER,
-                      FOREIGN KEY(item_id) REFERENCES """ + label + \
-                      """(id),
-                      FOREIGN KEY (cat_id) REFERENCES categories(id))"""
-        cursor.execute(create_stmt)
-        conn.commit()
+    else:
+        pkey = 'id VARCHAR(13) PRIMARY KEY, '
+
+    create_stmt = """CREATE TABLE """ + label + """ (""" + \
+                  pkey + \
+                  """original_title TEXT,
+                     cf_title TEXT,
+                     wp_title TEXT,
+                     wp_text TEXT,
+                     wp_id INT)"""
+    cursor.execute(create_stmt)
+    conn.commit()
+
+    # create category table
+    cursor.execute(""" PRAGMA foreign_keys = ON;""")
+    pkey = 'id INTEGER PRIMARY KEY,'
+    create_stmt = """CREATE TABLE categories (""" + \
+                  pkey + \
+                  """name TEXT)"""
+    cursor.execute(create_stmt)
+    conn.commit()
+
+    # create item-category relation table
+    pkey = 'id INTEGER PRIMARY KEY, '
+    if label == 'movies':
+        item_id = 'item_id INTEGER, '
+    else:
+        item_id = 'item_id VARCHAR(13),'
+    create_stmt = """CREATE TABLE item_cat (""" + \
+                  pkey + \
+                  item_id + \
+                  """cat_id INTEGER,
+                  FOREIGN KEY(item_id) REFERENCES """ + label + \
+                  """(id),
+                  FOREIGN KEY (cat_id) REFERENCES categories(id))"""
+    cursor.execute(create_stmt)
+    conn.commit()
 
 
 def populate_database(wp_text=False):
@@ -130,22 +130,22 @@ def populate_database(wp_text=False):
         cursor.execute(stmt, data)
     conn.commit()
 
-    # db_cat2id = {}
-    # for ridx, row in df.iterrows():
-    #     for c in row['genres'].split('|'):
-    #         if c not in db_cat2id:
-    #             # insert category if not yet present
-    #             stmt = 'INSERT INTO categories(id, name) VALUES (?, ?)'
-    #             i = len(db_cat2id)
-    #             data = (i, c)
-    #             cursor.execute(stmt, data)
-    #             conn.commit()
-    #             db_cat2id[c] = i
-    #         # insert item-category relation
-    #         stmt = 'INSERT INTO item_cat(item_id, cat_id) VALUES (?, ?)'
-    #         data = (row['id'], db_cat2id[c])
-    #         cursor.execute(stmt, data)
-    # conn.commit()
+    db_cat2id = {}
+    for ridx, row in df.iterrows():
+        for c in row['genres'].split('|'):
+            if c not in db_cat2id:
+                # insert category if not yet present
+                stmt = 'INSERT INTO categories(id, name) VALUES (?, ?)'
+                i = len(db_cat2id)
+                data = (i, c)
+                cursor.execute(stmt, data)
+                conn.commit()
+                db_cat2id[c] = i
+            # insert item-category relation
+            stmt = 'INSERT INTO item_cat(item_id, cat_id) VALUES (?, ?)'
+            data = (row['id'], db_cat2id[c])
+            cursor.execute(stmt, data)
+    conn.commit()
 
 
 def add_text():
@@ -177,6 +177,7 @@ def add_text():
         data = (text, row['id'])
         cursor.execute(stmt, data)
         conn.commit()
+
 
 if __name__ == '__main__':
     create_database()
