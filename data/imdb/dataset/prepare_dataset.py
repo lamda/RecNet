@@ -1,21 +1,18 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import division, print_function, unicode_literals
 
+"""This filters the IMDb data from a crawl by Tomas Karas
+"""
+
+
+from __future__ import division, unicode_literals, print_function
 import atexit
+import numpy as np
 import os
 import pandas as pd
 import pdb
 import pymysql
 import sqlite3
-
-
-"""This filters the MovieLens 1M data
-http://grouplens.org/datasets/movielens/
-prerequisite:
-    the data is in the folder /ml-1m
-    links.csv from the 20M dataset is in /ml-1m
-"""
 
 
 class DbConnector(object):
@@ -111,74 +108,67 @@ def create_database():
         conn.commit()
 
 
-def populate_database(wp_text=False):
-    db_file = '../database_new.db'
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    df = pd.read_csv('ml-1m/movies.dat', sep='::',
-                     names=['id', 'title', 'genres'], encoding='utf-8')
-    df_link = pd.read_csv('ml-1m/links.csv', encoding='utf-8')
-    df = pd.merge(df, df_link, how='left', left_on='id', right_on='movieId')
-
-    for ridx, row in df.iterrows():
-        print('\r', ridx+1, '/', df.shape[0], end='')
-        stmt = 'INSERT OR REPLACE INTO movies' +\
-               '(id, wp_id, cf_title, original_title)' +\
-               'VALUES (?, ?, ?, ?)'
-        title = row['title'].decode('utf-8')
-        data = (row['id'], row['imdbId'], title.rsplit('(', 1)[0], title)
-        cursor.execute(stmt, data)
-    conn.commit()
-
-    # db_cat2id = {}
-    # for ridx, row in df.iterrows():
-    #     for c in row['genres'].split('|'):
-    #         if c not in db_cat2id:
-    #             # insert category if not yet present
-    #             stmt = 'INSERT INTO categories(id, name) VALUES (?, ?)'
-    #             i = len(db_cat2id)
-    #             data = (i, c)
-    #             cursor.execute(stmt, data)
-    #             conn.commit()
-    #             db_cat2id[c] = i
-    #         # insert item-category relation
-    #         stmt = 'INSERT INTO item_cat(item_id, cat_id) VALUES (?, ?)'
-    #         data = (row['id'], db_cat2id[c])
-    #         cursor.execute(stmt, data)
-    # conn.commit()
+def striplines(s):
+    return s.replace('\n', ' ')
 
 
-def add_text():
-    db_file = '../database_new.db'
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-
-    # get items already in the database
-    stmt = 'SELECT id, wp_id, wp_text FROM movies ORDER BY id ASC'
-    cursor.execute(stmt)
-    response = cursor.fetchall()
-    df = pd.DataFrame(data=response, columns=['id', 'imdb_id', 'text'])
-    item_count = df.shape[0]
-    df = df[pd.isnull(df['text'])]
-
+def populate_database():
+    print('getting movie data...')
     db_connector = DbConnector()
-    for ridx, row in df.iterrows():
-        print(ridx+1, '/', item_count, row['imdb_id'])
-        mid = 'tt' + unicode(row['imdb_id']).zfill(7)
-        stmt = '''SELECT title, plot, storyline FROM scrape
-                  WHERE `movie_id` = "%s"''' % mid
-        text = db_connector.execute(stmt)
-        if not text:
-            continue
-        text = ' '.join(text[0].values())
+    stmt = '''SELECT movie_id, title, title2, title3,
+                     plot, storyline, genre, years
+              FROM scrape'''
+    result = db_connector.execute(stmt)
+    df = pd.DataFrame(result)
 
-        # write to database
-        stmt = 'UPDATE movies SET wp_text = ? WHERE id = ?'
-        data = (text, row['id'])
-        cursor.execute(stmt, data)
-        conn.commit()
+    print('cleaning movie data...')
+    df['plot'] = df['plot'].apply(striplines)
+    df['storyline'] = df['storyline'].apply(striplines)
+    df.replace('n/a', np.NaN, inplace=True)
+    df.dropna(how='all', subset=['plot', 'storyline'], inplace=True)
+    df.dropna(how='any', subset=['genre', 'years'], inplace=True)
+    df_titles = df
+
+    print('getting rating data...')
+    db_connector = DbConnector()
+    stmt = '''SELECT movie_id, user_id, rating
+              FROM ratings'''
+    result = db_connector.execute(stmt)
+    df_ratings = pd.DataFrame(result)
+
+    print('condensing data')
+    user_ratings = 5
+    title_ratings = 20
+    valid_ids = set(df_titles['movie_id'])
+    df_ratings = df_ratings[df_ratings['movie_id'].isin(valid_ids)]
+    old_shape = (0, 0)
+    titles_to_keep = 0
+    while old_shape != df_ratings.shape:
+        print(df_ratings.shape)
+        old_shape = df_ratings.shape
+        agg = df_ratings.groupby('movie_id').count()
+        titles_to_keep = set(agg[agg['user_id'] > title_ratings].index)
+
+        agg = df_ratings.groupby('user_id').count()
+        users_to_keep = set(agg[agg['movie_id'] > user_ratings].index)
+
+        df_ratings = df_ratings[df_ratings['movie_id'].isin(titles_to_keep)]
+        df_ratings = df_ratings[df_ratings['user_id'].isin(users_to_keep)]
+        df_titles = df_titles[df_titles['movie_id'].isin(titles_to_keep)]
+
+    print('%d/%d: found %d titles with %d ratings' %
+          (user_ratings, title_ratings, len(titles_to_keep),
+           df_ratings.shape[0]))
+
+    df_ratings.to_pickle('df_ratings_condensed.obj')
+    df_titles.to_pickle('df_titles_condensed.obj')
 
 if __name__ == '__main__':
-    create_database()
+    from datetime import datetime
+    start_time = datetime.now()
+
+    # create_database()
     populate_database()
-    add_text()
+
+    end_time = datetime.now()
+    print('Duration: {}'.format(end_time - start_time))

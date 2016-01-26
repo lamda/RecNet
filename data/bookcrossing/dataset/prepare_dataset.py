@@ -190,6 +190,7 @@ def condense_data(user_ratings=5, book_ratings=20):
     df_ratings = df_ratings[df_ratings['isbn'].isin(valid_isbns)]
 
     old_shape = (0, 0)
+    books_to_keep = 0
     while old_shape != df_ratings.shape:
         print(df_ratings.shape)
         old_shape = df_ratings.shape
