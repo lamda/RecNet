@@ -14,8 +14,9 @@ import cPickle as pickle
 
 
 class Plotter(object):
-    def __init__(self, stats_folder, use_sample=True):
-        self.stats_folder = stats_folder
+    def __init__(self, label, use_sample=True):
+        self.label = label
+        self.stats_folder = os.path.join('data', self.label, 'stats')
         self.use_sample = use_sample
         self.div_types = [
             '',
@@ -120,7 +121,7 @@ class Plotter(object):
             plt.tight_layout()
             # plt.show()
             # pdb.set_trace()
-            fpath = os.path.join(self.plot_folder, prop + '_' + graph_type)
+            fpath = os.path.join(self.plot_folder, self.label + '_' + prop + '_' + graph_type)
             for ftype in self.plot_file_types:
                 plt.savefig(fpath + ftype)
 
@@ -312,7 +313,7 @@ class Plotter(object):
 
 if __name__ == '__main__':
     for sf in [
-        # os.path.join('data', 'movielens', 'stats'),
-        os.path.join('data', 'bookcrossing', 'stats'),
+        os.path.join('movielens'),
+        # os.path.join('bookcrossing'),
     ]:
         p = Plotter(sf, use_sample=False)
