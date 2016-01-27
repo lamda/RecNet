@@ -7,6 +7,7 @@
 
 from __future__ import division, unicode_literals, print_function
 import atexit
+import HTMLParser
 import numpy as np
 import os
 import pandas as pd
@@ -167,18 +168,19 @@ def populate_database_titles():
     db_file = '../database_new.db'
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
+    hparser = HTMLParser.HTMLParser()
 
     for ridx, row in df.iterrows():
         print('\r', ridx+1, '/', df.shape[0], end='')
         stmt = '''INSERT OR REPLACE INTO movies
                   (id, cf_title, original_title, wp_text)
                   VALUES (?, ?, ?, ?)'''
-        title = row['title']  #.decode('utf-8')
         text = ' '.join(
-                row[t] for t in ['title', 'title2', 'title3', 'plot', 'storyline']
-                if isinstance(row[t], unicode))
-        data = (row['movie_id'], title,
-                title + ' (' + unicode(row['years'] + ')'), text)
+            row[t] for t in ['title', 'title2', 'title3', 'plot', 'storyline']
+            if isinstance(row[t], unicode))
+        text = hparser.unescape(text)
+        data = (row['movie_id'], row['title'],
+                row['title'] + ' (' + unicode(row['years'] + ')'), text)
         try:
             cursor.execute(stmt, data)
         except sqlite3.IntegrityError, e:
@@ -237,6 +239,7 @@ def export_ratings():
                 print('\r', ridx, '/', df.shape[0], end='')
             outfile.write(str(row['user_id']) + '::' + row['movie_id'] + '::')
             outfile.write(str(row['rating']) + '\n')
+    print()
 
 
 if __name__ == '__main__':
@@ -247,7 +250,7 @@ if __name__ == '__main__':
     # retrieve_and_condense()
     # populate_database_titles()
     # populate_database_genres()
-    export_ratings()
+    # export_ratings()
 
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))

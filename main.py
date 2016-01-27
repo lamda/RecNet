@@ -705,11 +705,12 @@ if __name__ == '__main__':
     start_time = datetime.now()
     for dataset in [
         # 'movielens',
-        'bookcrossing',
+        # 'bookcrossing',
+        'imdb',
     ]:
         # ' cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
-        # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
-        rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
+        rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
+        # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
         # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
         # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
     end_time = datetime.now()
