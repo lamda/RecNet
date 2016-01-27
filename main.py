@@ -396,13 +396,9 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
         q = self.factorize(um)
-        # with open('f_bookcrossing.obj', 'wb') as outfile:
-        #     pickle.dump(q, outfile, -1)
-        # with open('f_bookcrossing.obj', 'rb') as infile:
-        #     q = pickle.load(infile)
 
         # use the centered version for similarity computation
-        q_centered = np.copy(q.astype(float).T)
+        q_centered = q.astype(float).T
         q_centered[np.where(q_centered == 0)] = np.nan
         q_centered = q_centered - np.nanmean(q_centered, axis=0)[np.newaxis, :]
         q_centered[np.where(np.isnan(q_centered))] = 0
@@ -429,10 +425,11 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         # f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, eta=eta)
         if self.dataset == 'movielens':
             # for MovieLens:
-            #     k=15, nsteps=1000, eta_type='bold_driver', regularize=True,
+            #     k=15, nsteps=500, eta_type='bold_driver', regularize=True,
             #     eta=0.00001, init='random'
-            f = recsys.Factors(um, k=15, nsteps=1000, eta_type='bold_driver',
-                               regularize=True, eta=0.00001, init='random')
+            f = recsys.Factors(um, k=15, eta=0.00001, eta_type='bold_driver',
+                               init='random', regularize=True, nsteps=500)
+
         elif self.dataset == 'bookcrossing':
             # for BookCrossing:
             #       k=5, nsteps=500, eta_type='increasing', regularize=True,
@@ -482,49 +479,44 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
     # @decorators.Cached # TODO
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
-        ucount = um.shape[0]
-        icount = um.shape[1]
-
         w, k = self.get_interpolation_weights(um)
-        sys.exit()
-        with open('iw.obj', 'rb') as infile:
-            print('DEBUG: loading IW matrix')
-            w = pickle.load(infile)
-            k = 10
+
+        # with open('iw.obj', 'rb') as infile:
+        #     print('DEBUG: loading IW matrix and utility matrix')
+        #     w = pickle.load(infile)
+        #     k = 10
         # df = self.get_coratings(mid=0, w=w, k=10, coratings_top_10=coratings)
         # print(df.sort_values('similarity'))
         # print(coratings[0][1140])
 
         # compute coratings
-        # from recsys import UtilityMatrix
-        # m_nan = np.copy(um.astype(float))
-        # m_nan[m_nan == 0] = np.nan
-        # umrs = UtilityMatrix(m_nan)
-        # coratings = {i: collections.defaultdict(int) for i in range(icount)}
-        # not_nan_indices = umrs.get_not_nan_indices(umrs.r)
-        # idx_count = len(not_nan_indices)
-        # for idx, (u, i) in enumerate(not_nan_indices):
-        #     if ((idx+1) % 10000) == 0:
-        #         print(idx+1, '/', idx_count, end='\r')
-        #     s_u_i = umrs.similar_items(u, i, k, use_all=True)
-        #     for ci in s_u_i:
-        #         coratings[i][ci] += 1
-        # with open('coratings_top_10_' + self.dataset + '.obj', 'wb') as outfile:
-        #     pickle.dump(coratings, outfile, -1)
-        # sys.exit()  # TODO
+        from recsys import UtilityMatrix
+        m_nan = np.copy(um.astype(float))
+        m_nan[m_nan == 0] = np.nan
+        umrs = UtilityMatrix(m_nan)
+        coratings = {i: collections.defaultdict(int) for i in range(um.shape[1])}
+        not_nan_indices = umrs.get_not_nan_indices(umrs.r)
+        idx_count = len(not_nan_indices)
+        for idx, (u, i) in enumerate(not_nan_indices):
+            if ((idx+1) % 10000) == 0:
+                print(idx+1, '/', idx_count, end='\r')
+            s_u_i = umrs.similar_items(u, i, k, use_all=True)
+            for ci in s_u_i:
+                coratings[i][ci] += 1
+        with open('coratings_top_10_' + self.dataset + '.obj', 'wb') as outfile:
+            pickle.dump(coratings, outfile, -1)
 
-        with open('coratings_top_10_' + dataset + '.obj', 'rb') as infile:
-            print('DEBUG: loading coratings')
-            coratings = pickle.load(infile)
+        # with open('coratings_top_10_' + self.dataset + '.obj', 'rb') as infile:
+        #     print('DEBUG: loading coratings')
+        #     coratings = pickle.load(infile)
 
         if self.dataset == 'movielens':
             threshold = 50
-            # threshold = 10
         elif self.dataset == 'bookcrossing':
             threshold = 2
 
-        sims = np.zeros((icount, icount))
-        for x in range(icount):
+        sims = np.zeros((um.shape[1], um.shape[1]))
+        for x in range(um.shape[1]):
             for y in coratings[x]:
                 if coratings[x][y] < threshold:  # confidence threshold
                     continue
@@ -545,7 +537,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             # for MovieLens:
             #    eta_type='increasing', k=10, eta=0.000001, regularize=True,
             #    init='random'
-            wf = recsys.WeightedCFNN(um, eta_type='increasing', k=10,
+            wf = recsys.WeightedCFNN(um, eta_type='increasing', k=20,
                                      eta=0.000001, regularize=True,
                                      init='random', nsteps=500)
         elif self.dataset == 'bookcrossing':
@@ -556,11 +548,10 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                                      eta=0.0001, regularize=True,
                                      init='zeros', nsteps=500)
 
-        with open('um.obj', 'wb') as outfile:
+        with open('um_' + self.dataset + '.obj', 'wb') as outfile:
             pickle.dump(wf.m, outfile)
-        with open('iw.obj', 'wb') as outfile:  # TODO
+        with open('iw_' + self.dataset + '.obj', 'wb') as outfile:
             pickle.dump(wf.w, outfile)
-        # sys.exit()
         return wf.w, wf.k
 
 
@@ -668,8 +659,8 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
     for dataset in [
-        # 'movielens',
-        'bookcrossing',
+        'movielens',
+        # 'bookcrossing',
         # 'imdb',
     ]:
         ## cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()

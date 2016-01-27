@@ -256,6 +256,9 @@ class Factors(Recommender):
             self.eta *= 100  # use a higher eta for random initialization
             self.p = np.random.random((self.m.rt.shape[0], self.k)) / 100
             self.q = np.random.random((self.m.rt.shape[1], self.k)) / 100
+        elif init == 'zeros':
+            self.p = np.zeros((self.m.rt.shape[0], self.k))
+            self.q = np.zeros((self.m.rt.shape[1], self.k))
         else:
             print('init method not supported')
             pdb.set_trace()
@@ -571,8 +574,8 @@ if __name__ == '__main__':
     start_time = datetime.datetime.now()
 
     # complete MovieLens matrix
-    with open('um_bookcrossing.obj', 'rb') as infile:
-    # with open('um_movielens.obj', 'rb') as infile:
+    # with open('um_bookcrossing.obj', 'rb') as infile:
+    with open('um_movielens.obj', 'rb') as infile:
         m = pickle.load(infile).astype(float)
     m[m == 0] = np.nan
 
@@ -624,9 +627,17 @@ if __name__ == '__main__':
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
 
-    gar = GlobalAverageRecommender(um); gar.print_test_error()
-    uiar = UserItemAverageRecommender(um); uiar.print_test_error()
-    for k in [1, 2, 5, 10, 15, 20]:
+    # gar = GlobalAverageRecommender(um); gar.print_test_error()
+    # uiar = UserItemAverageRecommender(um); uiar.print_test_error()
+    for k in [
+        # 1,
+        # 2,
+        # 5,
+        # 10,
+        # 15,
+        20,
+        25
+    ]:
         cfnn = CFNN(um, k=k); cfnn.print_test_error()
 
     # errors = []
