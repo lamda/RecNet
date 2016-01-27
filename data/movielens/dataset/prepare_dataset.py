@@ -179,7 +179,65 @@ def add_text():
         conn.commit()
 
 
+def condense_data(user_ratings=5, movie_ratings=20):
+    db_file = '../database_new.db'
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+    df_ratings = pd.read_csv('ml-1m/ratings.dat', sep='::', encoding='utf-8',
+                             names=['user_id', 'movie_id',
+                                    'rating', 'timestamp']
+                             )
+    df_ratings.drop('timestamp', 1, inplace=True)
+
+    # get items already in the database
+    stmt = '''SELECT id, cf_title, original_title
+              FROM movies ORDER BY id ASC'''
+    cursor.execute(stmt)
+    response = cursor.fetchall()
+    df_movies = pd.DataFrame(data=response,
+                             columns=['movie_id', 'cf_title', 'original_title'])
+
+    valid_ids = set(df_movies['movie_id'])
+    df_ratings = df_ratings[df_ratings['movie_id'].isin(valid_ids)]
+
+    old_shape = (0, 0)
+    movies_to_keep = 0
+    while old_shape != df_ratings.shape:
+        print(df_ratings.shape)
+        old_shape = df_ratings.shape
+        agg = df_ratings.groupby('movie_id').count()
+        movies_to_keep = set(agg[agg['user_id'] > movie_ratings].index)
+
+        agg = df_ratings.groupby('user_id').count()
+        users_to_keep = set(agg[agg['movie_id'] > user_ratings].index)
+
+        df_ratings = df_ratings[df_ratings['movie_id'].isin(movies_to_keep)]
+        df_ratings = df_ratings[df_ratings['user_id'].isin(users_to_keep)]
+        df_movies = df_movies[df_movies['movie_id'].isin(movies_to_keep)]
+
+    print('%d/%d: found %d movies with %d ratings' %
+          (user_ratings, movie_ratings, len(movies_to_keep), df_ratings.shape[0]))
+
+    # delete movies not satisfying these conditions from the database
+    print('deleting...')
+    to_delete = valid_ids - set(df_movies['movie_id'])
+    for movie_id in to_delete:
+        stmt = 'DELETE FROM movies WHERE id=?;'
+        data = (str(movie_id),)
+        cursor.execute(stmt, data)
+    conn.commit()
+
+    # export
+    print('exporting...')
+    with open('ratings.dat', 'w') as outfile:
+        for ridx, row in df_ratings.iterrows():
+            outfile.write(str(row['user_id']) + str('::'))
+            outfile.write(str(row['movie_id']) + str('::'))
+            outfile.write(str(row['rating']) + str('\n'))
+
+
 if __name__ == '__main__':
-    create_database()
-    populate_database()
-    add_text()
+    # create_database()
+    # populate_database()
+    # add_text()
+    condense_data()

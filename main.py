@@ -360,7 +360,6 @@ class RatingBasedRecommender(Recommender):
 
     # @decorators.Cached # TODO
     def get_similarity_matrix(self):
-        print('get_similarity_matrix')
         um = self.get_utility_matrix()
         # with open('um_' + self.dataset + '.obj', 'wb') as outfile:
         #     pickle.dump(um, outfile, -1)
@@ -488,10 +487,10 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
         w, k = self.get_interpolation_weights(um)
         sys.exit()
-        # with open('iw.obj', 'rb') as infile:
-        #     print('DEBUG: loading IW matrix')
-        #     w = pickle.load(infile)
-        #     k = 10
+        with open('iw.obj', 'rb') as infile:
+            print('DEBUG: loading IW matrix')
+            w = pickle.load(infile)
+            k = 10
         # df = self.get_coratings(mid=0, w=w, k=10, coratings_top_10=coratings)
         # print(df.sort_values('similarity'))
         # print(coratings[0][1140])
@@ -557,8 +556,8 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                                      eta=0.0001, regularize=True,
                                      init='zeros', nsteps=500)
 
-        # with open('um.obj', 'wb') as outfile:
-        #     pickle.dump(wf.m, outfile)
+        with open('um.obj', 'wb') as outfile:
+            pickle.dump(wf.m, outfile)
         with open('iw.obj', 'wb') as outfile:  # TODO
             pickle.dump(wf.w, outfile)
         # sys.exit()
@@ -624,16 +623,16 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         ucount = um.shape[0]
         icount = um.shape[1]
 
-        coratings = {i: collections.defaultdict(int) for i in range(icount)}
-        for u in range(ucount):
-            print(u+1, '/', ucount, end='\r')
-            items = np.nonzero(um[u, :])[0]
-            for i in itertools.combinations(items, 2):
-                coratings[i[0]][i[1]] += 1
-                coratings[i[1]][i[0]] += 1
-        with open('coratings_' + self.dataset + '.obj', 'wb') as outfile:
-            pickle.dump(coratings, outfile, -1)
-        print('computed the coratings matrix')
+        # coratings = {i: collections.defaultdict(int) for i in range(icount)}
+        # for u in range(ucount):
+        #     print('\r', u+1, '/', ucount, end='')
+        #     items = np.nonzero(um[u, :])[0]
+        #     for i in itertools.combinations(items, 2):
+        #         coratings[i[0]][i[1]] += 1
+        #         coratings[i[1]][i[0]] += 1
+        # with open('association_coratings_' + self.dataset + '.obj', 'wb') as outfile:
+        #     pickle.dump(coratings, outfile, -1)
+        # print('computed the coratings matrix')
         # sys.exit()
         # debug helpers
         # self.rating_stats(um)
@@ -641,14 +640,9 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         # self.ar_simple(um, coratings, 0, 2849)
         # self.ar_complex(um, coratings, 0, 2849)
         # self.ar_both(um, coratings, 0, 2849)
-        # with open('coratings_' + self.dataset + '.obj', 'rb') as infile:
-        #     coratings = pickle.load(infile)
-        # pdb.set_trace()
-
-        if self.dataset == 'movielens':
-            threshold = 10
-        elif self.dataset == 'bookcrossing':
-            threshold = 2
+        with open('association_coratings_' + self.dataset + '.obj', 'rb') as infile:
+            print('DEBUG: loading coratings matrix')
+            coratings = pickle.load(infile)
 
         sims = np.zeros((icount, icount))
         sum_items = np.sum(um)
@@ -657,8 +651,6 @@ class AssociationRuleRecommender(RatingBasedRecommender):
             is_x = np.sum(um[:, x])
             not_x = (sum_items - is_x)
             for y in coratings[x]:
-                if coratings[x][y] < threshold:
-                    continue
                 # # (x and y) / x  simple version
                 # denominator = coratings[x][y]
                 # numerator = is_x
@@ -669,7 +661,6 @@ class AssociationRuleRecommender(RatingBasedRecommender):
 
                 if numerator > 0:
                     sims[x, y] = denominator / numerator
-
         return SimilarityMatrix(sims)
 
 
@@ -677,14 +668,14 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
     for dataset in [
-        'movielens',
-        # 'bookcrossing',
+        # 'movielens',
+        'bookcrossing',
         # 'imdb',
     ]:
-        # ' cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
+        ## cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
         # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
-        # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
-        rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
+        rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
+        # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
         # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
