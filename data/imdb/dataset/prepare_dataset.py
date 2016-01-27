@@ -68,7 +68,10 @@ def create_database():
         label = 'movies'
 
         # create item table
-        pkey = 'id VARCHAR(13) PRIMARY KEY, '
+        if label == 'movies':
+            pkey = 'id INTEGER PRIMARY KEY, '
+        else:
+            pkey = 'id VARCHAR(13) PRIMARY KEY, '
 
         create_stmt = """CREATE TABLE """ + label + """ (""" + \
                       pkey + \
@@ -120,11 +123,14 @@ def retrieve_and_condense():
     df = pd.DataFrame(result)
 
     print('cleaning movie data...')
-    df['plot'] = df['plot'].apply(striplines)
-    df['storyline'] = df['storyline'].apply(striplines)
+    df['plot'] = df['plot']
+    df['storyline'] = df['storyline']
     df.replace('n/a', np.NaN, inplace=True)
-    df.dropna(how='all', subset=['plot', 'storyline'], inplace=True)
-    df.dropna(how='any', subset=['genre', 'years'], inplace=True)
+    # df.dropna(how='all', subset=['plot', 'storyline'], inplace=True)
+    # df.dropna(how='any', subset=['genre', 'years'], inplace=True)
+    # df.dropna(how='any', subset=['plot', 'storyline', 'genre', 'years'],
+    #           inplace=True)
+    pdb.set_trace()  # TODO: decide which dropna to use
     df_titles = df
 
     print('getting rating data...')
@@ -178,13 +184,10 @@ def populate_database_titles():
         text = ' '.join(
             row[t] for t in ['title', 'title2', 'title3', 'plot', 'storyline']
             if isinstance(row[t], unicode))
-        text = hparser.unescape(text)
-        data = (row['movie_id'], row['title'],
+        text = hparser.unescape(striplines(text))
+        data = (int(row['movie_id'][2:]), row['title'],
                 row['title'] + ' (' + unicode(row['years'] + ')'), text)
-        try:
-            cursor.execute(stmt, data)
-        except sqlite3.IntegrityError, e:
-            pdb.set_trace()
+        cursor.execute(stmt, data)
         if (ridx % 10000) == 0:
             conn.commit()
     conn.commit()
@@ -221,7 +224,7 @@ def populate_database_genres():
                 db_cat2id[c] = i
             # insert item-category relation
             stmt = 'INSERT INTO item_cat(item_id, cat_id) VALUES (?, ?)'
-            data = (row['movie_id'], db_cat2id[c])
+            data = (int(row['movie_id'][2:]), db_cat2id[c])
             cursor.execute(stmt, data)
         if (ridx % 10000) == 0:
             conn.commit()
@@ -232,14 +235,57 @@ def populate_database_genres():
 def export_ratings():
     df = pd.read_pickle('df_ratings_condensed.obj')
     df.index = range(0, df.shape[0])
-
     with open('ratings.dat', 'w') as outfile:
         for ridx, row in df.iterrows():
             if (ridx % 1000) == 0:
                 print('\r', ridx, '/', df.shape[0], end='')
-            outfile.write(str(row['user_id']) + '::' + row['movie_id'] + '::')
+            outfile.write(row['user_id'][2:] + '::' + row['movie_id'][2:] + '::')
             outfile.write(str(row['rating']) + '\n')
     print()
+
+
+def sample_ratings():
+    with open('ratings.dat') as infile,\
+            open('ratings_sampled.dat', 'w') as outfile:
+        for linecount, line in enumerate(infile):
+            outfile.write(line)
+            if linecount > 1000:
+                break
+
+
+def sample_ratings_large():
+    df_titles = pd.read_pickle('df_titles_condensed.obj')
+    df_ratings = pd.read_pickle('df_ratings_condensed.obj')
+    df_titles.dropna(how='any', subset=['plot', 'storyline', 'genre', 'years'], inplace=True)
+    valid_ids = set(df_titles['movie_id'])
+    df_ratings = df_ratings[df_ratings['movie_id'].isin(valid_ids)]
+
+    def condense(df_titles, df_ratings, title_ratings, user_ratings=20):
+        valid_ids = set(df_titles['movie_id'])
+        df_ratings = df_ratings[df_ratings['movie_id'].isin(valid_ids)]
+        old_shape = (0, 0)
+        titles_to_keep = 0
+        while old_shape != df_ratings.shape:
+            print(df_titles.shape)
+            old_shape = df_ratings.shape
+            agg = df_ratings.groupby('movie_id').count()
+            titles_to_keep = set(agg[agg['user_id'] > title_ratings].index)
+
+            agg = df_ratings.groupby('user_id').count()
+            users_to_keep = set(agg[agg['movie_id'] > user_ratings].index)
+
+            df_ratings = df_ratings[df_ratings['movie_id'].isin(titles_to_keep)]
+            df_ratings = df_ratings[df_ratings['user_id'].isin(users_to_keep)]
+            df_titles = df_titles[df_titles['movie_id'].isin(titles_to_keep)]
+
+        print('%d/%d: found %d titles with %d ratings' %
+              (user_ratings, title_ratings, len(titles_to_keep),
+               df_ratings.shape[0]))
+
+        df_ratings.to_pickle('df_ratings_condensed_2.obj')
+        df_titles.to_pickle('df_titles_condensed_2.obj')
+
+    pdb.set_trace()
 
 
 if __name__ == '__main__':
@@ -247,10 +293,15 @@ if __name__ == '__main__':
     start_time = datetime.now()
 
     # create_database()
-    # retrieve_and_condense()
+    # # retrieve_and_condense()
     # populate_database_titles()
     # populate_database_genres()
+
     # export_ratings()
+    # sample_ratings()
+
+    # TODO: reduce the number of ratings to make the dataset manageable
+    sample_ratings_large()
 
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
