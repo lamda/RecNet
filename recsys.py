@@ -108,16 +108,16 @@ class Recommender:
 
     def test_error(self):
         sse = 0.0
-        errs = []
+        # errs = []
         for u, i in self.m.hidden.T:
             err = self.m.r[u, i] - self.predict(u, i)
             sse += err ** 2
-            errs.append(err)
+            # errs.append(err)
             # print(self.m.r[u, i], self.predict(u, i), err)
             # pdb.set_trace()
-            if err > 100:
-                print(err, self.m.r[u, i], self.predict(u, i))
-                self.predict(u, i, dbg=True)
+            # if err > 100:
+            #     print(err, self.m.r[u, i], self.predict(u, i))
+            #     self.predict(u, i, dbg=True)
 
         # return np.sqrt(sse) / self.m.hidden.shape[1]
         # pdb.set_trace()
@@ -228,7 +228,7 @@ class CFNN(Recommender):
 
 class Factors(Recommender):
     def __init__(self, m, k, eta_type, nsteps=500, eta=0.000004,
-                 regularize=False, newton=False, tol=1e-5, lamda=0.05,
+                 regularize=False, newton=False, tol=0.5*1e-5, lamda=0.05,
                  init='random'):
         Recommender.__init__(self, m)
         self.k = k
@@ -272,8 +272,8 @@ class Factors(Recommender):
         print('eta = ', self.eta)
         print('eta_type = ', self.eta_type)
 
-        # self.factorize()
-        self.factorize_biased()
+        self.factorize()
+        # self.factorize_biased()
 
         print('init =', init)
         print('k =', k)
@@ -305,6 +305,8 @@ class Factors(Recommender):
         return b_xi + np.dot(p_u, q_i.T)
 
     def factorize(self):
+        print('ATTENTION not resetting larger values')
+        test_rmse = []
         for m in xrange(self.nsteps):
             masked = np.ma.array(self.m.rt, mask=np.isnan(self.m.rt))
             err = np.dot(self.p, self.q.T) - masked
@@ -325,9 +327,9 @@ class Factors(Recommender):
                     break
                 if self.rmse[-1] > self.rmse[-2]:
                     print('RMSE getting larger')
-                    self.p += 2 * self.eta * delta_p  # reset parameters
-                    self.q += 2 * self.eta * delta_q  # reset parameters
-                    del self.rmse[-1]  # reset last error value
+                    # self.p += 2 * self.eta * delta_p  # reset parameters
+                    # self.q += 2 * self.eta * delta_q  # reset parameters
+                    # del self.rmse[-1]  # reset last error value
                     self.eta *= 0.5
                     if self.eta_type == 'constant':
                         break
@@ -338,6 +340,15 @@ class Factors(Recommender):
                         pass
                     else:  # 'increasing' or 'bold_driver'
                         self.eta *= 1.1
+            if (m % 100) == 0:
+                test_rmse.append(self.test_error())
+                print('    TEST RMSE:')
+                for idx, err in enumerate(test_rmse):
+                    print('        %d | %.8f' % (idx * 100, err))
+        print('ATTENTION not resetting larger values')
+        print('    TEST RMSE:')
+        for idx, err in enumerate(test_rmse):
+            print('        %d | %.8f' % (idx * 100, err))
 
     def factorize_biased(self):
         self.predict = self.predict_biased
@@ -403,7 +414,7 @@ class Factors(Recommender):
 
 class WeightedCFNN(CFNN):
     def __init__(self, m, k, eta_type, init, nsteps=500, eta=0.00075,
-                 tol=1e-5, lamda=0.05, regularize=False):
+                 tol=0.5*1e-5, lamda=0.05, regularize=False):
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
@@ -421,7 +432,7 @@ class WeightedCFNN(CFNN):
             self.w = np.zeros((self.m.rt.shape[1], self.m.rt.shape[1]))
         else:
             print('init method not supported')
-        w_init = np.copy(self.w)
+        # w_init = np.copy(self.w)
 
         print('init =', init)
         print('k =', k)
@@ -437,7 +448,7 @@ class WeightedCFNN(CFNN):
         print('eta = ', self.eta)
         print('eta_type =', self.eta_type)
 
-        diff = np.linalg.norm(w_init - self.w)
+        # diff = np.linalg.norm(w_init - self.w)
 
         self.plot_rmse('%.4f' % diff, suffix=init)
         print(self.__class__.__name__)
@@ -455,11 +466,16 @@ class WeightedCFNN(CFNN):
 
     # @profile
     def interpolate_weights_old(self):
+        self.predict = self.predict_basic
+        # Wollma des ausprobieren?
+        pdb.set_trace()
+        print('ATTENTION not resetting larger values')
         icount = self.m.rt.shape[1]
 
         rt_nan_indices = set(self.m.rt_nan_indices)
         ucount = self.m.rt.shape[0]
         m = self.m
+        test_rmse = []
         for step in xrange(self.nsteps):
             print(step, end='\r')
             delta_w_i_j = np.zeros((icount, icount))
@@ -468,8 +484,8 @@ class WeightedCFNN(CFNN):
                     if (u, i) in rt_nan_indices:
                         continue
                     s_u_i = m.similar_items(u, i, self.k)
-                    error = sum(self.w[i, k] * m.rt[u, k] for k in s_u_i)
-                    error -= m.rt[u, i]
+                    error = sum(self.w[i, k] * m.rt[u, k] for k in s_u_i) -\
+                            m.rt[u, i]
                     for j in s_u_i:
                         delta_w_i_j[i, j] += error * m.rt[u, j]
                         if self.regularize:
@@ -482,9 +498,9 @@ class WeightedCFNN(CFNN):
                     break
                 if self.rmse[-1] > self.rmse[-2]:
                     print('RMSE getting larger')
-                    self.w += 2 * self.eta * delta_w_i_j  # reset parameters
+                    # self.w += 2 * self.eta * delta_w_i_j  # reset parameters
+                    # del self.rmse[-1]
                     self.eta *= 0.5
-                    del self.rmse[-1]
                     if self.eta_type == 'constant':
                         break
                     elif self.eta_type == 'increasing':
@@ -493,7 +509,16 @@ class WeightedCFNN(CFNN):
                     if self.eta_type == 'constant':
                         pass
                     else:  # 'increasing' or 'bold_driver'
-                        self.eta *= 1.1
+                        self.eta *= 1.05
+            if (step % 100) == 0:
+                test_rmse.append(self.test_error())
+                print('    TEST RMSE:')
+                for idx, err in enumerate(test_rmse):
+                    print('        %d | %.8f' % (idx * 100, err))
+        print('ATTENTION not resetting larger values')
+        print('    TEST RMSE:')
+        for idx, err in enumerate(test_rmse):
+            print('        %d | %.8f' % (idx * 100, err))
 
     # @profile
     def interpolate_weights_new(self):

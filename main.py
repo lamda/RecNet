@@ -428,7 +428,7 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
             #     k=15, nsteps=500, eta_type='bold_driver', regularize=True,
             #     eta=0.00001, init='random'
             f = recsys.Factors(um, k=15, eta=0.00001, eta_type='bold_driver',
-                               init='random', regularize=True, nsteps=500)
+                               init='random', regularize=True, nsteps=1000)
 
         elif self.dataset == 'bookcrossing':
             # for BookCrossing:
@@ -479,12 +479,16 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
     # @decorators.Cached # TODO
     def get_similarity_matrix(self):
         um = self.get_utility_matrix()
+        with open('um_' + self.dataset + '.obj', 'wb') as outfile:
+            pickle.dump(um, outfile)
         w, k = self.get_interpolation_weights(um)
 
-        # with open('iw.obj', 'rb') as infile:
+        # with open('iw_' + self.dataset + '.obj', 'rb') as infile:
         #     print('DEBUG: loading IW matrix and utility matrix')
         #     w = pickle.load(infile)
         #     k = 10
+        # with open('um_' + self.dataset + '.obj', 'rb') as infile:
+        #    um = pickle.load(infile)
         # df = self.get_coratings(mid=0, w=w, k=10, coratings_top_10=coratings)
         # print(df.sort_values('similarity'))
         # print(coratings[0][1140])
@@ -537,9 +541,9 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             # for MovieLens:
             #    eta_type='increasing', k=10, eta=0.000001, regularize=True,
             #    init='random'
-            wf = recsys.WeightedCFNN(um, eta_type='increasing', k=20,
+            wf = recsys.WeightedCFNN(um, eta_type='increasing', k=10,
                                      eta=0.000001, regularize=True,
-                                     init='random', nsteps=500)
+                                     init='random', nsteps=1000)
         elif self.dataset == 'bookcrossing':
             # for BookCrossing:
             #    eta_type='bold_driver', k=20, eta=0.00001, regularize=True,
@@ -548,8 +552,6 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                                      eta=0.0001, regularize=True,
                                      init='zeros', nsteps=500)
 
-        with open('um_' + self.dataset + '.obj', 'wb') as outfile:
-            pickle.dump(wf.m, outfile)
         with open('iw_' + self.dataset + '.obj', 'wb') as outfile:
             pickle.dump(wf.w, outfile)
         return wf.w, wf.k
@@ -665,8 +667,8 @@ if __name__ == '__main__':
     ]:
         ## cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
         # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
-        rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
-        # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
+        # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
+        rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
         # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
