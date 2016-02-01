@@ -313,7 +313,7 @@ class Plotter(object):
 
 if __name__ == '__main__':
     for sf in [
-        os.path.join('movielens'),
-        # os.path.join('bookcrossing'),
+        # os.path.join('movielens'),
+        os.path.join('bookcrossing'),
     ]:
         p = Plotter(sf, use_sample=False)

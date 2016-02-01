@@ -625,16 +625,16 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         ucount = um.shape[0]
         icount = um.shape[1]
 
-        # coratings = {i: collections.defaultdict(int) for i in range(icount)}
-        # for u in range(ucount):
-        #     print('\r', u+1, '/', ucount, end='')
-        #     items = np.nonzero(um[u, :])[0]
-        #     for i in itertools.combinations(items, 2):
-        #         coratings[i[0]][i[1]] += 1
-        #         coratings[i[1]][i[0]] += 1
-        # with open('association_coratings_' + self.dataset + '.obj', 'wb') as outfile:
-        #     pickle.dump(coratings, outfile, -1)
-        # print('computed the coratings matrix')
+        coratings = {i: collections.defaultdict(int) for i in range(icount)}
+        for u in range(ucount):
+            print('\r', u+1, '/', ucount, end='')
+            items = np.nonzero(um[u, :])[0]
+            for i in itertools.combinations(items, 2):
+                coratings[i[0]][i[1]] += 1
+                coratings[i[1]][i[0]] += 1
+        with open('association_coratings_' + self.dataset + '.obj', 'wb') as outfile:
+            pickle.dump(coratings, outfile, -1)
+        print('computed the coratings matrix')
         # sys.exit()
         # # debug helpers
         # self.rating_stats(um)
@@ -646,15 +646,15 @@ class AssociationRuleRecommender(RatingBasedRecommender):
             print('DEBUG: loading coratings matrix')
             coratings = pickle.load(infile)
 
-        # not_coratings = {i: collections.defaultdict(int) for i in range(icount)}
-        # for i in coratings.keys():
-        #     print('\r', i+1, '/', len(coratings), end='')
-        #     not_rated_i = set(np.where(um[:, i] == 0)[0])
-        #     for j in coratings[i].keys():
-        #         rated_j = set(np.where(um[:, j] == 1)[0])
-        #         not_coratings[i][j] = len(not_rated_i & rated_j)
-        # with open('association_not_coratings_' + self.dataset + '.obj', 'wb') as outfile:
-        #     pickle.dump(not_coratings, outfile, -1)
+        not_coratings = {i: collections.defaultdict(int) for i in range(icount)}
+        for i in coratings.keys():
+            print('\r', i+1, '/', len(coratings), end='')
+            not_rated_i = set(np.where(um[:, i] == 0)[0])
+            for j in coratings[i].keys():
+                rated_j = set(np.where(um[:, j] == 1)[0])
+                not_coratings[i][j] = len(not_rated_i & rated_j)
+        with open('association_not_coratings_' + self.dataset + '.obj', 'wb') as outfile:
+            pickle.dump(not_coratings, outfile, -1)
         with open('association_not_coratings_' + self.dataset + '.obj', 'rb') as infile:
             print('DEBUG: loading coratings matrix')
             not_coratings = pickle.load(infile)
@@ -675,6 +675,7 @@ class AssociationRuleRecommender(RatingBasedRecommender):
 
                 if numerator > 0:
                     sims[x, y] = denominator / numerator
+        pdb.set_trace()
         return SimilarityMatrix(sims)
 
 
@@ -682,8 +683,8 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
     for dataset in [
-        'movielens',
-        # 'bookcrossing',
+        # 'movielens',
+        'bookcrossing',
         # 'imdb',
     ]:
         ## cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()

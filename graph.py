@@ -278,7 +278,7 @@ class Graph(object):
 
 if __name__ == '__main__':
     datasets = [
-        'movielens',
+        # 'movielens',
         'bookcrossing',
     ]
     rec_types = [
