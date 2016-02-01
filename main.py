@@ -481,12 +481,11 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         um = self.get_utility_matrix()
         with open('um_' + self.dataset + '.obj', 'wb') as outfile:
             pickle.dump(um, outfile)
-        w, k = self.get_interpolation_weights(um)
+        w, k, beta = self.get_interpolation_weights(um)
 
         # with open('iw_' + self.dataset + '.obj', 'rb') as infile:
         #     print('DEBUG: loading IW matrix and utility matrix')
-        #     w = pickle.load(infile)
-        #     k = 10
+        #     w, k, beta = pickle.load(infile)
         # with open('um_' + self.dataset + '.obj', 'rb') as infile:
         #    um = pickle.load(infile)
         # df = self.get_coratings(mid=0, w=w, k=10, coratings_top_10=coratings)
@@ -497,7 +496,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         from recsys import UtilityMatrix
         m_nan = np.copy(um.astype(float))
         m_nan[m_nan == 0] = np.nan
-        umrs = UtilityMatrix(m_nan)
+        umrs = UtilityMatrix(m_nan, beta=beta)
         coratings = {i: collections.defaultdict(int) for i in range(um.shape[1])}
         not_nan_indices = umrs.get_not_nan_indices(umrs.r)
         idx_count = len(not_nan_indices)
@@ -515,7 +514,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         #     coratings = pickle.load(infile)
 
         if self.dataset == 'movielens':
-            threshold = 50
+            threshold = 1  # countered by beta = 50
         elif self.dataset == 'bookcrossing':
             threshold = 2
 
@@ -530,31 +529,41 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
     # @profile
     # @decorators.Cached
-    def get_interpolation_weights(self, m, nsteps=500, eta=0.00001, n=10):
+    def get_interpolation_weights(self, m):
         # typical values for n lie in the range of 20-50 (Bell & Koren 2007)
         m = m.astype(float)
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
-        um = recsys.UtilityMatrix(m_nan)
+        beta = -1
 
         if self.dataset == 'movielens':
             # for MovieLens:
-            #    eta_type='increasing', k=10, eta=0.000001, regularize=True,
-            #    init='random'
-            wf = recsys.WeightedCFNN(um, eta_type='increasing', k=10,
-                                     eta=0.000001, regularize=True,
-                                     init='random', nsteps=1000)
+            # beta = 50
+            # um = recsys.UtilityMatrix(m_nan, beta=beta)
+            # wf = recsys.WeightedCFNNBiased(um, eta_type='increasing', k=15,
+            #                                eta=0.000001, regularize=True,
+            #                                init='sim', nsteps=50)
+
+            beta = 50
+            um = recsys.UtilityMatrix(m_nan, beta=beta)
+            wf = recsys.WeightedCFNNBiased(um, eta_type='increasing', k=15,
+                                           eta=0.000001, regularize=True,
+                                           init='sim', nsteps=50)
+
         elif self.dataset == 'bookcrossing':
             # for BookCrossing:
             #    eta_type='bold_driver', k=20, eta=0.00001, regularize=True,
             #    init='zeros'
-            wf = recsys.WeightedCFNN(um, k=20, eta_type='bold_driver',
-                                     eta=0.0001, regularize=True,
-                                     init='zeros', nsteps=500)
+            beta = 1
+            um = recsys.UtilityMatrix(m_nan, beta=beta)
+            wf = recsys.WeightedCFNNBiased(um, k=20, eta_type='bold_driver',
+                                           eta=0.00001, regularize=True,
+                                           init='zeros', nsteps=60)
 
+        print('beta = ', beta)
         with open('iw_' + self.dataset + '.obj', 'wb') as outfile:
-            pickle.dump(wf.w, outfile)
-        return wf.w, wf.k
+            pickle.dump([wf.w, wf.k, beta], outfile)
+        return wf.w, wf.k, beta
 
 
 class AssociationRuleRecommender(RatingBasedRecommender):
@@ -627,7 +636,7 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         #     pickle.dump(coratings, outfile, -1)
         # print('computed the coratings matrix')
         # sys.exit()
-        # debug helpers
+        # # debug helpers
         # self.rating_stats(um)
         # self.corating_stats(coratings, item_id=0)
         # self.ar_simple(um, coratings, 0, 2849)
@@ -637,12 +646,24 @@ class AssociationRuleRecommender(RatingBasedRecommender):
             print('DEBUG: loading coratings matrix')
             coratings = pickle.load(infile)
 
+        # not_coratings = {i: collections.defaultdict(int) for i in range(icount)}
+        # for i in coratings.keys():
+        #     print('\r', i+1, '/', len(coratings), end='')
+        #     not_rated_i = set(np.where(um[:, i] == 0)[0])
+        #     for j in coratings[i].keys():
+        #         rated_j = set(np.where(um[:, j] == 1)[0])
+        #         not_coratings[i][j] = len(not_rated_i & rated_j)
+        # with open('association_not_coratings_' + self.dataset + '.obj', 'wb') as outfile:
+        #     pickle.dump(not_coratings, outfile, -1)
+        with open('association_not_coratings_' + self.dataset + '.obj', 'rb') as infile:
+            print('DEBUG: loading coratings matrix')
+            not_coratings = pickle.load(infile)
+
         sims = np.zeros((icount, icount))
-        sum_items = np.sum(um)
-        sums_coratings = {x: sum(coratings[x].values()) for x in coratings}
+
         for x in range(icount):
             is_x = np.sum(um[:, x])
-            not_x = (sum_items - is_x)
+            not_x = um.shape[0] - is_x
             for y in coratings[x]:
                 # # (x and y) / x  simple version
                 # denominator = coratings[x][y]
@@ -650,7 +671,7 @@ class AssociationRuleRecommender(RatingBasedRecommender):
 
                 # ((x and y) * !x) / ((!x and y) * x)  complex version
                 denominator = coratings[x][y] * not_x
-                numerator = (sums_coratings[y] - coratings[x][y]) * is_x
+                numerator = not_coratings[x][y] * is_x
 
                 if numerator > 0:
                     sims[x, y] = denominator / numerator
@@ -668,8 +689,8 @@ if __name__ == '__main__':
         ## cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
         # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
         # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
-        rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
-        # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
+        # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
+        rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 

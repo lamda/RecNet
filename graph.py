@@ -110,8 +110,8 @@ class Graph(object):
             'outdegree_av'] = data
         stats['cc'] = self.clustering_coefficient()
         stats['cp_size'], stats['cp_count'] = self.largest_component()
-        # stats['bow_tie'] = self.bow_tie()
-        # stats['lc_ecc'] = self.eccentricity()
+        stats['bow_tie'] = self.bow_tie()
+        stats['lc_ecc'] = self.eccentricity()
 
         print('saving...')
         with open(self.stats_file_path, 'wb') as outfile:
@@ -279,7 +279,7 @@ class Graph(object):
 if __name__ == '__main__':
     datasets = [
         'movielens',
-        # 'bookcrossing',
+        'bookcrossing',
     ]
     rec_types = [
         # 'cb',
