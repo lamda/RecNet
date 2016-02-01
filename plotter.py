@@ -56,6 +56,16 @@ class Plotter(object):
             os.makedirs(self.plot_folder)
         self.load_graph_data()
         self.colors = ['#FFA500', '#FF0000', '#0000FF', '#05FF05', '#000000']
+        self.colors_set2 = [
+            (0.4, 0.7607843137254902, 0.6470588235294118),
+            (0.9882352941176471, 0.5529411764705883, 0.3843137254901961),
+            (0.5529411764705883, 0.6274509803921569, 0.796078431372549),
+            (0.9058823529411765, 0.5411764705882353, 0.7647058823529411),
+            (0.6509803921568628, 0.8470588235294118, 0.32941176470588235),
+            (1.0, 0.8509803921568627, 0.1843137254901961),
+            (0.8980392156862745, 0.7686274509803922, 0.5803921568627451),
+            (0.7019607843137254, 0.7019607843137254, 0.7019607843137254)
+        ]
         self.hatches = ['', 'xxx', '///', '---']
         self.linestyles = ['-', '--', ':', '-.']
         self.bar_x = range(1, self.graph_types+1)\
@@ -65,14 +75,14 @@ class Plotter(object):
             # '.pdf',
         ]
 
-        for prop in [
-            'cp_size',
-            # 'cp_count',
-            # 'cc',
-        ]:
-            self.plot(prop)
+        # for prop in [
+        #     'cp_size',
+        #     'cp_count',
+        #     'cc',
+        # ]:
+        #     self.plot(prop)
         # self.plot_ecc()
-        # self.plot_bow_tie()
+        self.plot_bow_tie()
         # self.plot_alluvial()
 
     def load_graph_data(self):
@@ -120,7 +130,6 @@ class Plotter(object):
 
             plt.tight_layout()
             # plt.show()
-            # pdb.set_trace()
             fpath = os.path.join(self.plot_folder, self.label + '_' + prop + '_' + graph_type)
             for ftype in self.plot_file_types:
                 plt.savefig(fpath + ftype)
@@ -141,18 +150,16 @@ class Plotter(object):
             # leg.get_frame().set_linewidth(0.0)
             fig.subplots_adjust(left=0.19, bottom=0.06, right=0.91, top=0.92,
                                 wspace=0.34, hspace=0.32)
-            figlegend.savefig(os.path.join('plots',
-                                           'ecc_legend_' + label + '.pdf'))
+            for ftype in self.plot_file_types:
+                figlegend.savefig(os.path.join('plots', 'ecc_legend_' +
+                                               label + ftype))
 
         for graph_type in self.graphs:
-            if graph_type == 'CB':
-                Ns = [5, 10]
-                c = '#FF0000'
-                xlim = (0, 150)
-            else:
-                Ns = [6, 12]
-                c = '#0000FF'
-                xlim = (0, 50)
+            Ns = [5, 10]
+            c = '#FF0000'
+            # xlim = (0, 150)
+            # c = '#0000FF'
+            xlim = (0, 50)
             plot_ecc_legend(graph_type, c)
             for Nidx, N in enumerate(Ns):
                 graphs = [g for g in self.graphs[graph_type] if unicode(N) in g]
@@ -164,8 +171,9 @@ class Plotter(object):
                         print(graph_name)
                         ecc = [e/sum(range(15)) for e in range(15)]
                     x = range(len(ecc))
+                    label = self.graph_labels[graph_type][self.graph_types * Nidx + gidx]
                     ax.plot(x, ecc, linewidth=2, linestyle=self.linestyles[gidx],
-                            color=c, label=self.graph_labels[graph_type][self.graph_types * Nidx + gidx])
+                            color=c, label=label)
 
                 # Beautification
                 ax.set_xlabel('Eccentricity')
@@ -181,21 +189,24 @@ class Plotter(object):
                     plt.savefig(fpath + ftype)
 
     def plot_bow_tie(self):
+        # TODO FIXME legend plotting doesn't work
         # plot the legend in a separate plot
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        patches = [ax.bar([0], [0]) for i in range(7)]
-        for pidx, p in enumerate(patches):
-            p[0].set_color(ppl.colors.set2[pidx])
-            p[0].set_edgecolor('white')
-            p[0].set_hatch(self.hatches[pidx % 4])
-        figlegend = plt.figure(figsize=(10.05, 0.475))
-        legend_labels = ['IN', 'SCC', 'OUT', 'TL_IN', 'TL_OUT', 'TUBE', 'OTHER']
-        leg = figlegend.legend(patches, legend_labels, ncol=7)
-        leg.get_frame().set_linewidth(0.0)
-        fig.subplots_adjust(left=0.19, bottom=0.06, right=0.91, top=0.92,
-                            wspace=0.34, hspace=0.32)
-        figlegend.savefig(os.path.join('plots', 'bowtie_legend.pdf'))
+        # fig = plt.figure()
+        # ax = fig.add_subplot(111)
+        # patches = [ax.bar([0], [0]) for i in range(7)]
+        # for pidx, p in enumerate(patches):
+        #     p[0].set_color(self.colors_set2[pidx])
+        #     p[0].set_edgecolor('white')
+        #     p[0].set_hatch(self.hatches[pidx % 4])
+        # figlegend = plt.figure(figsize=(10.05, 0.475))
+        # legend_labels = ['IN', 'SCC', 'OUT', 'TL_IN', 'TL_OUT', 'TUBE', 'OTHER']
+        # pdb.set_trace()
+        # leg = figlegend.legend(patches, legend_labels, ncol=7)
+        # leg.get_frame().set_linewidth(0.0)
+        # fig.subplots_adjust(left=0.19, bottom=0.06, right=0.91, top=0.92,
+        #                     wspace=0.34, hspace=0.32)
+        # for ftype in self.plot_file_types:
+        #     figlegend.savefig(os.path.join('plots', 'bowtie_legend' + ftype))
 
         bar_x = [x - 0.25 for x in self.bar_x]
         for graph_type in self.graphs:
@@ -209,7 +220,7 @@ class Plotter(object):
             for idx, label in enumerate(labels):
                 vals = [v[idx] for v in bar_vals]
                 p = plt.bar(bar_x, vals, bottom=bottom,
-                            edgecolor='white', color=ppl.colors.set2[idx],
+                            edgecolor='white', color=self.colors_set2[idx],
                             align='center')
                 bottom += vals
                 bars.append(p)
@@ -313,7 +324,7 @@ class Plotter(object):
 
 if __name__ == '__main__':
     for sf in [
-        # os.path.join('movielens'),
-        os.path.join('bookcrossing'),
+        os.path.join('movielens'),
+        # os.path.join('bookcrossing'),
     ]:
         p = Plotter(sf, use_sample=False)

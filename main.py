@@ -540,14 +540,14 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             # for MovieLens:
             # beta = 50
             # um = recsys.UtilityMatrix(m_nan, beta=beta)
-            # wf = recsys.WeightedCFNNBiased(um, eta_type='increasing', k=15,
+            # wf = recsys.WeightedCFNNBiased(um, eta_type='bold_driver', k=15,
             #                                eta=0.000001, regularize=True,
             #                                init='sim', nsteps=50)
 
-            beta = 50
+            beta = 1
             um = recsys.UtilityMatrix(m_nan, beta=beta)
-            wf = recsys.WeightedCFNNBiased(um, eta_type='increasing', k=15,
-                                           eta=0.000001, regularize=True,
+            wf = recsys.WeightedCFNNBiased(um, eta_type='bold_driver', k=15,
+                                           eta=0.00001, regularize=True,
                                            init='sim', nsteps=50)
 
         elif self.dataset == 'bookcrossing':
@@ -683,15 +683,15 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
     for dataset in [
-        # 'movielens',
-        'bookcrossing',
+        'movielens',
+        # 'bookcrossing',
         # 'imdb',
     ]:
         ## cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
         # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
         # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
-        # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
-        rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
+        rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
+        # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 
