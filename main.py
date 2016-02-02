@@ -534,11 +534,11 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         m = m.astype(float)
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
-        beta = -1
+        beta = None  # for now, using beta=1 seems to work pretty well for both
 
         if self.dataset == 'movielens':
             # for MovieLens:
-            # beta = 50
+            # beta = 1
             # um = recsys.UtilityMatrix(m_nan, beta=beta)
             # wf = recsys.WeightedCFNNBiased(um, eta_type='bold_driver', k=15,
             #                                eta=0.000001, regularize=True,
@@ -552,6 +552,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
         elif self.dataset == 'bookcrossing':
             # for BookCrossing:
+            #    beta = 1
             #    eta_type='bold_driver', k=20, eta=0.00001, regularize=True,
             #    init='zeros'
             beta = 1
