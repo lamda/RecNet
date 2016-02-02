@@ -3,9 +3,10 @@
 from __future__ import division, print_function
 
 import collections
-import io
-import numpy as np
 import cPickle as pickle
+import io
+import HTMLParser
+import numpy as np
 import operator
 import os
 import pandas as pd
@@ -32,7 +33,7 @@ class ItemCollection(object):
             if not os.path.exists(folder):
                 os.makedirs(folder)
 
-        self.db_file = os.path.join(self.data_folder, 'database.db')
+        self.db_file = os.path.join(self.data_folder, 'database_new.db')
         self.db_main_table = 'movies' if dataset == 'movielens' else 'books'
 
         conn = sqlite3.connect(self.db_file)
@@ -56,7 +57,6 @@ class ItemCollection(object):
         cursor.execute(stmt)
         result = cursor.fetchall()
         id2cat = {t[0]: t[1] for t in result}
-
         # get the titles
         stmt = """SELECT id, original_title FROM """ + \
                self.db_main_table + """ ORDER BY id ASC""" + limit
@@ -78,14 +78,29 @@ class ItemCollection(object):
         cats = [(a, b) for (a, b) in cats if a in id2year]
 
         # get the complete strings (title, category and decade)
-        data = collections.defaultdict(str)
-        for t, id in title2id.items():
-            data[id] = t
-        for id, c in cats:
-            data[id] += ' ' + id2cat[c]
-
-        data = sorted(data.items(), key=operator.itemgetter(0))
-        data = [t[1] for t in data]
+        # data = collections.defaultdict(str)
+        # for t, id in title2id.items():
+        #     data[id] = t
+        # for id, c in cats:
+        #     data[id] += ' ' + id2cat[c]
+        #
+        # data = sorted(data.items(), key=operator.itemgetter(0))
+        # data = [t[1] for t in data]
+        #
+        # # strip (),.! a.k.a.
+        # # data_new = []
+        # # for d in data:
+        # #     d_new = d
+        # #     for repl in ['(', ')', ',', 'a.k.a.', ':']:
+        # #         d_new = d_new.replace(repl, '')
+        # #     data_new.append(d_new)
+        # # data = data_new
+        stmt = """SELECT id, wp_text FROM """ + \
+               self.db_main_table + """ ORDER BY id ASC """ + limit
+        cursor.execute(stmt)
+        result = cursor.fetchall()
+        h = HTMLParser.HTMLParser()
+        data = [h.unescape(r[1].replace('\n', ' ')) for r in result]
 
         # strip (),.! a.k.a.
         data_new = []
@@ -208,7 +223,7 @@ class ItemCollection(object):
             for k in sorted(item2matrix.keys()):
                 outfile.write(k + '\t' + str(item2matrix[k]) + '\n')
 
-        [m, title_matrix] = self.get_tfidf_cluster_matrix(ids, data, cd)
+        m, title_matrix = self.get_tfidf_cluster_matrix(ids, data, cd)
         mpath = os.path.join(self.data_folder, 'matrices')
         if not os.path.isdir(mpath):
             os.makedirs(mpath)
@@ -360,32 +375,6 @@ class ItemCollection(object):
         cs[np.isnan(cs)] = 0.0
         return cs
 
-    def write_wp_neighbors_matrix(self):
-        print('write_wp_neighbors_matrix()')
-        # import wikidump
-        # conn = sqlite3.connect(self.db_file)
-        # cursor = conn.cursor()
-        # stmt = """SELECT id, wp_id FROM """ + self.db_main_table
-        # cursor.execute(stmt)
-        # ids = cursor.fetchall()
-        # id2wp_id = {unicode(i[0]): unicode(i[1]) for i in ids}
-        # ids = id2wp_id.values()
-        # inlinks, outlinks = wikidump.wiki.get_links(ids)  # 10.632.934 lines
-        # with open('wikidump/id_links_' + self.dataset + '.obj',
-        #           'wb') as outfile:
-        #     pickle.dump([inlinks, outlinks], outfile, -1)
-        with open('wikidump/id_links_' + self.dataset + '.obj',
-                  'rb') as infile:
-            [inlinks, outlinks] = pickle.load(infile)
-        g = 'wp_neighbors'
-        m_cos = self.calculate_cosine_matrix_inoutlinks(inlinks, outlinks)
-        fc = os.path.join(self.data_folder, 'clusters.txt')
-        fi = os.path.join(self.data_folder, 'item2matrix.txt')
-        m_clus = self.calculate_clustered_cosine_matrix(None, fc, fi, m_cos)[1]
-        np.save(os.path.join(self.data_folder, 'matrices', g.split('.')[0]), m_cos)
-        np.save(os.path.join(self.data_folder, 'matrices', g.split('.')[0] + '_c'),
-                m_clus)
-
     def calculate_cosine_matrix_inoutlinks(self, inlinks, outlinks):
             items = set(inlinks.keys()) | set(outlinks.keys())
             for i in items:
@@ -410,7 +399,10 @@ class ItemCollection(object):
 
 
 if __name__ == '__main__':
-    ic = ItemCollection(dataset='movielens')
-    # ic.write_clusters_title_matrix()
-    ic.write_network_neighbors_matrix()
-    # ic.write_wp_neighbors_matrix()
+    for dataset in [
+        'movielens',
+        # 'bookcrossing',
+    ]:
+        ic = ItemCollection(dataset='movielens')
+        # ic.write_clusters_title_matrix()
+        ic.write_network_neighbors_matrix()
