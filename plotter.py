@@ -77,13 +77,13 @@ class Plotter(object):
 
         # for prop in [
         #     'cp_size',
-        #     'cp_count',
-        #     'cc',
+        # #     'cp_count',
+        # #     'cc',
         # ]:
         #     self.plot(prop)
         # self.plot_ecc()
-        self.plot_bow_tie()
-        # self.plot_alluvial()
+        # self.plot_bow_tie()
+        self.plot_alluvial()
 
     def load_graph_data(self):
         for graph_type in self.graphs:
@@ -252,79 +252,82 @@ class Plotter(object):
         with open(fpath, 'rb') as infile:
             self.bowtie_changes = pickle.load(infile)
         labels = ['IN', 'SCC', 'OUT', 'TL_IN', 'TL_OUT', 'TUBE', 'OTHER']
-        base_graphs = [
-            'CF_6',
-            'CF_12',
-            'CB_5',
-            'CB_10',
+
+        graphs = [
+            'rb',
+            'rbmf',
+            'rbiw',
+            'rbar',
         ]
-        for g1 in base_graphs:
-            for g2_suffix in self.div_types[1:]:
-                g2 = g1 + g2_suffix
-                changes = self.bowtie_changes[g1][g2]
-                with io.open('plots/alluvial/alluvial.html',
-                             encoding='utf-8-sig') as infile:
-                    template = infile.read().split('"data.js"')
-                fname = 'data_' + g1 + '_' + g2 + '.js'
-                data = [
-                    self.graph_data[g1]['bow_tie'],
-                    self.graph_data[g2]['bow_tie']
-                ]
-                ind = u'    '
-                with io.open('plots/alluvial/' + fname, 'w', encoding='utf-8')\
-                        as outfile:
-                    outfile.write(u'var data = {\n')
-                    outfile.write(ind + u'"times": [\n')
-                    for iden, d in enumerate(data):
-                        t = d
-                        outfile.write(ind * 2 + u'[\n')
-                        for jdx, n in enumerate(t):
-                            outfile.write(ind * 3 + u'{\n')
-                            outfile.write(ind * 4 + u'"nodeName": "Node ' +
-                                          unicode(jdx) + u'",\n')
-                            nid = unicode(iden * len(labels) + jdx)
-                            outfile.write(ind * 4 + u'"id": ' + nid +
-                                          u',\n')
-                            outfile.write(ind * 4 + u'"nodeValue": ' +
-                                          unicode(int(n * 100)) + u',\n')
-                            outfile.write(ind * 4 + u'"nodeLabel": "' +
-                                          labels[jdx] + u'"\n')
-                            outfile.write(ind * 3 + u'}')
-                            if jdx != (len(t) - 1):
+        for N in self.Ns:
+            base_graphs = [g + '_' + N for g in graphs]
+            for g1 in base_graphs:
+                for g2_suffix in self.div_types[1:]:
+                    g2 = g1 + g2_suffix
+                    changes = self.bowtie_changes[g1][g2]
+                    with io.open('plots/alluvial/alluvial.html',
+                                 encoding='utf-8-sig') as infile:
+                        template = infile.read().split('"data.js"')
+                    fname = 'data_' + g1 + '_' + g2 + '.js'
+                    data = [
+                        self.graph_data[g1]['bow_tie'],
+                        self.graph_data[g2]['bow_tie']
+                    ]
+                    ind = u'    '
+                    with io.open('plots/alluvial/' + fname, 'w',
+                                 encoding='utf-8')as outfile:
+                        outfile.write(u'var data = {\n')
+                        outfile.write(ind + u'"times": [\n')
+                        for iden, d in enumerate(data):
+                            t = d
+                            outfile.write(ind * 2 + u'[\n')
+                            for jdx, n in enumerate(t):
+                                outfile.write(ind * 3 + u'{\n')
+                                outfile.write(ind * 4 + u'"nodeName": "Node ' +
+                                              unicode(jdx) + u'",\n')
+                                nid = unicode(iden * len(labels) + jdx)
+                                outfile.write(ind * 4 + u'"id": ' + nid +
+                                              u',\n')
+                                outfile.write(ind * 4 + u'"nodeValue": ' +
+                                              unicode(int(n * 100)) + u',\n')
+                                outfile.write(ind * 4 + u'"nodeLabel": "' +
+                                              labels[jdx] + u'"\n')
+                                outfile.write(ind * 3 + u'}')
+                                if jdx != (len(t) - 1):
+                                    outfile.write(u',')
+                                outfile.write(u'\n')
+                            outfile.write(ind * 2 + u']')
+                            if iden != (len(data) - 1):
                                 outfile.write(u',')
                             outfile.write(u'\n')
-                        outfile.write(ind * 2 + u']')
-                        if iden != (len(data) - 1):
-                            outfile.write(u',')
-                        outfile.write(u'\n')
-                    outfile.write(ind + u'],\n')
+                        outfile.write(ind + u'],\n')
 
-                    outfile.write(ind + u'"links": [\n')
-                    for cidx, ci in enumerate([changes]):
-                        for mindex, val in np.ndenumerate(ci):
-                            outfile.write(ind * 2 + u'{\n')
-                            s = unicode(cidx * len(labels) + mindex[0])
-                            t = unicode((cidx+1) * len(labels) + mindex[1])
-                            outfile.write(ind * 3 + u'"source": ' + s +
-                                          ',\n')
-                            outfile.write(ind * 3 + u'"target": ' + t
-                                          + ',\n')
-                            outfile.write(ind * 3 + u'"value": ' +
-                                          unicode(val * 5000) + '\n')
-                            outfile.write(ind * 2 + u'}')
-                            if mindex != (len(ci) - 1):
-                                outfile.write(u',')
-                            outfile.write(u'\n')
-                    outfile.write(ind + u']\n')
-                    outfile.write(u'}')
-                hfname = 'plots/alluvial/alluvial_' + g1 + '_' + g2 + '.html'
-                with io.open(hfname, 'w', encoding='utf-8') as outfile:
-                    outfile.write(template[0] + '"' + fname + '"' + template[1])
-
+                        outfile.write(ind + u'"links": [\n')
+                        for cidx, ci in enumerate([changes]):
+                            for mindex, val in np.ndenumerate(ci):
+                                outfile.write(ind * 2 + u'{\n')
+                                s = unicode(cidx * len(labels) + mindex[0])
+                                t = unicode((cidx+1) * len(labels) + mindex[1])
+                                outfile.write(ind * 3 + u'"source": ' + s +
+                                              ',\n')
+                                outfile.write(ind * 3 + u'"target": ' + t
+                                              + ',\n')
+                                outfile.write(ind * 3 + u'"value": ' +
+                                              unicode(val * 5000) + '\n')
+                                outfile.write(ind * 2 + u'}')
+                                if mindex != (len(ci) - 1):
+                                    outfile.write(u',')
+                                outfile.write(u'\n')
+                        outfile.write(ind + u']\n')
+                        outfile.write(u'}')
+                    hfname = 'plots/alluvial/alluvial_' + g1 + '_' + g2 + '.html'
+                    with io.open(hfname, 'w', encoding='utf-8') as outfile:
+                        outfile.write(template[0] + '"' + fname + '"' +
+                                      template[1])
 
 if __name__ == '__main__':
     for sf in [
-        os.path.join('movielens'),
-        # os.path.join('bookcrossing'),
+        'movielens',
+        #'bookcrossing',
     ]:
         p = Plotter(sf, use_sample=False)

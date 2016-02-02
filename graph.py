@@ -276,24 +276,22 @@ class Graph(object):
         return lc_ecc
 
 
-def compute_bowtie_changes(dataset, rec_type, div_types, N, use_sample=False):
+def compute_bowtie_changes(dataset, rec_type, div_types, N):
     labels = ['IN', 'SCC', 'OUT', 'TL_IN', 'TL_OUT', 'TUBE', 'OTHER']
     comp2num = {l: i for l, i in zip(labels, range(len(labels)))}
-    stats = {}
-    sample_suffix = '_sample' if use_sample else ''
-    gt_file_path = os.path.join('data', dataset, 'graphs',
-                                rec_type + '_' + N + '.gt')
+    graph_folder = os.path.join('data', dataset, 'graphs')
+    gt_file_path = os.path.join(graph_folder,
+                                rec_type + '_' + unicode(N) + '.gt')
     graph = gt.load_graph(gt_file_path, fmt='gt')
     graph_name = rec_type + '_' + unicode(N)
-    stats[graph_name] = {}
-    for graph_type, graph_suffix in div_types:
+    stats = {}
+    for div_type in div_types:
         fpath_div = os.path.join(
-            Graph.graph_folder,
-            rec_type + sample_suffix + '_' + str(N) + '_' + graph_suffix + '.gt'
+            graph_folder,
+            rec_type + '_' + unicode(N) + div_type + '.gt'
         )
         graph_div = gt.load_graph(fpath_div, fmt='gt')
-        graph_div_name = rec_type + '_' + str(N) + '_' + graph_suffix
-        print('   ', graph_div_name)
+        graph_div_name = rec_type + '_' + unicode(N) + div_type
         changes = np.zeros((len(labels), len(labels)))
         for node in graph.vertices():
             c1 = comp2num[graph.vp['bowtie'][node]]
@@ -303,17 +301,13 @@ def compute_bowtie_changes(dataset, rec_type, div_types, N, use_sample=False):
                 c2 = comp2num['OTHER']
             changes[c1, c2] += 1
         changes /= graph_div.num_vertices()
-        stats[graph_name][graph_div_name] = changes
-
-
-    ofpath = os.path.join(Graph.stats_folder, 'bowtie_changes.obj')
-    with open(ofpath, 'wb') as outfile:
-        pickle.dump(stats, outfile, -1)
+        stats[graph_div_name] = changes
+    return graph_name, stats
 
 
 if __name__ == '__main__':
     datasets = [
-        # 'movielens',
+        'movielens',
         'bookcrossing',
     ]
     rec_types = [
@@ -335,14 +329,20 @@ if __name__ == '__main__':
         5,
         10
     ]
+    bowtie_stats = {}
     for dataset in datasets:
         for rec_type in rec_types:
             for N in Ns:
-                for div_type in div_types:
-                    fname = rec_type + '_' + unicode(N) + div_type
-                    g = Graph(dataset=dataset, fname=fname, N=N,
-                              use_sample=False, refresh=False)
-                    g.load_graph()
-                    g.compute_stats()
-                compute_bowtie_changes(dataset=dataset, rec_type=rec_type, N=N,
-                                       div_types=div_types, fname=fname)
+                # for div_type in div_types:
+                    # fname = rec_type + '_' + unicode(N) + div_type
+                    # g = Graph(dataset=dataset, fname=fname, N=N,
+                    #           use_sample=False, refresh=False)
+                    # g.load_graph()
+                    # g.compute_stats()
+                graph_name, stats = compute_bowtie_changes(dataset=dataset, N=N,
+                                                           rec_type=rec_type,
+                                                           div_types=div_types)
+                bowtie_stats[graph_name] = stats
+        ofpath = os.path.join('data', dataset, 'stats', 'bowtie_changes.obj')
+        with open(ofpath, 'wb') as outfile:
+            pickle.dump(bowtie_stats, outfile, -1)

@@ -1,4 +1,7 @@
 *.7z
+*.dat
 *.db
+*.exe
 *.png
+*.pyc
 *.obj
