@@ -14,7 +14,7 @@ import cPickle as pickle
 
 
 class Plotter(object):
-    def __init__(self, label, use_sample=True):
+    def __init__(self, label, to_plot, use_sample=True):
         self.label = label
         self.stats_folder = os.path.join('data', self.label, 'stats')
         self.use_sample = use_sample
@@ -75,15 +75,18 @@ class Plotter(object):
             # '.pdf',
         ]
 
-        for prop in [
-            'cp_size',
-            'cp_count',
-            'cc',
-        ]:
-            self.plot(prop)
-        self.plot_ecc()
-        self.plot_bow_tie()
-        self.plot_alluvial()
+        if 'cp_size' in to_plot:
+            self.plot('cp_size')
+        if 'cp_count' in to_plot:
+            self.plot('cp_count')
+        if 'cc' in to_plot:
+            self.plot('cc')
+        if 'ecc' in to_plot:
+            self.plot_ecc()
+        if 'bow_tie' in to_plot:
+            self.plot_bow_tie()
+        if 'bow_tie_alluvial' in to_plot:
+            self.plot_alluvial()
 
     def load_graph_data(self):
         for graph_type in self.graphs:
@@ -183,8 +186,8 @@ class Plotter(object):
 
                 # plt.legend(loc=0)
                 plt.tight_layout()
-                fpath = os.path.join(self.plot_folder, 'ecc_' + graph_type +
-                                     '_' + unicode(N))
+                fpath = os.path.join(self.plot_folder, self.label + '_' +
+                                     'ecc_' + graph_type + '_' + unicode(N))
                 for ftype in self.plot_file_types:
                     plt.savefig(fpath + ftype)
 
@@ -241,7 +244,8 @@ class Plotter(object):
             plt.tight_layout()
             # fig.subplots_adjust(right=0.73)
             # plt.show()
-            fpath = os.path.join(self.plot_folder, 'bowtie_' + graph_type)
+            fpath = os.path.join(self.plot_folder, self.label + '_' +
+                                 'bowtie_' + graph_type)
             for ftype in self.plot_file_types:
                 plt.savefig(fpath + ftype)
 
@@ -268,7 +272,7 @@ class Plotter(object):
                     with io.open('plots/alluvial/alluvial.html',
                                  encoding='utf-8-sig') as infile:
                         template = infile.read().split('"data.js"')
-                    fname = 'data_' + g1 + '_' + g2 + '.js'
+                    fname = self.label + '_' + 'data_' + g1 + '_' + g2 + '.js'
                     data = [
                         self.graph_data[g1]['bow_tie'],
                         self.graph_data[g2]['bow_tie']
@@ -320,14 +324,23 @@ class Plotter(object):
                                 outfile.write(u'\n')
                         outfile.write(ind + u']\n')
                         outfile.write(u'}')
-                    hfname = 'plots/alluvial/alluvial_' + g1 + '_' + g2 + '.html'
+                    hfname = 'plots/alluvial/alluvial_' + self.label + '_' +\
+                             g1 + '_' + g2 + '.html'
                     with io.open(hfname, 'w', encoding='utf-8') as outfile:
                         outfile.write(template[0] + '"' + fname + '"' +
                                       template[1])
 
 if __name__ == '__main__':
+    to_plot = [
+        # 'cp_size',
+        # 'cp_count',
+        # 'cc',
+        # 'ecc',
+        'bow_tie',
+        # 'bow_tie_alluvial',
+    ]
     for sf in [
         'movielens',
         'bookcrossing',
     ]:
-        p = Plotter(sf, use_sample=False)
+        p = Plotter(sf, use_sample=False, to_plot=to_plot)

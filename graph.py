@@ -307,7 +307,7 @@ def compute_bowtie_changes(dataset, rec_type, div_types, N):
 
 if __name__ == '__main__':
     datasets = [
-        'movielens',
+        # 'movielens',
         'bookcrossing',
     ]
     rec_types = [
@@ -333,12 +333,12 @@ if __name__ == '__main__':
     for dataset in datasets:
         for rec_type in rec_types:
             for N in Ns:
-                # for div_type in div_types:
-                    # fname = rec_type + '_' + unicode(N) + div_type
-                    # g = Graph(dataset=dataset, fname=fname, N=N,
-                    #           use_sample=False, refresh=False)
-                    # g.load_graph()
-                    # g.compute_stats()
+                for div_type in div_types:
+                    fname = rec_type + '_' + unicode(N) + div_type
+                    g = Graph(dataset=dataset, fname=fname, N=N,
+                              use_sample=False, refresh=False)
+                    g.load_graph()
+                    g.compute_stats()
                 graph_name, stats = compute_bowtie_changes(dataset=dataset, N=N,
                                                            rec_type=rec_type,
                                                            div_types=div_types)
