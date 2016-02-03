@@ -75,14 +75,14 @@ class Plotter(object):
             # '.pdf',
         ]
 
-        # for prop in [
-        #     'cp_size',
-        # #     'cp_count',
-        # #     'cc',
-        # ]:
-        #     self.plot(prop)
-        # self.plot_ecc()
-        # self.plot_bow_tie()
+        for prop in [
+            'cp_size',
+            'cp_count',
+            'cc',
+        ]:
+            self.plot(prop)
+        self.plot_ecc()
+        self.plot_bow_tie()
         self.plot_alluvial()
 
     def load_graph_data(self):
@@ -328,6 +328,6 @@ class Plotter(object):
 if __name__ == '__main__':
     for sf in [
         'movielens',
-        #'bookcrossing',
+        'bookcrossing',
     ]:
         p = Plotter(sf, use_sample=False)

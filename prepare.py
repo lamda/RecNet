@@ -71,7 +71,7 @@ class ItemCollection(object):
         id2year = {t[0]: t[1][-5:-2] + '0' for t in result}
 
         # get the item-category relations
-        stmt = """SELECT item_id, cat_id FROM item_cat ORDER BY item_id ASC"""
+        stmt = """SELECT item_id, cat_id FROM item_cat ORDER BY id ASC"""
         cursor.execute(stmt)
         cats = cursor.fetchall()
         # t = set(type(c[0]) for c in cats)
@@ -113,7 +113,8 @@ class ItemCollection(object):
 
         # categorize/cluster items by release date and genre
         clusters = collections.defaultdict(
-            lambda: collections.defaultdict(set))
+            lambda: collections.defaultdict(set)
+        )
         ids = self.ids
         try:
             ids = sorted(map(int, ids))
@@ -134,7 +135,7 @@ class ItemCollection(object):
                         if not clusters[y][c]:
                             continue
                         # outfile.write(c + u'\t')
-                        outfile_res.write(c + u' (' +
+                        outfile_res.write(u' '.join(c) + u' (' +
                                           unicode(len(clusters[y][c])) +
                                           u')' + u'\t')
                         lens.append(len(clusters[y][c]))
@@ -153,10 +154,12 @@ class ItemCollection(object):
 
         item2cats = collections.defaultdict(list)
         for id, c in cats:
-            if id in id2year:
+            if id in id2year and len(item2cats[id]) < 3:  # TODO
                 item2cats[id].append(id2cat[c])
         for k in item2cats:
             item2cats[k] = ' '.join(item2cats[k])
+        for k in item2cats:
+            item2cats[k] = frozenset(item2cats[k].split())
         for id, c in item2cats.items():
             year = id2year[id]
             clusters[year][item2cats[id]].add(id2titleshort[id])
@@ -400,9 +403,9 @@ class ItemCollection(object):
 
 if __name__ == '__main__':
     for dataset in [
-        'movielens',
-        # 'bookcrossing',
+        # 'movielens',
+        'bookcrossing',
     ]:
-        ic = ItemCollection(dataset='movielens')
+        ic = ItemCollection(dataset=dataset)
         # ic.write_clusters_title_matrix()
         ic.write_network_neighbors_matrix()
