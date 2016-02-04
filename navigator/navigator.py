@@ -335,8 +335,8 @@ class DataSet(object):
 class Navigator(object):
     steps_max = 50
 
-    def __init__(self, data_sets):
-        self.data_sets = data_sets
+    def __init__(self, data_set):
+        self.data_set = data_set
 
     def run(self):
         """run the simulations for optimal, random and the three types of
@@ -345,69 +345,67 @@ class Navigator(object):
         print('    strategies...')
         matrix_file = ''
         # run for all but the optimal version
-        for data_set in self.data_sets:
-            item2matrix = os.path.join(data_set.base_folder, 'item2matrix.txt')
-            for rec_type in data_set.graphs:
-                for graph in data_set.graphs[rec_type]:
-                    print('        ', graph)
-                    gt_graph = load_graph(graph)
-                    for strategy in Strategy.strategies:
-                        if strategy == 'optimal':
-                            continue
-                        debug(strategy)
-                        m_new = data_set.matrices[rec_type][graph][strategy][0]
-                        m_newc = data_set.matrices[rec_type][graph][strategy][1]
-                        if not m_new:
-                            matrix_s, matrix_c = None, None
-                        elif matrix_file != m_new:
-                            matrix_s = SimilarityMatrix(item2matrix, m_new)
-                            matrix_c = SimilarityMatrix(item2matrix, m_newc)
-                            matrix_file = m_new
-                        for miss in data_set.missions[rec_type][graph][strategy]:
-                            if miss in ['Information Foraging', 'Berrypicking']:
-                                matrix = matrix_c
-                            else:
-                                matrix = matrix_s
-                            for m in data_set.missions[rec_type][graph][strategy][miss]:
-                                for ti in xrange(len(m.targets_original)):
-                                    start = m.path[-2] if m.path else m.start
-                                    debug('++++' * 16, 'mission', ti, '/',
-                                          len(m.targets_original))
-                                    debug(m.targets_original[ti])
-                                    self.navigate(gt_graph, strategy, m, start,
-                                                  None, matrix)
-                                    if not (ti + 1) == len(m.targets_original):
-                                        m.path.append(u'*')
-                                    m.reset()
-
-        # run the simulations for the optimal solution
-        print('    optimal...')
-        for data_set in self.data_sets:
-            for rec_type in data_set.graphs:
-                for graph in data_set.graphs[rec_type]:
-                    print('        ', graph)
-                    gt_graph = load_graph(graph)
-                    sp_file = graph.rsplit('.', 1)[0] + '.npy'
-                    with open(sp_file, 'rb') as infile:
-                        sp = pickle.load(infile)
-                    for miss in data_set.missions[rec_type][graph]['optimal']:
-                        dist = collections.defaultdict(int)
-                        for m in data_set.missions[rec_type][graph]['optimal'][miss]:
+        item2matrix = os.path.join(self.data_set.base_folder, 'item2matrix.txt')
+        for rec_type in self.data_set.graphs:
+            for graph in self.data_set.graphs[rec_type]:
+                print('        ', graph)
+                gt_graph = load_graph(graph)
+                for strategy in Strategy.strategies:
+                    if strategy == 'optimal':
+                        continue
+                    debug(strategy)
+                    m_new = self.data_set.matrices[rec_type][graph][strategy][0]
+                    m_newc = self.data_set.matrices[rec_type][graph][strategy][1]
+                    if not m_new:
+                        matrix_s, matrix_c = None, None
+                    elif matrix_file != m_new:
+                        matrix_s = SimilarityMatrix(item2matrix, m_new)
+                        matrix_c = SimilarityMatrix(item2matrix, m_newc)
+                        matrix_file = m_new
+                    for miss in self.data_set.missions[rec_type][graph][strategy]:
+                        if miss in ['Information Foraging', 'Berrypicking']:
+                            matrix = matrix_c
+                        else:
+                            matrix = matrix_s
+                        for m in self.data_set.missions[rec_type][graph][strategy][miss]:
                             for ti in xrange(len(m.targets_original)):
                                 start = m.path[-2] if m.path else m.start
                                 debug('++++' * 16, 'mission', ti, '/',
                                       len(m.targets_original))
                                 debug(m.targets_original[ti])
-                                if miss == u'Greedy Search':
-                                    if m.targets_original[ti][0] in sp[start]:
-                                        s = sp[start][m.targets_original[ti][0]]
-                                        dist[s] += 1
-                                    else:
-                                        dist[-1] += 1
-                                self.optimal_path(gt_graph, m, start, sp)
+                                self.navigate(gt_graph, strategy, m, start,
+                                              None, matrix)
                                 if not (ti + 1) == len(m.targets_original):
                                     m.path.append(u'*')
                                 m.reset()
+
+        # run the simulations for the optimal solution
+        print('    optimal...')
+        for rec_type in self.data_set.graphs:
+            for graph in self.data_set.graphs[rec_type]:
+                print('        ', graph)
+                gt_graph = load_graph(graph)
+                sp_file = graph.rsplit('.', 1)[0] + '.npy'
+                with open(sp_file, 'rb') as infile:
+                    sp = pickle.load(infile)
+                for miss in self.data_set.missions[rec_type][graph]['optimal']:
+                    dist = collections.defaultdict(int)
+                    for m in self.data_set.missions[rec_type][graph]['optimal'][miss]:
+                        for ti in xrange(len(m.targets_original)):
+                            start = m.path[-2] if m.path else m.start
+                            debug('++++' * 16, 'mission', ti, '/',
+                                  len(m.targets_original))
+                            debug(m.targets_original[ti])
+                            if miss == u'Greedy Search':
+                                if m.targets_original[ti][0] in sp[start]:
+                                    s = sp[start][m.targets_original[ti][0]]
+                                    dist[s] += 1
+                                else:
+                                    dist[-1] += 1
+                            self.optimal_path(gt_graph, m, start, sp)
+                            if not (ti + 1) == len(m.targets_original):
+                                m.path.append(u'*')
+                            m.reset()
 
         # write the results to a file
         self.write_paths()
@@ -452,27 +450,26 @@ class Navigator(object):
             self.navigate(graph, strategy, mission, out_node, node, matrix)
 
     def write_paths(self):
-        for data_set in self.data_sets:
-            fpath = os.path.join(data_set.base_folder, 'paths.txt')
-            with open(fpath, 'w') as outfile:
-                outfile.write('----' * 16 + ' ' + data_set.base_folder + '\n')
-                for rec_type in data_set.graphs:
-                    outfile.write('----' * 16 + ' ' + rec_type + '\n')
-                    for graph in data_set.graphs[rec_type]:
-                        outfile.write('----' * 8 + ' ' + graph + '\n')
-                        for strategy in Strategy.strategies:
-                            outfile.write('----' * 4 + strategy + '\n')
-                            for miss in ['Greedy Search',
-                                         'Berrypicking',
-                                         'Information Foraging']:
-                                outfile.write('----' * 2 + miss + '\n')
-                                stras = data_set.missions[rec_type][graph][strategy][miss]
-                                for m in stras:
-                                    outfile.write('\t'.join(m.path) + '\n')
+        fpath = os.path.join(self.data_set.base_folder, 'paths.txt')
+        with open(fpath, 'w') as outfile:
+            outfile.write('----' * 16 + ' ' + self.data_set.base_folder + '\n')
+            for rec_type in self.data_set.graphs:
+                outfile.write('----' * 16 + ' ' + rec_type + '\n')
+                for graph in self.data_set.graphs[rec_type]:
+                    outfile.write('----' * 8 + ' ' + graph + '\n')
+                    for strategy in Strategy.strategies:
+                        outfile.write('----' * 4 + strategy + '\n')
+                        for miss in ['Greedy Search',
+                                     'Berrypicking',
+                                     'Information Foraging']:
+                            outfile.write('----' * 2 + miss + '\n')
+                            stras = self.data_set.missions[rec_type][graph][strategy][miss]
+                            for m in stras:
+                                outfile.write('\t'.join(m.path) + '\n')
 
     def save(self):
-        with open('data_sets.obj', 'wb') as outfile:
-            pickle.dump([movies], outfile, -1)
+        with open('data_sets' + self.data_set.label + '.obj', 'wb') as outfile:
+            pickle.dump([self.data_set], outfile, -1)
 
 
 class PlotData(object):
@@ -482,19 +479,24 @@ class PlotData(object):
 
 class Evaluator(object):
     """Class responsible for calculating stats and plotting the results"""
-    def __init__(self):
-        try:
-            with open('data_sets_new.obj', 'rb') as infile:
-                print('loading...')
-                self.data_sets = pickle.load(infile)
-            print('loaded')
-        except (IOError, EOFError):
-            print('loading failed... computing from scratch')
-            print('loading complete dataset...')
-            with open('data_sets.obj', 'rb') as infile:
-                self.data_sets = pickle.load(infile)
-            print('loaded')
-            self.compute()
+    def __init__(self, datasets):
+        self.data_sets = []
+        do_compute = False
+        for dataset in datasets:
+            try:
+                with open('data_sets_' + dataset + '_new.obj', 'rb') as infile:
+                    print('loading...')
+                    self.data_sets.append(pickle.load(infile)[0])
+                print('loaded')
+            except (IOError, EOFError):
+                print('loading failed... computing from scratch (%s)' % dataset)
+                with open('data_sets_' + dataset + '.obj', 'rb') as infile:
+                    data_set = pickle.load(infile)[0]
+                data_set_new = self.compute(label=dataset, data_set=data_set)
+                self.data_sets.append(data_set_new)
+                print('saving to disk...')
+                with open('data_sets_' + dataset + '_new.obj', 'wb') as outfile:
+                    pickle.dump(data_set_new, outfile, -1)
 
         if not os.path.isdir('plots'):
             os.makedirs('plots')
@@ -505,32 +507,26 @@ class Evaluator(object):
                        ['#FF0000', '#0000FF', '#000000']]
         self.hatches = ['', 'xx', '//', '--']
 
-    def compute(self):
+    def compute(self, label, data_set):
         print('computing...')
-        data_sets_new = []
-        for data_set in self.data_sets:
-            pt = PlotData()
-            pt.label = data_set.label
-            pt.folder_graphs = data_set.folder_graphs
-            for i, rec_type in enumerate(data_set.missions):
-                pt.missions[rec_type] = {}
-                for dtype in div_types:
-                    for j, g in enumerate(n_vals):
-                        graph = data_set.folder_graphs + '/' + rec_type + '_' + unicode(g) + dtype + '.gt'
-                        pt.missions[rec_type][graph] = {}
-                        # for strategy in Strategy.strategies:
-                        for strategy in Strategy.strategies:
-                            pt.missions[rec_type][graph][strategy] = {}
-                            for scenario in Mission.missions:
-                                debug(rec_type, graph, strategy, scenario)
-                                m = data_set.missions[rec_type][graph][strategy][scenario]
-                                m.compute_stats()
-                                pt.missions[rec_type][graph][strategy][scenario] = m.stats
-            data_sets_new.append(pt)
-        print('saving to disk...')
-        with open('data_sets_new.obj', 'wb') as outfile:
-            pickle.dump(data_sets_new, outfile, -1)
-        self.data_sets = data_sets_new
+        print('    ', label)
+        pt = PlotData()
+        pt.label = data_set.label
+        pt.folder_graphs = data_set.folder_graphs
+        for i, rec_type in enumerate(data_set.missions):
+            pt.missions[rec_type] = {}
+            for dtype in div_types:
+                for j, g in enumerate(n_vals):
+                    graph = data_set.folder_graphs + '/' + rec_type + '_' + unicode(g) + dtype + '.gt'
+                    pt.missions[rec_type][graph] = {}
+                    for strategy in Strategy.strategies:
+                        pt.missions[rec_type][graph][strategy] = {}
+                        for scenario in Mission.missions:
+                            debug(rec_type, graph, strategy, scenario)
+                            m = data_set.missions[rec_type][graph][strategy][scenario]
+                            m.compute_stats()
+                            pt.missions[rec_type][graph][strategy][scenario] = m.stats
+        return pt
 
     def plot(self):
         print('plot()')
@@ -742,18 +738,15 @@ n_vals = [
 
 
 if __name__ == '__main__':
-    # movies = DataSet('movielens', rec_types, div_types, n_vals)
-    movies = DataSet('bookcrossing', rec_types, div_types, n_vals)
-    nav = Navigator([movies])
-    print('running...')
-    nav.run()
+    # for dataset in [
+    #     'movielens',
+    #     'bookcrossing',
+    # ]:
+    #     dataset = DataSet(dataset, rec_types, div_types, n_vals)
+    #     nav = Navigator(dataset)
+    #     print('running...')
+    #     nav.run()
 
-    # try:
-    #     os.remove('data_sets_new.obj')
-    #     print('deleted')
-    # except OSError:
-    #     pass
-
-    # evaluator = Evaluator()
-    # evaluator.plot_bar()
+    evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
+    evaluator.plot_bar()
 
