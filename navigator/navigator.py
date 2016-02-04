@@ -192,7 +192,7 @@ class Strategy(object):
         u'random',
         u'title',
         u'neighbors',
-        u'wp_neighbors',
+        # u'wp_neighbors',  # not working anymore for now
         u'optimal'
     ]
 
@@ -218,7 +218,10 @@ class Strategy(object):
             return neighbor_targets[0]
 
         nodes = [n for n in nodes if n not in mission.visited]
-        candidates = {n: matrix[n, mission.targets[0][0]] for n in nodes}
+        try:
+            candidates = {n: matrix[n, mission.targets[0][0]] for n in nodes}
+        except KeyError:
+            pdb.set_trace()
         if not candidates:
             chosen_node = None  # abort search
         else:
@@ -718,7 +721,7 @@ class Evaluator(object):
 
 
 rec_types = [
-    'cb',
+    # 'cb',
     'rb',
     'rbmf',
     'rbar',
@@ -740,9 +743,10 @@ n_vals = [
 
 if __name__ == '__main__':
     # movies = DataSet('movielens', rec_types, div_types, n_vals)
-    # nav = Navigator([movies])
-    # print('running...')
-    # nav.run()
+    movies = DataSet('bookcrossing', rec_types, div_types, n_vals)
+    nav = Navigator([movies])
+    print('running...')
+    nav.run()
 
     # try:
     #     os.remove('data_sets_new.obj')
@@ -750,6 +754,6 @@ if __name__ == '__main__':
     # except OSError:
     #     pass
 
-    evaluator = Evaluator()
-    evaluator.plot_bar()
+    # evaluator = Evaluator()
+    # evaluator.plot_bar()
 

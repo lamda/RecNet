@@ -246,7 +246,7 @@ class CFNN(Recommender):
 class Factors(Recommender):
     def __init__(self, m, k, eta_type, nsteps=500, eta=0.000004,
                  regularize=False, newton=False, tol=0.5*1e-5, lamda=0.05,
-                 init='random'):
+                 init='random', reset_params='False'):
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
@@ -256,6 +256,7 @@ class Factors(Recommender):
         self.newton = newton
         self.tol = tol
         self.lamda = lamda
+        self.reset_params = reset_params
 
         if init == 'svd':
             # init by Singular Value Decomposition
@@ -280,9 +281,6 @@ class Factors(Recommender):
             print('init method not supported')
             pdb.set_trace()
 
-        p_init = np.copy(self.p)
-        q_init = np.copy(self.q)
-
         print('init =', init)
         print('k =', k)
         print('lamda =', self.lamda)
@@ -297,8 +295,6 @@ class Factors(Recommender):
         print('lamda =', self.lamda)
         print('eta = ', self.eta)
         print('eta_type = ', self.eta_type)
-
-        # diff = np.linalg.norm(p_init - self.p) + np.linalg.norm(q_init - self.q)
 
         # self.plot_rmse('%.4f' % diff, suffix='init')
         print('test error: %.4f' % self.test_error())
@@ -338,15 +334,18 @@ class Factors(Recommender):
             self.q -= 2 * self.eta * delta_q
 
             self.rmse.append(self.training_error())
-            print(m, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
+            # print(m, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
+            print(m, 'eta = %.8f, training_rmse = %.8f, test_rmse = %.8f' %
+                  (self.eta, self.rmse[-1], self.test_error()))
             if len(self.rmse) > 1:
                 if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
                     break
                 if self.rmse[-1] > self.rmse[-2]:
                     print('RMSE getting larger')
-                    # self.p += 2 * self.eta * delta_p  # reset parameters
-                    # self.q += 2 * self.eta * delta_q  # reset parameters
-                    # del self.rmse[-1]  # reset last error value
+                    if self.reset_params:
+                        self.p += 2 * self.eta * delta_p  # reset parameters
+                        self.q += 2 * self.eta * delta_q  # reset parameters
+                        del self.rmse[-1]  # reset last error value
                     self.eta *= 0.5
                     if self.eta_type == 'constant':
                         break
@@ -387,7 +386,9 @@ class Factors(Recommender):
             self.q -= 2 * self.eta * delta_q
 
             self.rmse.append(self.training_error())
-            print(m, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
+            # print(m, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
+            print(m, 'eta = %.8f, training_rmse = %.8f, test_rmse = %.8f' %
+                  (self.eta, self.rmse[-1], self.test_error()))
             if len(self.rmse) > 1:
                 if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
                     break

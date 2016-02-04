@@ -299,6 +299,24 @@ class ItemCollection(object):
         path = os.path.join(self.data_folder, 'graphs')
         graphs = set(f[:f.rfind('.')] + '.txt'
                      for f in os.listdir(path) if 'resolved' not in f)
+        graphs = [
+            # 'rb_10.txt',
+            # 'rb_10_div_diversify.txt',
+            # 'rb_10_div_exprel.txt',
+            # 'rb_10_div_random.txt',
+            # 'rb_5.txt',
+            # 'rb_5_div_diversify.txt',
+            # 'rb_5_div_exprel.txt',
+            # 'rb_5_div_random.txt',
+            # 'rbmf_10.txt',
+            # 'rbmf_10_div_diversify.txt',
+            # 'rbmf_10_div_exprel.txt',
+            # 'rbmf_10_div_random.txt',
+            # 'rbmf_5.txt',
+            # 'rbmf_5_div_diversify.txt',
+            'rbmf_5_div_exprel.txt',
+            'rbmf_5_div_random.txt',
+        ]
         for index, g in enumerate(graphs):
             print(index + 1, '/', len(graphs), ': ', g)
             fg = os.path.join(self.data_folder, 'graphs', g)

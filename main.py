@@ -355,7 +355,6 @@ class RatingBasedRecommender(Recommender):
                 rat = float(rat)
                 if user in user_ids and item in item_ids:
                     um[user2matrix[user], item2matrix[item]] = rat
-
         return um.astype(int)
 
     # @decorators.Cached # TODO
@@ -434,8 +433,9 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
             # for BookCrossing:
             #       k=5, nsteps=500, eta_type='increasing', regularize=True,
             #       eta=0.00001, init='random'
-            f = recsys.Factors(um, k=5, nsteps=500, eta_type='increasing',
-                               regularize=True, eta=0.00001, init='random')
+            f = recsys.Factors(um, k=5, nsteps=150, eta_type='bold_driver',
+                               regularize=True, eta=0.0001, init='random_small',
+                               lamda=0.25, reset_params=True)
 
         return f.q
 
@@ -684,14 +684,14 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
     for dataset in [
-        'movielens',
-        # 'bookcrossing',
+        # 'movielens',
+        'bookcrossing',
         # 'imdb',
     ]:
         ## cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
         # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
-        # rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
-        rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
+        rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
+        # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
         # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))

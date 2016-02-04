@@ -318,27 +318,27 @@ if __name__ == '__main__':
         'rbiw',
     ]
     div_types = [
-        '',
-        '_div_random',
+        # '',
+        # '_div_random',
         '_div_diversify',
-        '_div_exprel'
+        # '_div_exprel'
     ]
     graphs = [t[0] + '_top_n_' + t[1] + '10.txt'
               for t in itertools.product(rec_types, div_types)]
     Ns = [
         5,
-        10
+        # 10
     ]
     bowtie_stats = {}
     for dataset in datasets:
         for rec_type in rec_types:
             for N in Ns:
-                for div_type in div_types:
-                    fname = rec_type + '_' + unicode(N) + div_type
-                    g = Graph(dataset=dataset, fname=fname, N=N,
-                              use_sample=False, refresh=False)
-                    g.load_graph()
-                    g.compute_stats()
+                # for div_type in div_types:
+                    # fname = rec_type + '_' + unicode(N) + div_type
+                    # g = Graph(dataset=dataset, fname=fname, N=N,
+                    #           use_sample=False, refresh=False)
+                    # g.load_graph()
+                    # g.compute_stats()
                 graph_name, stats = compute_bowtie_changes(dataset=dataset, N=N,
                                                            rec_type=rec_type,
                                                            div_types=div_types)
