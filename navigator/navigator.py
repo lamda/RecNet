@@ -507,6 +507,18 @@ class Evaluator(object):
         self.colors = ['#FFA500', '#FF0000', '#0000FF', '#05FF05', '#000000']
         # self.hatches = ['', 'xx', '//', '--']
         self.hatches = ['', 'xxx', '///', '---']
+        self.div_labels = [
+            '',
+            ', ExpRel',
+            ', Diversify',
+            ', Random',
+        ]
+        self.graph_labels = {
+            'rb': ['RB (' + str(c) + d + ')' for c in n_vals for d in self.div_labels],
+            'rbmf': ['MF (' + str(c) + d + ')' for c in n_vals for d in self.div_labels],
+            'rbar': ['AR (' + str(c) + d + ')' for c in n_vals for d in self.div_labels],
+            'rbiw': ['IW (' + str(c) + d + ')' for c in n_vals for d in self.div_labels],
+        }
         self.plot_file_types = [
             '.png',
             # '.pdf',
@@ -712,46 +724,52 @@ class Evaluator(object):
 
         # plot the scenarios
         bars = None
-        for sind, scenario in enumerate([
-            u'Point-to-Point',
-            u'Berrypicking',
-            u'Information Foraging',
-        ]):
+        for scenario in Mission.missions:
             print(scenario)
-            for dind, data_set in enumerate(self.data_sets):
-                print(data_set)
-                for nidx2, rec_type in enumerate(rec_types):
-                    print('   ', data_set.label, rec_type)
+            for data_set in self.data_sets:
+                print('   ', data_set.label)
+                for rec_type in rec_types:
+                    print('       ', rec_type)
                     fig, ax = plt.subplots(1, figsize=(5, 5))
                     bar_vals = []
                     for nidx, N in enumerate(n_vals):
-                        for didx, div_type in enumerate(div_types):
-                            print('       ', div_type)
-                            for k, strategy in enumerate(Strategy.strategies):
-                                if strategy in [u'random', u'optimal']:
-                                    continue
-                                g = data_set.folder_graphs + '/' + rec_type +\
-                                    '_' + str(N) + div_type + '.gt'
-                                stats = data_set.missions[rec_type][g][strategy][scenario]
-                                bar_vals.append(stats[-1])
-                                pdb.set_trace()
-                        x = np.arange(len(div_types))
-                        bars = ax.bar(x, bar_vals)
-                        for bidx, bar in enumerate(bars):
-                            bar.set_fill(False)
-                            bar.set_hatch(self.hatches[bidx])
-                            bar.set_edgecolor(self.colors[bidx])
+                        for div_type in div_types:
+                            g = data_set.folder_graphs + '/' + rec_type +\
+                                '_' + str(N) + div_type + '.gt'
+                            vals = [
+                                data_set.missions[rec_type][g][strategy][scenario][-1]
+                                for strategy in ['title', 'neighbors']
+                            ]
+                            bar_vals.append(max(vals))
+                    x = range(len(div_types))
+                    x = x + [e+2+max(x) for e in x]
+                    bars = ax.bar(x, bar_vals)
+                    for bidx, bar in enumerate(bars):
+                        bar.set_fill(False)
+                        bar.set_hatch(self.hatches[bidx % len(div_types)])
+                        bar.set_edgecolor(self.colors[bidx % len(div_types)])
 
-                    ax.set_title(rec_type[:2] + ' (' + rec_type[3:] + ')')
+                    ax.set_title('%s %s %s' %
+                                 (scenario,  data_set.label, rec_type))
                     ax.set_ylabel('Found nodes')
-                    ax.set_ylim(0, 5)
+                    ax.set_ylim(0, 100)
                     ax.set_xlim([-0.25, None])
                     ax.set_xticks([])
 
-                    fig.subplots_adjust(left=0.06, bottom=0.14, right=0.98,
-                                        top=0.88, wspace=0.38, hspace=0.32)
-                    # plt.show()
-                    plt.savefig('plots/nav_success_rate.pdf')
+                    ax.set_xticks([x - 0.25 for x in x])
+                    for tic in ax.xaxis.get_major_ticks():
+                        tic.tick1On = tic.tick2On = False
+                    ax.set_xticklabels(self.graph_labels[rec_type],
+                                       rotation='-50', ha='left')
+
+                    fig.tight_layout()
+                    # fig.subplots_adjust(left=0.06, bottom=0.14, right=0.98,
+                    #                     top=0.88, wspace=0.38, hspace=0.32)
+                    for file_type in self.plot_file_types:
+                        fname = '_'.join([scenario.replace(' ', '_').lower(),
+                                          data_set.label, rec_type])
+                        plt.savefig(os.path.join('plots', fname + file_type))
+                        plt.close()
 
     def plot_sample(self):
         """plot and save an example evaluation showing all types of background

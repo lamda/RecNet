@@ -332,11 +332,11 @@ class Plotter(object):
 
 if __name__ == '__main__':
     to_plot = [
-        # 'cp_size',
+        'cp_size',
         # 'cp_count',
         # 'cc',
         # 'ecc',
-        'bow_tie',
+        # 'bow_tie',
         # 'bow_tie_alluvial',
     ]
     for sf in [
