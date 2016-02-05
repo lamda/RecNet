@@ -481,7 +481,6 @@ class Evaluator(object):
     """Class responsible for calculating stats and plotting the results"""
     def __init__(self, datasets):
         self.data_sets = []
-        do_compute = False
         for dataset in datasets:
             try:
                 with open('data_sets_' + dataset + '_new.obj', 'rb') as infile:
@@ -496,16 +495,22 @@ class Evaluator(object):
                 self.data_sets.append(data_set_new)
                 print('saving to disk...')
                 with open('data_sets_' + dataset + '_new.obj', 'wb') as outfile:
-                    pickle.dump(data_set_new, outfile, -1)
+                    pickle.dump([data_set_new], outfile, -1)
 
         if not os.path.isdir('plots'):
             os.makedirs('plots')
         self.sc2abb = {u'Greedy Search': u'ptp',
                        u'Information Foraging': u'if',
                        u'Berrypicking': u'bp'}
-        self.colors = [['#FFA500', '#05FF05', '#000000'],
-                       ['#FF0000', '#0000FF', '#000000']]
-        self.hatches = ['', 'xx', '//', '--']
+        # self.colors = [['#FFA500', '#05FF05', '#000000'],
+        #                ['#FF0000', '#0000FF', '#000000']]
+        self.colors = ['#FFA500', '#FF0000', '#0000FF', '#05FF05', '#000000']
+        # self.hatches = ['', 'xx', '//', '--']
+        self.hatches = ['', 'xxx', '///', '---']
+        self.plot_file_types = [
+            '.png',
+            # '.pdf',
+        ]
 
     def compute(self, label, data_set):
         print('computing...')
@@ -620,7 +625,7 @@ class Evaluator(object):
         # plt.savefig('plots/navigation_aggregated_' + unicode(g) + '.pdf')
         plt.savefig('plots/navigation_aggregated.pdf')
 
-    def plot_bar(self):
+    def plot_bar_old(self):
         print('plot_bar()')
 
         # # plot the legend in a separate plot
@@ -636,7 +641,8 @@ class Evaluator(object):
         # fig.subplots_adjust(left=0.19, bottom=0.06, right=0.91, top=0.92,
         #                     wspace=0.34, hspace=0.32)
         # # plt.show()
-        # figlegend.savefig('plots/nav_legend.pdf')
+        # for file_type in self.plot_file_types:
+        #     figlegend.savefig('plots/nav_legend' + file_type')
 
         # plot the scenarios
         bars = None
@@ -681,8 +687,71 @@ class Evaluator(object):
                 fig.subplots_adjust(left=0.19, bottom=0.06, right=0.91, top=0.92,
                                     wspace=0.34, hspace=0.32)
                 # plt.show()
-                plt.savefig('plots/nav_' + scenario.replace(' ', '_').lower() +
-                            '_' + data_set.label + '.pdf')
+                for file_type in self.plot_file_types:
+                    fname = 'nav_' + scenario.replace(' ', '_').lower() +\
+                            '_' + data_set.label + file_type
+                    plt.savefig(os.path.join('plots', fname))
+
+    def plot_bar(self):
+        print('plot_bar()')
+
+        # plot the legend in a separate plot
+        # fig = plt.figure()
+        # ax = fig.add_subplot(111)
+        # patches = [ax.bar([0], [0]) for i in range(4)]
+        # for pidx, p in enumerate(patches):
+        #     p[0].set_fill(False)
+        #     p[0].set_edgecolor(self.colors[pidx])
+        #     p[0].set_hatch(self.hatches[pidx])
+        # figlegend = plt.figure(figsize=(7.75, 0.465))
+        # figlegend.legend(patches, ['No Diversification', 'ExpRel', 'Diversify', 'Random'], ncol=4)
+        # fig.subplots_adjust(left=0.19, bottom=0.06, right=0.91, top=0.92,
+        #                     wspace=0.34, hspace=0.32)
+        # # plt.show()
+        # figlegend.savefig('plots/nav_legend.pdf')
+
+        # plot the scenarios
+        bars = None
+        for sind, scenario in enumerate([
+            u'Point-to-Point',
+            u'Berrypicking',
+            u'Information Foraging',
+        ]):
+            print(scenario)
+            for dind, data_set in enumerate(self.data_sets):
+                print(data_set)
+                for nidx2, rec_type in enumerate(rec_types):
+                    print('   ', data_set.label, rec_type)
+                    fig, ax = plt.subplots(1, figsize=(5, 5))
+                    bar_vals = []
+                    for nidx, N in enumerate(n_vals):
+                        for didx, div_type in enumerate(div_types):
+                            print('       ', div_type)
+                            for k, strategy in enumerate(Strategy.strategies):
+                                if strategy in [u'random', u'optimal']:
+                                    continue
+                                g = data_set.folder_graphs + '/' + rec_type +\
+                                    '_' + str(N) + div_type + '.gt'
+                                stats = data_set.missions[rec_type][g][strategy][scenario]
+                                bar_vals.append(stats[-1])
+                                pdb.set_trace()
+                        x = np.arange(len(div_types))
+                        bars = ax.bar(x, bar_vals)
+                        for bidx, bar in enumerate(bars):
+                            bar.set_fill(False)
+                            bar.set_hatch(self.hatches[bidx])
+                            bar.set_edgecolor(self.colors[bidx])
+
+                    ax.set_title(rec_type[:2] + ' (' + rec_type[3:] + ')')
+                    ax.set_ylabel('Found nodes')
+                    ax.set_ylim(0, 5)
+                    ax.set_xlim([-0.25, None])
+                    ax.set_xticks([])
+
+                    fig.subplots_adjust(left=0.06, bottom=0.14, right=0.98,
+                                        top=0.88, wspace=0.38, hspace=0.32)
+                    # plt.show()
+                    plt.savefig('plots/nav_success_rate.pdf')
 
     def plot_sample(self):
         """plot and save an example evaluation showing all types of background
