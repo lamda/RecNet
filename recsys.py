@@ -318,7 +318,6 @@ class Factors(Recommender):
         return b_xi + np.dot(p_u, q_i.T)
 
     def factorize(self):
-        print('ATTENTION not resetting larger values')
         test_rmse = []
         for m in xrange(self.nsteps):
             masked = np.ma.array(self.m.rt, mask=np.isnan(self.m.rt))
@@ -361,7 +360,6 @@ class Factors(Recommender):
                 print('    TEST RMSE:')
                 for idx, err in enumerate(test_rmse):
                     print('        %d | %.8f' % (idx * 100, err))
-        print('ATTENTION not resetting larger values')
         print('    TEST RMSE:')
         for idx, err in enumerate(test_rmse):
             print('        %d | %.8f' % (idx * 100, err))

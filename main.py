@@ -15,7 +15,6 @@ import scipy.spatial.distance
 import sklearn.feature_extraction.text
 import sqlite3
 
-import decorators
 import recsys
 
 
@@ -26,7 +25,7 @@ DEBUG = False
 DEBUG_SIZE = 255
 # DEBUG_SIZE = 750
 DATA_BASE_FOLDER = 'data'
-NUMBER_OF_RECOMMENDATIONS = [5, 10]
+NUMBER_OF_RECOMMENDATIONS = [5, 10, 15, 20]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4 TODO make a list?
 NUMBER_OF_POTENTIAL_RECOMMENDATIONS = 50  # should be 50
 
@@ -195,18 +194,25 @@ class TopNDivExpRelRecommendationStrategy(RecommendationStrategy):
 
 
 class Recommender(object):
-    def __init__(self, dataset, label):
+    def __init__(self, dataset, label, load_cached):
         print(label)
-        self.label = label
         self.dataset = dataset
+        self.label = label
+        self.load_cached = load_cached
         self.data_folder = os.path.join(DATA_BASE_FOLDER, self.dataset)
         self.dataset_folder = os.path.join(self.data_folder, 'dataset')
         self.graph_folder = os.path.join(self.data_folder, 'graphs')
+        self.recommendation_data_folder = os.path.join(
+            self.data_folder,
+            'recommendation_data'
+        )
         db_file = 'database_new.db'
         self.db_file = os.path.join(self.data_folder, db_file)
         self.db_main_table = 'books' if dataset == 'bookcrossing' else 'movies'
         if not os.path.exists(self.graph_folder):
             os.makedirs(self.graph_folder)
+        if not os.path.exists(self.recommendation_data_folder):
+            os.makedirs(self.recommendation_data_folder)
 
         data = self.query_db('SELECT id, cf_title, wp_title, wp_text, original_title, wp_id FROM ' + self.db_main_table)
         data = [(d[0], d[1], d[2], d[4], d[5], d[3]) for d in data]
@@ -275,16 +281,31 @@ class Recommender(object):
                 recs = s.get_recommendations(n=n)
                 self.save_graph(recs, label=s.label, n=n)
 
+    def save_recommendation_data(self, obj, label):
+        class_name = str(self.__class__).strip("<>'").rsplit('.', 1)[-1]
+        fname = os.path.join(self.recommendation_data_folder,
+                             class_name + '_' + label + '.obj')
+        with open(fname, 'wb') as outfile:
+            pickle.dump(obj, outfile, -1)
+
+    def load_recommendation_data(self, label):
+        class_name = str(self.__class__).strip("<>'").rsplit('.', 1)[-1]
+        fname = os.path.join(self.recommendation_data_folder,
+                             class_name + '_' + label + '.obj')
+        with open(fname, 'rb') as infile:
+            obj = pickle.load(infile)
+        return obj
+
 
 class ContentBasedRecommender(Recommender):
-    def __init__(self, dataset):
-        super(ContentBasedRecommender, self).__init__(dataset, 'cb')
+    def __init__(self, dataset, load_cached=False):
+        super(ContentBasedRecommender, self).__init__(dataset, 'cb',
+                                                      load_cached)
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
         super(ContentBasedRecommender, self).get_recommendations()
 
-    # @decorators.Cached
     def get_similarity_matrix(self):
         """get the TF-IDF similarity values of a given list of text"""
         import nltk
@@ -324,14 +345,14 @@ class ContentBasedRecommender(Recommender):
 
 
 class RatingBasedRecommender(Recommender):
-    def __init__(self, dataset, label='rb'):
-        super(RatingBasedRecommender, self).__init__(dataset, label)
+    def __init__(self, dataset, label='rb', load_cached=False):
+        super(RatingBasedRecommender, self).__init__(dataset, label,
+                                                     load_cached)
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
         super(RatingBasedRecommender, self).get_recommendations()
 
-    # @decorators.Cached # TODO
     def get_utility_matrix(self):
         # load user ids
         item_ids = set(map(str, self.df['dataset_id']))
@@ -355,10 +376,13 @@ class RatingBasedRecommender(Recommender):
                 rat = float(rat)
                 if user in user_ids and item in item_ids:
                     um[user2matrix[user], item2matrix[item]] = rat
-        return um.astype(int)
+        um = um.astype(int)
+        return um
 
-    # @decorators.Cached # TODO
     def get_similarity_matrix(self):
+        if self.load_cached:
+            sim_mat = self.load_recommendation_data('sim_mat')
+            return sim_mat
         um = self.get_utility_matrix()
         # with open('um_' + self.dataset + '.obj', 'wb') as outfile:
         #     pickle.dump(um, outfile, -1)
@@ -380,19 +404,24 @@ class RatingBasedRecommender(Recommender):
         # max distance is 2 because the pearson correlation runs from -1...+1
         similarity[np.isnan(similarity)] = 2.0  # for correlation
         similarity = scipy.spatial.distance.squareform(similarity)
-        return SimilarityMatrix(1 - similarity)
+        sim_mat = SimilarityMatrix(1 - similarity)
+        self.save_recommendation_data(sim_mat, 'sim_mat')
+        return sim_mat
 
 
 class MatrixFactorizationRecommender(RatingBasedRecommender):
-    def __init__(self, dataset):
-        super(MatrixFactorizationRecommender, self).__init__(dataset, 'rbmf')
+    def __init__(self, dataset, load_cached=False):
+        super(MatrixFactorizationRecommender, self).__init__(dataset, 'rbmf',
+                                                             load_cached)
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
         super(RatingBasedRecommender, self).get_recommendations()
 
-    # @decorators.Cached # TODO
     def get_similarity_matrix(self):
+        if self.load_cached:
+            sim_mat = self.load_recommendation_data('sim_mat')
+            return sim_mat
         um = self.get_utility_matrix()
         q = self.factorize(um)
 
@@ -412,10 +441,11 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         similarity[np.isnan(similarity)] = 2.0  # for correlation
         # similarity[np.isnan(similarity)] = 1.0  # for cosine
         similarity = scipy.spatial.distance.squareform(similarity)
-        return SimilarityMatrix(1 - similarity)
 
-    # @profile
-    # @decorators.Cached
+        sim_mat = SimilarityMatrix(1 - similarity)
+        self.save_recommendation_data(sim_mat, 'sim_mat')
+        return sim_mat
+
     def factorize(self, m):
         # k should be smaller than #users and #items (2-300?)
         m = m.astype(float)
@@ -441,8 +471,9 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
 
 
 class InterpolationWeightRecommender(RatingBasedRecommender):
-    def __init__(self, dataset):
-        super(InterpolationWeightRecommender, self).__init__(dataset, 'rbiw')
+    def __init__(self, dataset, load_cached=False):
+        super(InterpolationWeightRecommender, self).__init__(dataset, 'rbiw',
+                                                             load_cached)
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
@@ -476,18 +507,13 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                           columns=['title', 'coratings', 'frac_coratings', 'similarity'])
         return df
 
-    # @decorators.Cached # TODO
     def get_similarity_matrix(self):
+        if self.load_cached:
+            sim_mat = self.load_recommendation_data('sim_mat')
+            return sim_mat
         um = self.get_utility_matrix()
-        with open('um_' + self.dataset + '.obj', 'wb') as outfile:
-            pickle.dump(um, outfile)
         w, k, beta = self.get_interpolation_weights(um)
 
-        # with open('iw_' + self.dataset + '.obj', 'rb') as infile:
-        #     print('DEBUG: loading IW matrix and utility matrix')
-        #     w, k, beta = pickle.load(infile)
-        # with open('um_' + self.dataset + '.obj', 'rb') as infile:
-        #    um = pickle.load(infile)
         # df = self.get_coratings(mid=0, w=w, k=10, coratings_top_10=coratings)
         # print(df.sort_values('similarity'))
         # print(coratings[0][1140])
@@ -506,15 +532,11 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             s_u_i = umrs.similar_items(u, i, k, use_all=True)
             for ci in s_u_i:
                 coratings[i][ci] += 1
-        with open('coratings_top_10_' + self.dataset + '.obj', 'wb') as outfile:
-            pickle.dump(coratings, outfile, -1)
-
-        # with open('coratings_top_10_' + self.dataset + '.obj', 'rb') as infile:
-        #     print('DEBUG: loading coratings')
-        #     coratings = pickle.load(infile)
+        self.save_recommendation_data(coratings, 'coratings')
+        # self.load_recommendataion_data('coratings')
 
         if self.dataset == 'movielens':
-            threshold = 1  # countered by beta = 50
+            threshold = 1
         elif self.dataset == 'bookcrossing':
             threshold = 2
 
@@ -525,11 +547,14 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                     continue
                 sims[x, y] = w[x, y]
         print('threshold =', threshold)
-        return SimilarityMatrix(sims)
+        sim_mat = SimilarityMatrix(sims)
+        self.save_recommendation_data(sim_mat, 'sim_mat')
+        return sim_mat
 
-    # @profile
-    # @decorators.Cached
     def get_interpolation_weights(self, m):
+        if self.load_cached:
+            w, k, beta = self.load_recommendation_data('iw_data')
+            return w, k, beta
         # typical values for n lie in the range of 20-50 (Bell & Koren 2007)
         m = m.astype(float)
         m_nan = np.copy(m)
@@ -562,8 +587,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                                            init='zeros', nsteps=60)
 
         print('beta = ', beta)
-        with open('iw_' + self.dataset + '.obj', 'wb') as outfile:
-            pickle.dump([wf.w, wf.k, beta], outfile)
+        self.save_recommendation_data([wf.w, wf.k, beta], 'iw_data')
         return wf.w, wf.k, beta
 
 
@@ -633,19 +657,8 @@ class AssociationRuleRecommender(RatingBasedRecommender):
             for i in itertools.combinations(items, 2):
                 coratings[i[0]][i[1]] += 1
                 coratings[i[1]][i[0]] += 1
-        with open('association_coratings_' + self.dataset + '.obj', 'wb') as outfile:
-            pickle.dump(coratings, outfile, -1)
-        print('computed the coratings matrix')
-        # sys.exit()
-        # # debug helpers
-        # self.rating_stats(um)
-        # self.corating_stats(coratings, item_id=0)
-        # self.ar_simple(um, coratings, 0, 2849)
-        # self.ar_complex(um, coratings, 0, 2849)
-        # self.ar_both(um, coratings, 0, 2849)
-        with open('association_coratings_' + self.dataset + '.obj', 'rb') as infile:
-            print('DEBUG: loading coratings matrix')
-            coratings = pickle.load(infile)
+        self.save_recommendation_data(coratings, 'coratings')
+        # coratings = self.load_recommendation_data('coratings')
 
         not_coratings = {i: collections.defaultdict(int) for i in range(icount)}
         for i in coratings.keys():
@@ -654,14 +667,17 @@ class AssociationRuleRecommender(RatingBasedRecommender):
             for j in coratings[i].keys():
                 rated_j = set(np.where(um[:, j] == 1)[0])
                 not_coratings[i][j] = len(not_rated_i & rated_j)
-        with open('association_not_coratings_' + self.dataset + '.obj', 'wb') as outfile:
-            pickle.dump(not_coratings, outfile, -1)
-        with open('association_not_coratings_' + self.dataset + '.obj', 'rb') as infile:
-            print('DEBUG: loading coratings matrix')
-            not_coratings = pickle.load(infile)
+        self.save_recommendation_data(not_coratings, 'not_coratings')
+        # coratings = self.load_recommendation_data('not_coratings')
+
+        # # debug helpers
+        # self.rating_stats(um)
+        # self.corating_stats(coratings, item_id=0)
+        # self.ar_simple(um, coratings, 0, 2849)
+        # self.ar_complex(um, coratings, 0, 2849)
+        # self.ar_both(um, coratings, 0, 2849)
 
         sims = np.zeros((icount, icount))
-
         for x in range(icount):
             is_x = np.sum(um[:, x])
             not_x = um.shape[0] - is_x
@@ -676,23 +692,29 @@ class AssociationRuleRecommender(RatingBasedRecommender):
 
                 if numerator > 0:
                     sims[x, y] = denominator / numerator
-        pdb.set_trace()
-        return SimilarityMatrix(sims)
+
+        sim_mat = SimilarityMatrix(1 - sims)
+        self.save_recommendation_data(sim_mat, 'sim_mat')
+        return sim_mat
 
 
 if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
+
     for dataset in [
-        # 'movielens',
-        'bookcrossing',
+        'movielens',
+        # 'bookcrossing',
         # 'imdb',
     ]:
-        ## cbr = ContentBasedRecommender(dataset=dataset); cbr.get_recommendations()
-        # rbr = RatingBasedRecommender(dataset=dataset); rbr.get_recommendations()
-        rbmf = MatrixFactorizationRecommender(dataset=dataset); rbmf.get_recommendations()
-        # rbiw = InterpolationWeightRecommender(dataset=dataset); rbiw.get_recommendations()
-        # rbar = AssociationRuleRecommender(dataset=dataset); rbar.get_recommendations()
+        ## r = ContentBasedRecommender(dataset=dataset)
+        # r = RatingBasedRecommender(dataset=dataset)
+        # r = AssociationRuleRecommender(dataset=dataset)
+        r = MatrixFactorizationRecommender(dataset=dataset)
+        # r = InterpolationWeightRecommender(dataset=dataset)
+
+        r.get_recommendations()
+
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 

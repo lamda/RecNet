@@ -741,6 +741,7 @@ class Evaluator(object):
                                 for strategy in ['title', 'neighbors']
                             ]
                             bar_vals.append(max(vals))
+                            pdb.set_trace()
                     x = range(len(div_types))
                     x = x + [e+2+max(x) for e in x]
                     bars = ax.bar(x, bar_vals)

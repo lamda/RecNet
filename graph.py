@@ -327,7 +327,9 @@ if __name__ == '__main__':
               for t in itertools.product(rec_types, div_types)]
     Ns = [
         # 5,
-        10
+        # 10,
+        15,
+        20
     ]
     bowtie_stats = {}
     for dataset in datasets:
