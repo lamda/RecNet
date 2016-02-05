@@ -538,7 +538,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         if self.dataset == 'movielens':
             threshold = 1
         elif self.dataset == 'bookcrossing':
-            threshold = 2
+            threshold = 1
 
         sims = np.zeros((um.shape[1], um.shape[1]))
         for x in range(um.shape[1]):
@@ -569,7 +569,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             #                                eta=0.000001, regularize=True,
             #                                init='sim', nsteps=50)
 
-            beta = 1
+            beta = 50
             um = recsys.UtilityMatrix(m_nan, beta=beta)
             wf = recsys.WeightedCFNNBiased(um, eta_type='bold_driver', k=15,
                                            eta=0.00001, regularize=True,
@@ -580,13 +580,13 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             #    beta = 1
             #    eta_type='bold_driver', k=20, eta=0.00001, regularize=True,
             #    init='zeros'
-            beta = 1
+            beta = 2
             um = recsys.UtilityMatrix(m_nan, beta=beta)
             wf = recsys.WeightedCFNNBiased(um, k=20, eta_type='bold_driver',
                                            eta=0.00001, regularize=True,
                                            init='zeros', nsteps=60)
 
-        print('beta = ', beta)
+        print('beta = ', beta, ' | ')
         self.save_recommendation_data([wf.w, wf.k, beta], 'iw_data')
         return wf.w, wf.k, beta
 
@@ -703,8 +703,8 @@ if __name__ == '__main__':
     start_time = datetime.now()
 
     for dataset in [
-        'movielens',
-        # 'bookcrossing',
+        # 'movielens',
+        'bookcrossing',
         # 'imdb',
     ]:
         ## r = ContentBasedRecommender(dataset=dataset)
