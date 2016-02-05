@@ -546,7 +546,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                 if coratings[x][y] < threshold:  # confidence threshold
                     continue
                 sims[x, y] = w[x, y]
-        print('threshold =', threshold)
+        print('threshold =', threshold, '\n')
         sim_mat = SimilarityMatrix(sims)
         self.save_recommendation_data(sim_mat, 'sim_mat')
         return sim_mat
@@ -569,7 +569,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             #                                eta=0.000001, regularize=True,
             #                                init='sim', nsteps=50)
 
-            beta = 50
+            beta = 1
             um = recsys.UtilityMatrix(m_nan, beta=beta)
             wf = recsys.WeightedCFNNBiased(um, eta_type='bold_driver', k=15,
                                            eta=0.00001, regularize=True,
@@ -580,20 +580,21 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             #    beta = 1
             #    eta_type='bold_driver', k=20, eta=0.00001, regularize=True,
             #    init='zeros'
-            beta = 2
+            beta = 1
             um = recsys.UtilityMatrix(m_nan, beta=beta)
             wf = recsys.WeightedCFNNBiased(um, k=20, eta_type='bold_driver',
                                            eta=0.00001, regularize=True,
                                            init='zeros', nsteps=60)
 
-        print('beta = ', beta, ' | ')
+        print('beta = ', beta)
         self.save_recommendation_data([wf.w, wf.k, beta], 'iw_data')
         return wf.w, wf.k, beta
 
 
 class AssociationRuleRecommender(RatingBasedRecommender):
-    def __init__(self, dataset):
-        super(AssociationRuleRecommender, self).__init__(dataset, 'rbar')
+    def __init__(self, dataset, load_cached=False):
+        super(AssociationRuleRecommender, self).__init__(dataset, 'rbar',
+                                                         load_cached=load_cached)
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
@@ -644,6 +645,9 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         print('s: %.4f, c: %.4f' % (simple, complex))
 
     def get_similarity_matrix(self):
+        if self.load_cached:
+            sim_mat = self.load_recommendation_data('sim_mat')
+            return sim_mat
         um = self.get_utility_matrix()
         um = np.where(um == 0, um, 1)  # set all ratings to 1
         # um = np.where(um >= 4, 1, 0)  # set all high ratings to 1
@@ -708,9 +712,9 @@ if __name__ == '__main__':
         # 'imdb',
     ]:
         ## r = ContentBasedRecommender(dataset=dataset)
-        # r = RatingBasedRecommender(dataset=dataset)
+        r = RatingBasedRecommender(dataset=dataset)
         # r = AssociationRuleRecommender(dataset=dataset)
-        r = MatrixFactorizationRecommender(dataset=dataset)
+        # r = MatrixFactorizationRecommender(dataset=dataset)
         # r = InterpolationWeightRecommender(dataset=dataset)
 
         r.get_recommendations()
