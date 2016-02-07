@@ -27,7 +27,7 @@ class Plotter(object):
         self.graph_types = len(self.div_types)
         self.Ns = [
             '5',
-            '10',
+            '15',
         ]
         self.graphs = {
             # 'CB': ['cb_' + c + d for c in self.Ns for d in self.div_types],

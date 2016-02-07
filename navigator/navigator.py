@@ -238,7 +238,7 @@ class Strategy(object):
 
 
 class DataSet(object):
-    def __init__(self, label, rec_types, div_types, n_vals=(5, 10)):
+    def __init__(self, label, rec_types, div_types):
         self.label = label
         self.base_folder = os.path.join('..', 'data', self.label)
         self.folder_graphs = os.path.join(self.base_folder, 'graphs')
@@ -468,7 +468,7 @@ class Navigator(object):
                                 outfile.write('\t'.join(m.path) + '\n')
 
     def save(self):
-        with open('data_sets' + self.data_set.label + '.obj', 'wb') as outfile:
+        with open('data_sets_' + self.data_set.label + '.obj', 'wb') as outfile:
             pickle.dump([self.data_set], outfile, -1)
 
 
@@ -821,20 +821,22 @@ div_types = [
 
 n_vals = [
     5,
-    10
+    10,
+    15,
+    20
 ]
 
 
 if __name__ == '__main__':
     # for dataset in [
-    #     'movielens',
+    #     # 'movielens',
     #     'bookcrossing',
     # ]:
-    #     dataset = DataSet(dataset, rec_types, div_types, n_vals)
+    #     dataset = DataSet(dataset, rec_types, div_types)
     #     nav = Navigator(dataset)
     #     print('running...')
     #     nav.run()
 
     evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
-    evaluator.plot_bar()
+    # evaluator.plot_bar()
 
