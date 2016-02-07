@@ -585,7 +585,6 @@ class Evaluator(object):
                   ['#FC8D62', '#FB6023', '#DC4204', '#A03003'],
                   ['#8DA0CB', '#657EB8', '#47609A', '#334670']]
         styles = ['-', ':', '-.', '--', '-', ':', '-.', '--']
-        # for j, g in enumerate((5, 10, 15, 20)):
         fig, axes = plt.subplots(len(self.data_sets), len(self.sc2abb),
                                  figsize=(18, 7))
         for dind, data_set in enumerate(self.data_sets):
@@ -724,12 +723,14 @@ class Evaluator(object):
 
         # plot the scenarios
         bars = None
+        strategy_success_overall = {'title': 0, 'neighbors': 0}
         for scenario in Mission.missions:
             print(scenario)
             for data_set in self.data_sets:
                 print('   ', data_set.label)
                 for rec_type in rec_types:
-                    print('       ', rec_type)
+                    print('       ', rec_type, end=' | ')
+                    strategy_success = {'title': 0, 'neighbors': 0}
                     fig, ax = plt.subplots(1, figsize=(5, 5))
                     bar_vals = []
                     for nidx, N in enumerate(n_vals):
@@ -740,8 +741,11 @@ class Evaluator(object):
                                 data_set.missions[rec_type][g][strategy][scenario][-1]
                                 for strategy in ['title', 'neighbors']
                             ]
-                            bar_vals.append(max(vals))
-                            pdb.set_trace()
+                            bar_vals.append(min(vals))
+                            if vals[0] > vals[1]:
+                                strategy_success['title'] += 1
+                            else:
+                                strategy_success['neighbors'] += 1
                     x = range(len(div_types))
                     x = x + [e+2+max(x) for e in x]
                     bars = ax.bar(x, bar_vals)
@@ -771,6 +775,16 @@ class Evaluator(object):
                                           data_set.label, rec_type])
                         plt.savefig(os.path.join('plots', fname + file_type))
                         plt.close()
+                    if strategy_success['title'] > strategy_success['neighbors']:
+                        print('title')
+                        strategy_success_overall['title'] += 1
+                    else:
+                        print('neighbors')
+                        strategy_success_overall['neighbors'] += 1
+
+        for k, v in strategy_success_overall.items():
+            print(k, v)
+
 
     def plot_sample(self):
         """plot and save an example evaluation showing all types of background
@@ -828,15 +842,15 @@ n_vals = [
 
 
 if __name__ == '__main__':
-    # for dataset in [
-    #     # 'movielens',
-    #     'bookcrossing',
-    # ]:
-    #     dataset = DataSet(dataset, rec_types, div_types)
-    #     nav = Navigator(dataset)
-    #     print('running...')
-    #     nav.run()
+    for dataset in [
+        # 'movielens',
+        'bookcrossing',
+    ]:
+        dataset = DataSet(dataset, rec_types, div_types)
+        nav = Navigator(dataset)
+        print('running...')
+        nav.run()
 
-    evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
+    # evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
     # evaluator.plot_bar()
 

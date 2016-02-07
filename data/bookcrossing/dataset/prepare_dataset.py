@@ -540,6 +540,30 @@ def add_text():
         conn.commit()
 
 
+
+def add_title_to_text():
+    db_file = os.path.join('..', 'database_new.db')
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    # get items already in the database
+    stmt = '''SELECT id, wp_id, cf_title, wp_text
+              FROM books ORDER BY id ASC'''
+    cursor.execute(stmt)
+    response = cursor.fetchall()
+    df = pd.DataFrame(data=response,
+                      columns=['isbn', 'wp_id', 'cf_title', 'wp_text'])
+    item_count = df.shape[0]
+    for ridx, row in df.iterrows():
+        print(ridx+1, '/', item_count, row['cf_title'], row['isbn'])
+
+        # write to database
+        stmt = 'UPDATE books SET wp_text = ? WHERE id = ?'
+        data = (row['wp_text'] + ' ' + row['cf_title'], row['isbn'])
+        cursor.execute(stmt, data)
+        conn.commit()
+
+
 def delete_textless():
     pdb.set_trace()
 
@@ -906,7 +930,8 @@ if __name__ == '__main__':
     # delete_genreless()
     # delete_yearless()
     # add_text()
-    delete_textless()
+    add_title_to_text()
+    # delete_textless()
 
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))

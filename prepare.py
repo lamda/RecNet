@@ -469,9 +469,9 @@ class ItemCollection(object):
 
 if __name__ == '__main__':
     for dataset in [
-        'movielens',
-        # 'bookcrossing',
+        # 'movielens',
+        'bookcrossing',
     ]:
         ic = ItemCollection(dataset=dataset)
-        # ic.write_clusters_title_matrix()
-        ic.write_network_neighbors_matrix()
+        ic.write_clusters_title_matrix()
+        # ic.write_network_neighbors_matrix()
