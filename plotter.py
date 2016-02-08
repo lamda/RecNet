@@ -25,10 +25,7 @@ class Plotter(object):
             '_div_random',
         ]
         self.graph_types = len(self.div_types)
-        self.Ns = [
-            '5',
-            '15',
-        ]
+        self.Ns = nvals
         self.graphs = {
             # 'CB': ['cb_' + c + d for c in self.Ns for d in self.div_types],
             'RB': ['rb_' + c + d for c in self.Ns for d in self.div_types],
@@ -136,6 +133,7 @@ class Plotter(object):
             fpath = os.path.join(self.plot_folder, self.label + '_' + prop + '_' + graph_type)
             for ftype in self.plot_file_types:
                 plt.savefig(fpath + ftype)
+            plt.close()
 
     def plot_ecc(self):
         def plot_ecc_legend(label, color):
@@ -190,6 +188,7 @@ class Plotter(object):
                                      'ecc_' + graph_type + '_' + unicode(N))
                 for ftype in self.plot_file_types:
                     plt.savefig(fpath + ftype)
+                plt.close()
 
     def plot_bow_tie(self):
         # TODO FIXME legend plotting doesn't work
@@ -248,6 +247,7 @@ class Plotter(object):
                                  'bowtie_' + graph_type)
             for ftype in self.plot_file_types:
                 plt.savefig(fpath + ftype)
+            plt.close()
 
     def plot_alluvial(self):
         """ produce an alluvial diagram (sort of like a flow chart) for the
@@ -331,12 +331,16 @@ class Plotter(object):
                                       template[1])
 
 if __name__ == '__main__':
+    nvals = [
+            '5',
+            '20',
+        ]
     to_plot = [
         'cp_size',
         # 'cp_count',
-        # 'cc',
+        'cc',
         # 'ecc',
-        # 'bow_tie',
+        'bow_tie',
         # 'bow_tie_alluvial',
     ]
     for sf in [
