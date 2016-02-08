@@ -741,7 +741,7 @@ class Evaluator(object):
                                 data_set.missions[rec_type][g][strategy][scenario][-1]
                                 for strategy in ['title', 'neighbors']
                             ]
-                            bar_vals.append(min(vals))
+                            bar_vals.append(max(vals))
                             if vals[0] > vals[1]:
                                 strategy_success['title'] += 1
                             else:
@@ -835,22 +835,22 @@ div_types = [
 
 n_vals = [
     5,
-    10,
-    15,
+    # 10,
+    # 15,
     20
 ]
 
 
 if __name__ == '__main__':
-    for dataset in [
-        # 'movielens',
-        'bookcrossing',
-    ]:
-        dataset = DataSet(dataset, rec_types, div_types)
-        nav = Navigator(dataset)
-        print('running...')
-        nav.run()
+    # for dataset in [
+    #     # 'movielens',
+    #     'bookcrossing',
+    # ]:
+    #     dataset = DataSet(dataset, rec_types, div_types)
+    #     nav = Navigator(dataset)
+    #     print('running...')
+    #     nav.run()
 
-    # evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
-    # evaluator.plot_bar()
+    evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
+    evaluator.plot_bar()
 
