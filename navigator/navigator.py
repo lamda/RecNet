@@ -503,28 +503,22 @@ class Evaluator(object):
         self.sc2abb = {u'Greedy Search': u'ptp',
                        u'Information Foraging': u'if',
                        u'Berrypicking': u'bp'}
-        # self.colors = [['#FFA500', '#05FF05', '#000000'],
-        #                ['#FF0000', '#0000FF', '#000000']]
         self.colors = ['#FFA500', '#FF0000', '#0000FF', '#05FF05', '#000000']
-        self.hatches = ['', 'xxx', '///', '---']
-        self.div_labels = [
-            '',
-            ', ExpRel',
-            ', Diversify',
-            ', Random',
-        ]
-        if not use_div:
-            div_types = div_types[:1]
-            self.div_labels = self.div_labels[:1]
-            self.colors = self.colors[1:2] * 8
-            self.hatches =  self.hatches = ['', 'xxx', '', 'xxx', '', 'xxx', '', 'xxx', ]
-
-        self.graph_labels = {
-            'rb': ['RB (' + str(c) + d + ')' for c in n_vals for d in self.div_labels],
-            'rbmf': ['MF (' + str(c) + d + ')' for c in n_vals for d in self.div_labels],
-            'rbar': ['AR (' + str(c) + d + ')' for c in n_vals for d in self.div_labels],
-            'rbiw': ['IW (' + str(c) + d + ')' for c in n_vals for d in self.div_labels],
+        self.hatches = ['----', '/', 'xxx', '///', '---']
+        self.linestyles = ['-', '--', ':', '-.']
+        self.graphs = {
+            'RB': ['rb_' + str(c) for c in n_vals],
+            'MF': ['rbmf_' + str(c) for c in n_vals],
+            'AR': ['rbar_' + str(c) for c in n_vals],
+            'IW': ['rbiw_' + str(c) for c in n_vals],
         }
+        self.graph_labels = {
+            'RB': ['RB (' + str(c) + ')' for c in n_vals],
+            'MF': ['MF (' + str(c) + ')' for c in n_vals],
+            'AR': ['AR (' + str(c) + ')' for c in n_vals],
+            'IW': ['IW (' + str(c) + ')' for c in n_vals],
+        }
+        self.graph_order = ['AR', 'RB', 'IW', 'MF']
         self.rec_type2label = {
             'rb': 'RB',
             'rbmf': 'MF',
@@ -666,71 +660,43 @@ class Evaluator(object):
         # figlegend.savefig('plots/nav_legend.pdf')
 
         # plot the scenarios
-        bars = None
-        strategy_success_overall = {'title': 0, 'neighbors': 0}
         for scenario in Mission.missions:
-            print(scenario)
             for data_set in self.data_sets:
-                print('   ', data_set.label)
+                fig, ax = plt.subplots(1, figsize=(10, 5))
+                bar_vals = []
                 for rec_type in rec_types:
-                    print('       ', rec_type, end=' | ')
-                    strategy_success = {'title': 0, 'neighbors': 0}
-                    fig, ax = plt.subplots(1, figsize=(5, 5))
-                    bar_vals = []
                     for nidx, N in enumerate(n_vals):
-                        for div_type in div_types:
-                            g = data_set.folder_graphs + '/' + rec_type +\
-                                '_' + str(N) + div_type + '.gt'
-                            vals = [
-                                data_set.missions[rec_type][g][strategy][scenario][-1]
-                                for strategy in ['title', 'neighbors']
-                            ]
-                            bar_vals.append(max(vals))
-                            if vals[0] > vals[1]:
-                                strategy_success['title'] += 1
-                            else:
-                                strategy_success['neighbors'] += 1
-                    x = range(len(div_types))
-                    x = x + [e+2+max(x) for e in x]
-                    bars = ax.bar(x, bar_vals)
-                    for bidx, bar in enumerate(bars):
-                        bar.set_fill(False)
-                        # bar.set_hatch(self.hatches[bidx % len(div_types)])
-                        bar.set_hatch(self.hatches[bidx % 4])
-                        # bar.set_edgecolor(self.colors[bidx % len(div_types)])
-                        bar.set_edgecolor(self.colors[bidx % 4])
+                        g = data_set.folder_graphs + '/' + rec_type +\
+                                '_' + str(N) + '.gt'
+                        bar_vals.append(data_set.missions[rec_type][g]['title'][scenario][-1])
+                x_vals = [1, 2, 4, 5, 7, 8, 10, 11]
+                bars = ax.bar(x_vals, bar_vals, align='center')
 
-                    ax.set_title('%s %s %s' %
-                                 (scenario,  data_set.label, rec_type))
-                    ax.set_ylabel('Found nodes')
-                    ax.set_ylim(0, 100)
-                    ax.set_xlim([-0.25, None])
-                    ax.set_xticks([])
+                # Beautification
+                for bidx, bar in enumerate(bars):
+                    bar.set_fill(False)
+                    bar.set_hatch(self.hatches[bidx % 2])
+                    bar.set_edgecolor(self.colors[int(bidx/2)])
 
-                    ax.set_xticks([x - 0.25 for x in x])
-                    for tic in ax.xaxis.get_major_ticks():
-                        tic.tick1On = tic.tick2On = False
-                    ax.set_xticklabels(self.graph_labels[rec_type],
-                                       rotation='-50', ha='left')
+                ax.set_xlim(0.25, 3 * len(self.graphs))
+                ax.set_xticks([x - 0.25 for x in x_vals])
+                for tic in ax.xaxis.get_major_ticks():
+                    tic.tick1On = tic.tick2On = False
+                labels = [g for k in self.graph_order for g in self.graph_labels[k]]
+                ax.set_xticklabels(labels, rotation='-50', ha='left')
 
-                    fig.tight_layout()
-                    # fig.subplots_adjust(left=0.06, bottom=0.14, right=0.98,
-                    #                     top=0.88, wspace=0.38, hspace=0.32)
-                    for file_type in self.plot_file_types:
-                        fname = '_'.join([scenario.replace(' ', '_').lower(),
-                                          data_set.label,
-                                          self.rec_type2label[rec_type]])
-                        plt.savefig(os.path.join('plots', fname + file_type))
-                        plt.close()
-                    if strategy_success['title'] > strategy_success['neighbors']:
-                        print('title')
-                        strategy_success_overall['title'] += 1
-                    else:
-                        print('neighbors')
-                        strategy_success_overall['neighbors'] += 1
+                ylabel = 'CC'
+                ax.set_ylim(0, 100)
+                ylabel = 'Found Nodes (%)'
+                ax.set_ylabel(ylabel)
 
-        for k, v in strategy_success_overall.items():
-            print(k, v)
+                plt.tight_layout()
+                # plt.show()
+                fname = data_set.label + '_' + scenario.lower().replace(' ', '_')
+                fpath = os.path.join('plots', fname)
+                for ftype in self.plot_file_types:
+                    plt.savefig(fpath + ftype)
+                plt.close()
 
 
     def plot_sample(self):
@@ -798,6 +764,6 @@ if __name__ == '__main__':
     #     print('running...')
     #     nav.run()
 
-    evaluator = Evaluator(datasets=['movielens', 'bookcrossing'], use_div=True)
+    evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
     evaluator.plot_bar()
 
