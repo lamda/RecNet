@@ -14,44 +14,23 @@ import cPickle as pickle
 
 
 class Plotter(object):
-    def __init__(self, label, to_plot, use_sample=True):
+    def __init__(self, label, to_plot, use_sample=True, use_div=True):
         self.label = label
         self.stats_folder = os.path.join('data', self.label, 'stats')
         self.use_sample = use_sample
+        self.use_div = use_div
         self.div_types = [
             '',
             '_div_exprel',
             '_div_diversify',
             '_div_random',
         ]
-        self.graph_types = len(self.div_types)
-        self.Ns = nvals
-        self.graphs = {
-            # 'CB': ['cb_' + c + d for c in self.Ns for d in self.div_types],
-            'RB': ['rb_' + c + d for c in self.Ns for d in self.div_types],
-            'MF': ['rbmf_' + c + d for c in self.Ns for d in self.div_types],
-            'AR': ['rbar_' + c + d for c in self.Ns for d in self.div_types],
-            'IW': ['rbiw_' + c + d for c in self.Ns for d in self.div_types],
-        }
         self.div_labels = [
             '',
             ', ExpRel',
             ', Diversify',
             ', Random',
         ]
-        self.graph_labels = {
-            # 'CB': ['CB (' + c + d + ')' for c in self.Ns for d in self.div_labels],
-            'RB': ['RB (' + c + d + ')' for c in self.Ns for d in self.div_labels],
-            'MF': ['MF (' + c + d + ')' for c in self.Ns for d in self.div_labels],
-            'AR': ['AR (' + c + d + ')' for c in self.Ns for d in self.div_labels],
-            'IW': ['IW (' + c + d + ')' for c in self.Ns for d in self.div_labels],
-        }
-        self.graph_data = {}
-        self.bowtie_changes = {}
-        self.plot_folder = 'plots'
-        if not os.path.exists(self.plot_folder):
-            os.makedirs(self.plot_folder)
-        self.load_graph_data()
         self.colors = ['#FFA500', '#FF0000', '#0000FF', '#05FF05', '#000000']
         self.colors_set2 = [
             (0.4, 0.7607843137254902, 0.6470588235294118),
@@ -65,6 +44,34 @@ class Plotter(object):
         ]
         self.hatches = ['', 'xxx', '///', '---']
         self.linestyles = ['-', '--', ':', '-.']
+        if not self.use_div:
+            self.div_types = self.div_types[:1]
+            self.div_labels = self.div_labels[:1]
+            self.colors = self.colors[1:2] * 8
+
+        self.graph_types = len(self.div_types)
+        self.Ns = nvals
+        self.graphs = {
+            # 'CB': ['cb_' + c + d for c in self.Ns for d in self.div_types],
+            'RB': ['rb_' + c + d for c in self.Ns for d in self.div_types],
+            'MF': ['rbmf_' + c + d for c in self.Ns for d in self.div_types],
+            'AR': ['rbar_' + c + d for c in self.Ns for d in self.div_types],
+            'IW': ['rbiw_' + c + d for c in self.Ns for d in self.div_types],
+        }
+        self.graph_labels = {
+            # 'CB': ['CB (' + c + d + ')' for c in self.Ns for d in self.div_labels],
+            'RB': ['RB (' + c + d + ')' for c in self.Ns for d in self.div_labels],
+            'MF': ['MF (' + c + d + ')' for c in self.Ns for d in self.div_labels],
+            'AR': ['AR (' + c + d + ')' for c in self.Ns for d in self.div_labels],
+            'IW': ['IW (' + c + d + ')' for c in self.Ns for d in self.div_labels],
+        }
+        self.graph_data = {}
+        self.bowtie_changes = {}
+        self.plot_folder = 'plots'
+        if not os.path.exists(self.plot_folder):
+            os.makedirs(self.plot_folder)
+        self.load_graph_data()
+
         self.bar_x = range(1, self.graph_types+1)\
             + range(self.graph_types+2, 2*self.graph_types+2)
         self.plot_file_types = [
@@ -135,6 +142,45 @@ class Plotter(object):
                 plt.savefig(fpath + ftype)
             plt.close()
 
+    def plot_no_div(self, prop):
+        for graph_type in self.graphs:
+            fig, ax = plt.subplots(1, figsize=(5, 5))
+            bar_vals = [self.graph_data[graph_name][prop]
+                        for graph_name in self.graphs[graph_type]]
+            bars = ax.bar(self.bar_x, bar_vals, align='center')
+            pdb.set_trace()
+
+            # Beautification
+            for bidx, bar in enumerate(bars):
+                bar.set_fill(False)
+                bar.set_hatch(self.hatches[bidx % 4])
+                bar.set_edgecolor(self.colors[bidx % 4])
+
+            ax.set_xlim(0.25, 2 * self.graph_types + 1.75)
+            ax.set_xticks([x - 0.25 for x in self.bar_x])
+            for tic in ax.xaxis.get_major_ticks():
+                tic.tick1On = tic.tick2On = False
+            ax.set_xticklabels(self.graph_labels[graph_type], rotation='-50',
+                               ha='left')
+
+            if prop == 'cc':
+                ylabel = 'CC'
+                ax.set_ylim(0, 0.5)
+            elif prop == 'cp_count':
+                ylabel = '# of components'
+                # ax.set_ylim(0, 110)
+            else:
+                ylabel = 'Share of Nodes (%)'
+                ax.set_ylim(0, 110)
+            ax.set_ylabel(ylabel)
+
+            plt.tight_layout()
+            # plt.show()
+            fpath = os.path.join(self.plot_folder, self.label + '_' + prop + '_' + graph_type)
+            for ftype in self.plot_file_types:
+                plt.savefig(fpath + ftype)
+            plt.close()
+
     def plot_ecc(self):
         def plot_ecc_legend(label, color):
             # plot the legend in a separate plot
@@ -156,13 +202,12 @@ class Plotter(object):
                                                label + ftype))
 
         for graph_type in self.graphs:
-            Ns = [5, 10]
             c = '#FF0000'
             # xlim = (0, 150)
             # c = '#0000FF'
             xlim = (0, 50)
             plot_ecc_legend(graph_type, c)
-            for Nidx, N in enumerate(Ns):
+            for Nidx, N in enumerate(nvals):
                 graphs = [g for g in self.graphs[graph_type] if unicode(N) in g]
                 fig, ax = plt.subplots(1, figsize=(7*0.7, 4*0.7))
                 for gidx, graph_name in enumerate(graphs):
@@ -330,21 +375,22 @@ class Plotter(object):
                         outfile.write(template[0] + '"' + fname + '"' +
                                       template[1])
 
+
 if __name__ == '__main__':
     nvals = [
             '5',
             '20',
         ]
     to_plot = [
-        'cp_size',
+        # 'cp_size',
         # 'cp_count',
-        'cc',
-        # 'ecc',
-        'bow_tie',
+        # 'cc',
+        'ecc',
+        # 'bow_tie',
         # 'bow_tie_alluvial',
     ]
     for sf in [
         'movielens',
         'bookcrossing',
     ]:
-        p = Plotter(sf, use_sample=False, to_plot=to_plot)
+        p = Plotter(sf, use_sample=False, to_plot=to_plot, use_div=False)

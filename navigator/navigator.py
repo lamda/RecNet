@@ -479,7 +479,8 @@ class PlotData(object):
 
 class Evaluator(object):
     """Class responsible for calculating stats and plotting the results"""
-    def __init__(self, datasets):
+    def __init__(self, datasets, use_div=True):
+        global div_types
         self.data_sets = []
         for dataset in datasets:
             try:
@@ -505,7 +506,6 @@ class Evaluator(object):
         # self.colors = [['#FFA500', '#05FF05', '#000000'],
         #                ['#FF0000', '#0000FF', '#000000']]
         self.colors = ['#FFA500', '#FF0000', '#0000FF', '#05FF05', '#000000']
-        # self.hatches = ['', 'xx', '//', '--']
         self.hatches = ['', 'xxx', '///', '---']
         self.div_labels = [
             '',
@@ -513,11 +513,23 @@ class Evaluator(object):
             ', Diversify',
             ', Random',
         ]
+        if not use_div:
+            div_types = div_types[:1]
+            self.div_labels = self.div_labels[:1]
+            self.colors = self.colors[1:2] * 8
+            self.hatches =  self.hatches = ['', 'xxx', '', 'xxx', '', 'xxx', '', 'xxx', ]
+
         self.graph_labels = {
             'rb': ['RB (' + str(c) + d + ')' for c in n_vals for d in self.div_labels],
             'rbmf': ['MF (' + str(c) + d + ')' for c in n_vals for d in self.div_labels],
             'rbar': ['AR (' + str(c) + d + ')' for c in n_vals for d in self.div_labels],
             'rbiw': ['IW (' + str(c) + d + ')' for c in n_vals for d in self.div_labels],
+        }
+        self.rec_type2label = {
+            'rb': 'RB',
+            'rbmf': 'MF',
+            'rbar': 'AR',
+            'rbiw': 'IW',
         }
         self.plot_file_types = [
             '.png',
@@ -636,76 +648,8 @@ class Evaluator(object):
         # plt.savefig('plots/navigation_aggregated_' + unicode(g) + '.pdf')
         plt.savefig('plots/navigation_aggregated.pdf')
 
-    def plot_bar_old(self):
-        print('plot_bar()')
-
-        # # plot the legend in a separate plot
-        # fig = plt.figure()
-        # ax = fig.add_subplot(111)
-        # patches = [ax.bar([0], [0]) for i in range(4)]
-        # for pidx, p in enumerate(patches):
-        #     p[0].set_fill(False)
-        #     p[0].set_edgecolor('black')
-        #     p[0].set_hatch(self.hatches[pidx])
-        # figlegend = plt.figure(figsize=(7.65, 0.465))
-        # figlegend.legend(patches, ['Standard', '+ Random', '+ Diversify', '+ ExpRel'], ncol=4)
-        # fig.subplots_adjust(left=0.19, bottom=0.06, right=0.91, top=0.92,
-        #                     wspace=0.34, hspace=0.32)
-        # # plt.show()
-        # for file_type in self.plot_file_types:
-        #     figlegend.savefig('plots/nav_legend' + file_type')
-
-        # plot the scenarios
-        bars = None
-        for sind, scenario in enumerate(Mission.missions):
-            debug('\n', scenario)
-            for dind, data_set in enumerate(self.data_sets):
-                fig, axes = plt.subplots(len(n_vals), 1, figsize=(3.25, 5),
-                                         squeeze=False)
-                for nidx, N in enumerate(n_vals):
-                    debug(data_set.label, 'N =', N)
-                    ax = axes[nidx, 0]
-                    for rtsidx, rec_type_split in enumerate([rec_types[:4], rec_types[4:]]):
-                        for ridx, rec_type in enumerate(rec_type_split):
-                            debug('    ', rec_type)
-                            bar_vals = [0 for r in rec_type_split]
-                            max_strategy = ''
-                            for k, strategy in enumerate(Strategy.strategies):
-                                if strategy in [u'random', u'optimal']:
-                                    continue
-                                graph = data_set.folder_graphs + '/' + rec_type + '_' + str(N) + '.gt'
-                                stats = data_set.missions[rec_type][graph][strategy][scenario]
-                                if stats[-1] > bar_vals[ridx]:
-                                    bar_vals[ridx] = stats[-1]
-                                    max_strategy = strategy
-                            debug('         ', max_strategy)
-                            x = np.arange(len(rec_type_split))
-                            x = [v + rtsidx * (len(rec_type_split) + 1) for v in x]
-                            bars = ax.bar(x, bar_vals)
-
-                            for bidx, bar in enumerate(bars):
-                                bar.set_fill(False)
-                                bar.set_hatch(self.hatches[bidx])
-                                bar.set_edgecolor(self.colors[rtsidx][dind])
-
-                    ax.set_title('N = ' + str(N))
-                    ax.set_ylabel('Success Ratio (%)')
-                    ax.set_ylim(0, 80)
-                    ax.set_xlim([-0.25, None])
-                    ax.set_xticks([2, 7])
-                    ax.set_xticklabels(['CF', 'CB'])
-
-                fig.subplots_adjust(left=0.19, bottom=0.06, right=0.91, top=0.92,
-                                    wspace=0.34, hspace=0.32)
-                # plt.show()
-                for file_type in self.plot_file_types:
-                    fname = 'nav_' + scenario.replace(' ', '_').lower() +\
-                            '_' + data_set.label + file_type
-                    plt.savefig(os.path.join('plots', fname))
-
     def plot_bar(self):
         print('plot_bar()')
-
         # plot the legend in a separate plot
         # fig = plt.figure()
         # ax = fig.add_subplot(111)
@@ -751,8 +695,10 @@ class Evaluator(object):
                     bars = ax.bar(x, bar_vals)
                     for bidx, bar in enumerate(bars):
                         bar.set_fill(False)
-                        bar.set_hatch(self.hatches[bidx % len(div_types)])
-                        bar.set_edgecolor(self.colors[bidx % len(div_types)])
+                        # bar.set_hatch(self.hatches[bidx % len(div_types)])
+                        bar.set_hatch(self.hatches[bidx % 4])
+                        # bar.set_edgecolor(self.colors[bidx % len(div_types)])
+                        bar.set_edgecolor(self.colors[bidx % 4])
 
                     ax.set_title('%s %s %s' %
                                  (scenario,  data_set.label, rec_type))
@@ -772,7 +718,8 @@ class Evaluator(object):
                     #                     top=0.88, wspace=0.38, hspace=0.32)
                     for file_type in self.plot_file_types:
                         fname = '_'.join([scenario.replace(' ', '_').lower(),
-                                          data_set.label, rec_type])
+                                          data_set.label,
+                                          self.rec_type2label[rec_type]])
                         plt.savefig(os.path.join('plots', fname + file_type))
                         plt.close()
                     if strategy_success['title'] > strategy_success['neighbors']:
@@ -851,6 +798,6 @@ if __name__ == '__main__':
     #     print('running...')
     #     nav.run()
 
-    evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
+    evaluator = Evaluator(datasets=['movielens', 'bookcrossing'], use_div=True)
     evaluator.plot_bar()
 
