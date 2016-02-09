@@ -111,7 +111,6 @@ class Plotter(object):
         ax.set_ylabel(ylabel)
 
         plt.tight_layout()
-        # plt.show()
         fpath = os.path.join(self.plot_folder, self.label + '_' + prop)
         for ftype in self.plot_file_types:
             plt.savefig(fpath + ftype)
@@ -137,39 +136,30 @@ class Plotter(object):
                 figlegend.savefig(os.path.join('plots', 'ecc_legend_' +
                                                label + ftype))
 
-        for graph_type in self.graphs:
-            c = '#FF0000'
-            # xlim = (0, 150)
-            # c = '#0000FF'
-            xlim = (0, 50)
-            plot_ecc_legend(graph_type, c)
-            for Nidx, N in enumerate(n_vals):
-                graphs = [g for g in self.graphs[graph_type] if unicode(N) in g]
-                fig, ax = plt.subplots(1, figsize=(7*0.7, 4*0.7))
-                for gidx, graph_name in enumerate(graphs):
-                    try:
-                        ecc = self.graph_data[graph_name]['lc_ecc']
-                    except KeyError:
-                        print(graph_name)
-                        ecc = [e/sum(range(15)) for e in range(15)]
-                    x = range(len(ecc))
-                    label = self.graph_labels[graph_type][self.graph_types * Nidx + gidx]
-                    ax.plot(x, ecc, linewidth=2, linestyle=self.linestyles[gidx],
-                            color=c, label=label)
+        xmax = 0
+        for graph_type in self.graph_order:
+            for graph_name in self.graphs[graph_type]:
+                if len(self.graph_data[graph_name]['lc_ecc']) > xmax:
+                    xmax = len(self.graph_data[graph_name]['lc_ecc'])
 
+        for gidx, graph_type in enumerate(self.graph_order):
+            fig, ax = plt.subplots(1, figsize=(10, 5))
+            vals = [self.graph_data[graph_name]['lc_ecc']
+                    for graph_name in self.graphs[graph_type]]
+
+            for vidx, val, in enumerate(vals):
+                bars = ax.bar(range(len(val)), val, color=self.colors[gidx], lw=2)
                 # Beautification
-                ax.set_xlabel('Eccentricity')
-                ax.set_ylabel('% of Nodes')
-                ax.set_xlim(xlim)
-                ax.set_ylim(0, 100)
-
-                # plt.legend(loc=0)
-                plt.tight_layout()
-                fpath = os.path.join(self.plot_folder, self.label + '_' +
-                                     'ecc_' + graph_type + '_' + unicode(N))
-                for ftype in self.plot_file_types:
-                    plt.savefig(fpath + ftype)
-                plt.close()
+                for bidx, bar in enumerate(bars):
+                    bar.set_fill(False)
+                    bar.set_hatch(self.hatches[vidx])
+                    bar.set_edgecolor(self.colors[gidx])
+            ax.set_xlim(0, xmax)
+            plt.tight_layout()
+            fpath = os.path.join(self.plot_folder, self.label + '_' + graph_type + '_ecc')
+            for ftype in self.plot_file_types:
+                plt.savefig(fpath + ftype)
+            plt.close()
 
     def plot_bow_tie(self):
         # TODO FIXME legend plotting doesn't work
@@ -320,8 +310,8 @@ if __name__ == '__main__':
     to_plot = [
         # 'cp_size',
         # 'cp_count',
-        'cc',
-        # 'ecc',
+        # 'cc',
+        'ecc',
         # 'bow_tie',
         # 'bow_tie_alluvial',
     ]
