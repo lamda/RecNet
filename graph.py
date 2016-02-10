@@ -128,8 +128,8 @@ class Graph(object):
         #       0.01 * stats['cp_size'] * stats['graph_size'] / 100)
         # print(100 * stats['recommenders'] / stats['graph_size'])
         # stats['cp_size'], stats['cp_count'] = self.largest_component()
-        # stats['lc_ecc'] = self.eccentricity()
-        stats['cp_size'], stats['cp_count'] = self.largest_component()
+        stats['lc_ecc'] = self.eccentricity()
+        # stats['cp_size'], stats['cp_count'] = self.largest_component()
         # print('SCC size:', stats['cp_size'] * self.graph.num_vertices())
         # stats['bow_tie'] = self.bow_tie()
 
@@ -137,18 +137,6 @@ class Graph(object):
         with open(self.stats_file_path, 'wb') as outfile:
             pickle.dump(stats, outfile, -1)
         print()
-
-    def aggregate_ecc(self, dirname):
-        fnames = os.listdir(dirname)
-        ecc = collections.defaultdict(int)
-        for fname in fnames:
-            with io.open(dirname + '/' + fname, encoding='utf-8') as infile:
-                for line in infile:
-                    data = int(line.strip())
-                    ecc[data] += 1
-        ecc = [ecc[i] for i in range(max(ecc.keys()) + 2)]
-        ecc = [100 * v / sum(ecc) for v in ecc]
-        return ecc
 
     def basic_stats(self):
         print('basic_stats():')
@@ -272,8 +260,8 @@ class Graph(object):
             dist = gt.shortest_distance(lcp, source=node).a
             ecc[max(dist)] += 1
         ecc = [ecc[i] for i in range(max(ecc.keys()) + 2)]
-        lc_ecc = [100 * v / sum(ecc) for v in ecc]
-        return lc_ecc
+        # lc_ecc = [100 * v / sum(ecc) for v in ecc]
+        return ecc
 
 
 def compute_bowtie_changes(dataset, rec_type, div_types, N):
@@ -312,21 +300,21 @@ if __name__ == '__main__':
     ]
     rec_types = [
         # 'cb',
-        # 'rb',
+        'rb',
         'rbmf',
-        # 'rbar',
-        # 'rbiw',
+        'rbar',
+        'rbiw',
     ]
     div_types = [
         '',
-        '_div_random',
-        '_div_diversify',
-        '_div_exprel'
+        # '_div_random',
+        # '_div_diversify',
+        # '_div_exprel'
     ]
     Ns = [
         5,
-        10,
-        15,
+        # 10,
+        # 15,
         20
     ]
     bowtie_stats = {}
@@ -338,7 +326,8 @@ if __name__ == '__main__':
                     g = Graph(dataset=dataset, fname=fname, N=N,
                               use_sample=False, refresh=False)
                     g.load_graph()
-                    g.compute_stats()
+                    # g.compute_stats()
+                    g.update_stats()
         #         graph_name, stats = compute_bowtie_changes(dataset=dataset, N=N,
         #                                                    rec_type=rec_type,
         #                                                    div_types=div_types)

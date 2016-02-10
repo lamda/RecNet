@@ -136,11 +136,35 @@ class Plotter(object):
                 figlegend.savefig(os.path.join('plots', 'ecc_legend_' +
                                                label + ftype))
 
-        xmax = 0
-        for graph_type in self.graph_order:
-            for graph_name in self.graphs[graph_type]:
-                if len(self.graph_data[graph_name]['lc_ecc']) > xmax:
-                    xmax = len(self.graph_data[graph_name]['lc_ecc'])
+        # import seaborn.apionly as sns  # apionly doesn't change style
+        # for gidx, graph_type in enumerate(self.graph_order):
+        #     fig, ax = plt.subplots(1, figsize=(10, 5))
+        #     vals = [self.graph_data[graph_name]['lc_ecc']
+        #             for graph_name in self.graphs[graph_type]]
+        #     for vidx, val, in enumerate(vals):
+        #         vs = [[idx] * v for idx, v in enumerate(val) if v]
+        #         vs = reduce(lambda x, y: x + y, vs)
+        #         ax = sns.distplot(vs, bins=range(40), color=self.colors[gidx],
+        #                           kde_kws={'bw': 0.5},
+        #                           hist_kws={'align': 'left', 'lw': 3})
+        #     bars = [rect for rect in ax.get_children()
+        #             if isinstance(rect, matplotlib.patches.Rectangle)]
+        #     # Beautification
+        #     for bidx, bar in enumerate(bars[:40]):
+        #         bar.set_fill(False)
+        #         bar.set_hatch(self.hatches[0])
+        #         bar.set_edgecolor(self.colors[gidx])
+        #     for bidx, bar in enumerate(bars[40:-1]):
+        #         bar.set_fill(False)
+        #         bar.set_hatch(self.hatches[1])
+        #         bar.set_edgecolor(self.colors[gidx])
+        #     ax.set_xlim(0, 40)
+        #     plt.tight_layout()
+        #     # plt.show()
+        #     fpath = os.path.join(self.plot_folder, self.label + '_' + graph_type + '_ecc')
+        #     for ftype in self.plot_file_types:
+        #         plt.savefig(fpath + ftype)
+        #     plt.close()
 
         for gidx, graph_type in enumerate(self.graph_order):
             fig, ax = plt.subplots(1, figsize=(10, 5))
@@ -148,13 +172,15 @@ class Plotter(object):
                     for graph_name in self.graphs[graph_type]]
 
             for vidx, val, in enumerate(vals):
+                val = [100 * v / sum(val) for v in val]
                 bars = ax.bar(range(len(val)), val, color=self.colors[gidx], lw=2)
                 # Beautification
                 for bidx, bar in enumerate(bars):
                     bar.set_fill(False)
                     bar.set_hatch(self.hatches[vidx])
                     bar.set_edgecolor(self.colors[gidx])
-            ax.set_xlim(0, xmax)
+            ax.set_xlim(0, 40)
+            ax.set_ylim(0, 100)
             plt.tight_layout()
             fpath = os.path.join(self.plot_folder, self.label + '_' + graph_type + '_ecc')
             for ftype in self.plot_file_types:
