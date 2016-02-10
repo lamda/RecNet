@@ -513,14 +513,14 @@ class Evaluator(object):
             'IW': ['rbiw_' + str(c) for c in n_vals],
         }
         self.graph_labels = {
-            'RB': ['RB (' + str(c) + ')' for c in n_vals],
+            'CF': ['CF (' + str(c) + ')' for c in n_vals],
             'MF': ['MF (' + str(c) + ')' for c in n_vals],
             'AR': ['AR (' + str(c) + ')' for c in n_vals],
             'IW': ['IW (' + str(c) + ')' for c in n_vals],
         }
-        self.graph_order = ['AR', 'RB', 'IW', 'MF']
+        self.graph_order = ['AR', 'CF', 'IW', 'MF']
         self.rec_type2label = {
-            'rb': 'RB',
+            'rb': 'CF',
             'rbmf': 'MF',
             'rbar': 'AR',
             'rbiw': 'IW',
@@ -663,7 +663,7 @@ class Evaluator(object):
         # plot the scenarios
         for scenario in Mission.missions:
             for data_set in self.data_sets:
-                fig, ax = plt.subplots(1, figsize=(10, 5))
+                fig, ax = plt.subplots(1, figsize=(6, 3))
                 bar_vals = []
                 for graph_type in self.graph_order:
                     rec_type = self.label2rec_type[graph_type]

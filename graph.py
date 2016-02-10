@@ -295,8 +295,8 @@ def compute_bowtie_changes(dataset, rec_type, div_types, N):
 
 if __name__ == '__main__':
     datasets = [
-        # 'movielens',
-        'bookcrossing',
+        'movielens',
+        # 'bookcrossing',
     ]
     rec_types = [
         # 'cb',

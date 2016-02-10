@@ -38,12 +38,18 @@ class Plotter(object):
             'IW': ['rbiw_' + c for c in n_vals],
         }
         self.graph_labels = {
-            'RB': ['RB (' + c + ')' for c in n_vals],
+            'RB': ['CF (' + c + ')' for c in n_vals],
             'MF': ['MF (' + c + ')' for c in n_vals],
             'AR': ['AR (' + c + ')' for c in n_vals],
             'IW': ['IW (' + c + ')' for c in n_vals],
         }
         self.graph_order = ['AR', 'RB', 'IW', 'MF']
+        self.rec_type2label = {
+            'RB': 'CF',
+            'MF': 'MF',
+            'AR': 'AR',
+            'IW': 'IW',
+        }
         self.graph_data = {}
         self.bowtie_changes = {}
         self.plot_folder = 'plots'
@@ -78,7 +84,7 @@ class Plotter(object):
                 self.graph_data[graph_name] = graph_data
 
     def plot(self, prop):
-        fig, ax = plt.subplots(1, figsize=(10, 5))
+        fig, ax = plt.subplots(1, figsize=(6, 3))
         bar_vals = []
         for graph_type in self.graph_order:
             bar_vals += [self.graph_data[graph_name][prop]
@@ -100,7 +106,7 @@ class Plotter(object):
         ax.set_xticklabels(labels, rotation='-50', ha='left')
 
         if prop == 'cc':
-            ylabel = 'CC'
+            ylabel = 'Clustering Coefficient'
             ax.set_ylim(0, 0.5)
         elif prop == 'cp_count':
             ylabel = '# of components'
@@ -117,7 +123,7 @@ class Plotter(object):
         plt.close()
 
     def plot_ecc(self):
-        def plot_ecc_legend(label, color):
+        def plot_ecc_legend_old(label, color):
             # plot the legend in a separate plot
             fig = plt.figure()
             ax = fig.add_subplot(111)
@@ -135,6 +141,33 @@ class Plotter(object):
             for ftype in self.plot_file_types:
                 figlegend.savefig(os.path.join('plots', 'ecc_legend_' +
                                                label + ftype))
+
+        def plot_ecc_legend():
+            # plot the legend in a separate plot
+            fig = plt.figure()
+            figlegend = plt.figure(figsize=(3,2))
+            ax = fig.add_subplot(111)
+            # lines = ax.plot(range(10), range(10), range(10), range(10))
+            patches = ax.bar([0, 1], [0, 1])
+            plt.close(figlegend)
+            figlegend.legend(patches.get_children(), ('one', 'two'), 'center')
+            figlegend.savefig('plots/legend.png')
+
+            # fig = plt.figure()
+            # ax = fig.add_subplot(111)
+            # labels = ['N = 5', 'N = 20']
+            # patches = [ax.bar([0], [0], label=labels[i]) for i in range(2)]
+            # for pidx, p in enumerate(patches):
+            #     p[0].set_fill(False)
+            #     p[0].set_edgecolor('black')
+            #     p[0].set_hatch(self.hatches[pidx])
+            # figlegend = plt.figure(figsize=(7.75, 0.465))
+            # pdb.set_trace()
+            # figlegend.legend(patches, ['N = 5', 'N = 20'], ncol=2)
+            # # fig.subplots_adjust(left=0.19, bottom=0.06, right=0.91, top=0.92,
+            # #                     wspace=0.34, hspace=0.32)
+            # plt.show()
+            # figlegend.savefig('plots/nav_legend.pdf')
 
         # import seaborn.apionly as sns  # apionly doesn't change style
         # for gidx, graph_type in enumerate(self.graph_order):
@@ -161,31 +194,35 @@ class Plotter(object):
         #     ax.set_xlim(0, 40)
         #     plt.tight_layout()
         #     # plt.show()
+        #     fpath = os.path.join(self.plot_folder,
+        #                          self.label + '_' + graph_type + '_ecc')
+        #     for ftype in self.plot_file_types:
+        #         plt.savefig(fpath + ftype)
+        #     plt.close()
+        plot_ecc_legend()
+        # for gidx, graph_type in enumerate(self.graph_order):
+        #     fig, ax = plt.subplots(1, figsize=(6, 3))
+        #     vals = [self.graph_data[graph_name]['lc_ecc']
+        #             for graph_name in self.graphs[graph_type]]
+        #
+        #     for vidx, val, in enumerate(vals):
+        #         val = [100 * v / sum(val) for v in val]
+        #         bars = ax.bar(range(len(val)), val, color=self.colors[gidx], lw=2)
+        #         # Beautification
+        #         for bidx, bar in enumerate(bars):
+        #             bar.set_fill(False)
+        #             bar.set_hatch(self.hatches[vidx])
+        #             bar.set_edgecolor(self.colors[gidx])
+        #     ax.set_xlim(0, 40)
+        #     ax.set_ylim(0, 100)
+        #     ax.set_xlabel('Eccentricity')
+        #     ax.set_ylabel('Fraction of Nodes')
+        #     plt.title(self.rec_type2label[graph_type])
+        #     plt.tight_layout()
         #     fpath = os.path.join(self.plot_folder, self.label + '_' + graph_type + '_ecc')
         #     for ftype in self.plot_file_types:
         #         plt.savefig(fpath + ftype)
         #     plt.close()
-
-        for gidx, graph_type in enumerate(self.graph_order):
-            fig, ax = plt.subplots(1, figsize=(10, 5))
-            vals = [self.graph_data[graph_name]['lc_ecc']
-                    for graph_name in self.graphs[graph_type]]
-
-            for vidx, val, in enumerate(vals):
-                val = [100 * v / sum(val) for v in val]
-                bars = ax.bar(range(len(val)), val, color=self.colors[gidx], lw=2)
-                # Beautification
-                for bidx, bar in enumerate(bars):
-                    bar.set_fill(False)
-                    bar.set_hatch(self.hatches[vidx])
-                    bar.set_edgecolor(self.colors[gidx])
-            ax.set_xlim(0, 40)
-            ax.set_ylim(0, 100)
-            plt.tight_layout()
-            fpath = os.path.join(self.plot_folder, self.label + '_' + graph_type + '_ecc')
-            for ftype in self.plot_file_types:
-                plt.savefig(fpath + ftype)
-            plt.close()
 
     def plot_bow_tie(self):
         # TODO FIXME legend plotting doesn't work
@@ -334,8 +371,8 @@ if __name__ == '__main__':
             '20',
         ]
     to_plot = [
-        # 'cp_size',
         # 'cp_count',
+        # 'cp_size',
         # 'cc',
         'ecc',
         # 'bow_tie',
