@@ -479,7 +479,7 @@ class PlotData(object):
 
 class Evaluator(object):
     """Class responsible for calculating stats and plotting the results"""
-    def __init__(self, datasets, use_div=True):
+    def __init__(self, datasets):
         global div_types
         self.data_sets = []
         for dataset in datasets:
@@ -525,6 +525,7 @@ class Evaluator(object):
             'rbar': 'AR',
             'rbiw': 'IW',
         }
+        self.label2rec_type = {v: k for k, v in self.rec_type2label.items()}
         self.plot_file_types = [
             '.png',
             # '.pdf',
@@ -664,11 +665,13 @@ class Evaluator(object):
             for data_set in self.data_sets:
                 fig, ax = plt.subplots(1, figsize=(10, 5))
                 bar_vals = []
-                for rec_type in rec_types:
+                for graph_type in self.graph_order:
+                    rec_type = self.label2rec_type[graph_type]
                     for nidx, N in enumerate(n_vals):
                         g = data_set.folder_graphs + '/' + rec_type +\
                                 '_' + str(N) + '.gt'
                         bar_vals.append(data_set.missions[rec_type][g]['title'][scenario][-1])
+                        print(graph_type, rec_type, N, bar_vals[-1])
                 x_vals = [1, 2, 4, 5, 7, 8, 10, 11]
                 bars = ax.bar(x_vals, bar_vals, align='center')
 
@@ -685,13 +688,11 @@ class Evaluator(object):
                 labels = [g for k in self.graph_order for g in self.graph_labels[k]]
                 ax.set_xticklabels(labels, rotation='-50', ha='left')
 
-                ylabel = 'CC'
                 ax.set_ylim(0, 100)
                 ylabel = 'Found Nodes (%)'
                 ax.set_ylabel(ylabel)
 
                 plt.tight_layout()
-                # plt.show()
                 fname = data_set.label + '_' + scenario.lower().replace(' ', '_')
                 fpath = os.path.join('plots', fname)
                 for ftype in self.plot_file_types:
