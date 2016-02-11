@@ -661,18 +661,40 @@ class Evaluator(object):
         # figlegend.savefig('plots/nav_legend.pdf')
 
         # plot the scenarios
+        x_vals = [1, 2, 4, 5, 7, 8, 10, 11]
         for scenario in Mission.missions:
+            print(scenario)
             for data_set in self.data_sets:
+                print('   ', data_set.label)
                 fig, ax = plt.subplots(1, figsize=(6, 3))
+
+                # plot optimal solutions
                 bar_vals = []
                 for graph_type in self.graph_order:
                     rec_type = self.label2rec_type[graph_type]
                     for nidx, N in enumerate(n_vals):
                         g = data_set.folder_graphs + '/' + rec_type +\
                                 '_' + str(N) + '.gt'
+                        bar_vals.append(data_set.missions[rec_type][g]['optimal'][scenario][-1])
+                bars = ax.bar(x_vals, bar_vals, align='center', color='#EFEFEF')
+
+                # Beautification
+                for bidx, bar in enumerate(bars):
+                    # bar.set_fill(False)
+                    bar.set_edgecolor('#AAAAAA')
+
+                # plot simulation results
+                bar_vals = []
+                for graph_type in self.graph_order:
+                    print('       ', graph_type)
+                    rec_type = self.label2rec_type[graph_type]
+                    for nidx, N in enumerate(n_vals):
+                        g = data_set.folder_graphs + '/' + rec_type +\
+                                '_' + str(N) + '.gt'
                         bar_vals.append(data_set.missions[rec_type][g]['title'][scenario][-1])
-                        print(graph_type, rec_type, N, bar_vals[-1])
-                x_vals = [1, 2, 4, 5, 7, 8, 10, 11]
+                        r = data_set.missions[rec_type][g]['random'][scenario][-1]
+                        o = data_set.missions[rec_type][g]['optimal'][scenario][-1]
+                        print('            %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
                 bars = ax.bar(x_vals, bar_vals, align='center')
 
                 # Beautification
@@ -691,7 +713,6 @@ class Evaluator(object):
                 ax.set_ylim(0, 100)
                 ylabel = 'Found Nodes (%)'
                 ax.set_ylabel(ylabel)
-
                 plt.tight_layout()
                 fname = data_set.label + '_' + scenario.lower().replace(' ', '_')
                 fpath = os.path.join('plots', fname)

@@ -239,5 +239,5 @@ def condense_data(user_ratings=5, movie_ratings=20):
 if __name__ == '__main__':
     # create_database()
     # populate_database()
-    # add_text()
+    add_text()
     ## condense_data()
