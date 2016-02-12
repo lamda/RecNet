@@ -199,30 +199,30 @@ class Plotter(object):
         #     for ftype in self.plot_file_types:
         #         plt.savefig(fpath + ftype)
         #     plt.close()
-        plot_ecc_legend()
-        # for gidx, graph_type in enumerate(self.graph_order):
-        #     fig, ax = plt.subplots(1, figsize=(6, 3))
-        #     vals = [self.graph_data[graph_name]['lc_ecc']
-        #             for graph_name in self.graphs[graph_type]]
-        #
-        #     for vidx, val, in enumerate(vals):
-        #         val = [100 * v / sum(val) for v in val]
-        #         bars = ax.bar(range(len(val)), val, color=self.colors[gidx], lw=2)
-        #         # Beautification
-        #         for bidx, bar in enumerate(bars):
-        #             bar.set_fill(False)
-        #             bar.set_hatch(self.hatches[vidx])
-        #             bar.set_edgecolor(self.colors[gidx])
-        #     ax.set_xlim(0, 40)
-        #     ax.set_ylim(0, 100)
-        #     ax.set_xlabel('Eccentricity')
-        #     ax.set_ylabel('Fraction of Nodes')
-        #     plt.title(self.rec_type2label[graph_type])
-        #     plt.tight_layout()
-        #     fpath = os.path.join(self.plot_folder, self.label + '_' + graph_type + '_ecc')
-        #     for ftype in self.plot_file_types:
-        #         plt.savefig(fpath + ftype)
-        #     plt.close()
+        # plot_ecc_legend()
+        for gidx, graph_type in enumerate(self.graph_order):
+            fig, ax = plt.subplots(1, figsize=(6, 3))
+            vals = [self.graph_data[graph_name]['lc_ecc']
+                    for graph_name in self.graphs[graph_type]]
+
+            for vidx, val, in enumerate(vals):
+                val = [100 * v / sum(val) for v in val]
+                bars = ax.bar(range(len(val)), val, color=self.colors[gidx], lw=2)
+                # Beautification
+                for bidx, bar in enumerate(bars):
+                    bar.set_fill(False)
+                    bar.set_hatch(self.hatches[vidx])
+                    bar.set_edgecolor(self.colors[gidx])
+            ax.set_xlim(0, 40)
+            ax.set_ylim(0, 100)
+            ax.set_xlabel('Eccentricity')
+            ax.set_ylabel('Fraction of Nodes')
+            plt.title(self.rec_type2label[graph_type])
+            plt.tight_layout()
+            fpath = os.path.join(self.plot_folder, self.label + '_' + graph_type + '_ecc')
+            for ftype in self.plot_file_types:
+                plt.savefig(fpath + ftype)
+            plt.close()
 
     def plot_bow_tie(self):
         # TODO FIXME legend plotting doesn't work
@@ -244,44 +244,44 @@ class Plotter(object):
         # for ftype in self.plot_file_types:
         #     figlegend.savefig(os.path.join('plots', 'bowtie_legend' + ftype))
 
-        bar_x = [x - 0.25 for x in self.bar_x]
-        for graph_type in self.graphs:
-            fig, ax = plt.subplots(1, figsize=(10, 5))
-            bar_vals = [self.graph_data[graph_name]['bow_tie']
-                        for graph_name in self.graphs[graph_type]]
-            labels = ['inc', 'scc', 'outc',
-                      'in_tendril', 'out_tendril', 'tube', 'other']
-            bars = []
-            bottom = np.zeros(2 * self.graph_types)
-            for idx, label in enumerate(labels):
-                vals = [v[idx] for v in bar_vals]
-                p = plt.bar(bar_x, vals, bottom=bottom,
-                            edgecolor='white', color=self.colors_set2[idx],
-                            align='center')
-                bottom += vals
-                bars.append(p)
-                for bidx, bar in enumerate(p):
-                    bar.set_hatch(self.hatches[idx % 4])
+        fig, ax = plt.subplots(1, figsize=(6, 3))
+        x_vals = [1, 2, 4, 5, 7, 8, 10, 11]
+        bar_x = [x - 0.25 for x in x_vals]
+        bar_vals = []
+        for graph_type in self.graph_order:
+            bar_vals += [self.graph_data[graph_name]['bow_tie']
+                         for graph_name in self.graphs[graph_type]]
+        bars = []
+        labels = ['IN', 'SCC', 'OUT', 'TL_IN', 'TL_OUT', 'TUBE', 'OTHER']
+        bottom = np.zeros(2 * len(self.graph_order))
+        for idx, label in enumerate(labels):
+            vals = [v[idx] for v in bar_vals]
+            p = plt.bar(bar_x, vals, bottom=bottom,
+                        edgecolor='white', color=self.colors_set2[idx],
+                        align='center')
+            bottom += vals
+            bars.append(p)
+            for bidx, bar in enumerate(p):
+                bar.set_hatch(self.hatches[idx % 4])
 
-            # Beautification
-            ax.set_ylabel('Component Membership')
-            ax.set_xlim(0.25, 2 * self.graph_types + 1.75)
-            ax.set_xticks(bar_x)
-            ax.set_xticklabels(self.graph_labels[graph_type],
-                               rotation='-50', ha='left')
+        # Beautification
+        ax.set_ylabel('Component Membership')
+        ax.set_xlim(0.25, 3 * len(self.graph_order))
+        ax.set_xticks(bar_x)
+        labels = [g for k in self.graph_order for g in self.graph_labels[k]]
+        ax.set_xticklabels(labels, rotation='-50', ha='left')
 
-            ax.set_ylim(0, 105)
+        ax.set_ylim(0, 105)
 
-            # plt.legend((p[0] for p in bars), labels, loc='center left',
-            #            bbox_to_anchor=(1, 0.5))
-            plt.tight_layout()
-            # fig.subplots_adjust(right=0.73)
-            # plt.show()
-            fpath = os.path.join(self.plot_folder, self.label + '_' +
-                                 'bowtie_' + graph_type)
-            for ftype in self.plot_file_types:
-                plt.savefig(fpath + ftype)
-            plt.close()
+        # plt.legend((p[0] for p in bars), labels, loc='center left',
+        #            bbox_to_anchor=(1, 0.5))
+        plt.tight_layout()
+        # fig.subplots_adjust(right=0.73)
+        # plt.show()
+        fpath = os.path.join(self.plot_folder, self.label + '_' + 'bowtie')
+        for ftype in self.plot_file_types:
+            plt.savefig(fpath + ftype)
+        plt.close()
 
     def plot_alluvial(self):
         """ produce an alluvial diagram (sort of like a flow chart) for the
@@ -374,8 +374,8 @@ if __name__ == '__main__':
         # 'cp_count',
         # 'cp_size',
         # 'cc',
-        'ecc',
-        # 'bow_tie',
+        # 'ecc',
+        'bow_tie',
         # 'bow_tie_alluvial',
     ]
     for sf in [
