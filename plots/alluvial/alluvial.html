@@ -29,123 +29,6 @@
 <body>
 <script src="data.js" type="text/javascript"></script>
 <script type="text/javascript">
-/* Make Fake Data
-
-var data = (function() {
-    var maxt = 6,
-            maxn = 12,
-            maxl = 4,
-            maxv = 10,
-            times = [],
-            allLinks = [],
-            counter = 0,
-            addNodes = function() {
-                var ncount = 5,
-                        nodes = d3.range(0, ncount).map(function(n) {
-                            return {
-                                id: counter++,
-                                nodeName: "Node " + n,
-                                nodeValue: 0,
-                                incoming: []
-                            }
-                        });
-                times.push(nodes);
-                return nodes;
-            },
-            addNext = function() {
-                var current = times[times.length-1],
-                        nextt = addNodes();
-                // make links
-                current.forEach(function(n) {
-                    var linkCount = Math.min(~~(Math.random() * maxl + 1), nextt.length),
-                            breaks = d3.range(linkCount-1)
-                                    .map(function() { return Math.random() * n.nodeValue })
-                                    .sort(d3.ascending),
-                            links = {},
-                            target, link, x;
-                    for (x=0; x<linkCount; x++) {
-                        do {
-                            target = nextt[~~(Math.random() * nextt.length)];
-                        } while (target.id in links);
-                        // add link
-                        link = {
-                            source: n.id,
-                            target: target.id,
-                            value: (breaks[x] || n.nodeValue) - (breaks[x-1] || 0)
-                        };
-                        links[target.id] = link;
-                        allLinks.push(link);
-                        target.nodeValue += link.value;
-                    }
-                });
-                // prune next
-                times[times.length-1] = nextt.filter(function(n) { return n.nodeValue });
-            }
-    // initial set
-    addNodes().forEach(function(n) {
-        n.nodeValue = Math.random() * maxv + 1;
-    });
-    // now add rest
-    for (var t=0; t<maxt-1; t++) {
-        addNext();
-    }
-
-    return {
-        times: times,
-        links: allLinks
-    };
-})();
-
-data = {
-    // list of time slots t1 through tn
-    times: [
-        // list of t1 nodes
-        [
-            {
-                nodeName: "Node 1",
-                id: 1,
-                nodeValue: 24332
-            },
-            {
-                nodeName: "Node 2",
-                id: 2,
-                nodeValue: 2432
-            },
-            {
-                nodeName: "Node 3",
-                id: 3,
-                nodeValue: 2232
-            }
-        ],
-        [
-            {
-                nodeName: "Node 1",
-                id: 4,
-                nodeValue: 332
-            },
-            {
-                nodeName: "Node 2",
-                id: 5,
-                nodeValue: 832
-            }
-        ]
-        // etc ...
-    ],
-    // list of all links
-    links: [
-        {
-            source: 1, // id of source node
-            target: 4, // id of target node
-            value: 313
-        },
-        {
-            source: 1, // id of source node
-            target: 5, // id of target node
-            value: 323
-        },
-        // ... etc
-    ]
-}*/
 
 /* Process Data */
 
@@ -222,7 +105,7 @@ var maxn = d3.max(data, function(t) { return t.length }),
 
 // settings and scales
 var w = 1000,
-        h = 250,
+        h = 300,
         gapratio = .675,
         padding = 15,
         x = d3.scale.ordinal()
@@ -230,7 +113,7 @@ var w = 1000,
                 .rangeBands([0, w], gapratio),
         y = d3.scale.linear()
                 .domain([0, maxv])
-                .range([0, h - padding * maxn]),
+                .range([0, h - padding * maxn - 75]),
         line = d3.svg.line()
                 .interpolate('basis');
 
@@ -252,7 +135,6 @@ var nodes = times.selectAll('g.node')
         .data(function(d) { console.log(d); return d; })
         .enter().append('svg:g')
         .attr('class', 'node');
-
 
 var label2color = {
     "IN": "#66C2A5",
@@ -276,11 +158,11 @@ var links = nodes.selectAll('path.link')
                     bandWidth = x.rangeBand() + gapWidth,
                     sourcey = y(source.offsetValue) +
                             source.order * padding +
-                            y(l.outOffset) +
+                            y(l.outOffset) + 10 +
                             y(l.value)/2,
                     targety = y(target.offsetValue) +
                             target.order * padding +
-                            y(l.inOffset) +
+                            y(l.inOffset) + 10 +
                             y(l.value)/2,
                     points = [
                         [ x.rangeBand(), sourcey ],
@@ -290,14 +172,18 @@ var links = nodes.selectAll('path.link')
                     ];
             return line(points);
         })
-        .style('stroke-width', function(l) { return y(l.value) })
+        .style('stroke-width', function(l) {
+            if ((l.value > 1) && (l.value < 10))
+                return y(l.value) + 0.25;
+            return y(l.value)
+        })
 
 nodes.append('svg:rect')
         .attr('fill', function(d) {
             return label2color[d.nodeLabel];
         })
         .attr('y', function(n, i) {
-            return y(n.offsetValue) + i * padding;
+            return y(n.offsetValue) + i * padding + 10;
         })
         .attr('width', x.rangeBand())
         .attr('height', function(n) { return y(n.nodeValue) })
@@ -307,10 +193,43 @@ nodes.append('svg:rect')
 nodes.append('svg:text')
         .attr({
             y: function(d, i) {
-                return y(d.nodeValue/2 + d.offsetValue) + i * padding - 5;
+                //return y(d.nodeValue/2 + d.offsetValue) + i * padding + 5 + 50;
+                return 245;
             },
             x: function(d) {
-                return x(0) - 100 - w / 7.5 * gapratio;
+                return x(0) - w / 7.5 * gapratio;
+            },
+            "font-family": "Helvetica",
+            "font-size": "15px",
+            fill: "black",
+            "text-anchor": "middle",
+            //"font-weight": "bold",
+            "paddingLeft": "20px",
+            "dominant-baseline": "hanging"
+        })
+        .text(function(d) {
+            if (d.nodeLabel == 'SCC') {
+                if (d.id == 1)
+                    return "N = 1";
+                if (d.id == 8)
+                    return "N = 5";
+                if (d.id == 15)
+                    return "N = 10";
+                if (d.id == 22)
+                    return "N = 15";   
+                if (d.id == 29)
+                    return "N = 20";
+                }
+            else
+                return '';})        
+        
+nodes.append('svg:text')
+        .attr({
+            y: function(d, i) {
+                return y(d.nodeValue/2 + d.offsetValue) + i * padding + 5;
+            },
+            x: function(d) {
+                return x(0) - w / 7.5 * gapratio;
             },
             "font-family": "Helvetica",
             "font-size": "15px",

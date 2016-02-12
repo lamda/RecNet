@@ -67,7 +67,7 @@ class Graph(object):
             for line in infile:
                 node, nb = line.strip().split('\t')
                 nodes.add(node)
-                nodes.update(nb)
+                nodes.add(nb)
         return nodes
 
     def get_recommenders_from_adjacency_list(self):
@@ -79,7 +79,7 @@ class Graph(object):
 
     def load_nodes_from_adjacency_list(self):
         nodes = self.get_all_nodes_from_adjacency_list()
-        for node in nodes:
+        for node in sorted(nodes):
             v = self.name2node[node]
             self.names[v] = node
         self.graph.vp['name'] = self.names
@@ -111,6 +111,7 @@ class Graph(object):
         stats['cc'] = self.clustering_coefficient()
         stats['cp_size'], stats['cp_count'] = self.largest_component()
         stats['bow_tie'] = self.bow_tie()
+        stats['bow_tie_changes'] = self.compute_bowtie_changes()
         stats['lc_ecc'] = self.eccentricity()
 
         print('saving...')
@@ -132,6 +133,7 @@ class Graph(object):
         # stats['cp_size'], stats['cp_count'] = self.largest_component()
         # print('SCC size:', stats['cp_size'] * self.graph.num_vertices())
         stats['bow_tie'] = self.bow_tie()
+        stats['bow_tie_changes'] = self.compute_bowtie_changes()
 
         print('saving...')
         with open(self.stats_file_path, 'wb') as outfile:
@@ -187,15 +189,15 @@ class Graph(object):
         graph_reversed = gt.GraphView(self.graph, reversed=True)
 
         outc = np.nonzero(gt.label_out_component(self.graph, scc_node).a)[0]
-        inc = \
-        np.nonzero(gt.label_out_component(graph_reversed, scc_node).a)[0]
+        inc = np.nonzero(gt.label_out_component(graph_reversed, scc_node).a)[0]
         outc = set(outc) - scc
         inc = set(inc) - scc
 
         # Tubes, Tendrils and Other
-        wcc = gt.label_largest_component(self.graph, directed=False).a
-        pdb.set_trace()
-        wcc = set(np.nonzero(wcc)[0])
+        wcc_view = gt.GraphView(self.graph, directed=False)
+        # wcc = gt.label_largest_component(self.graph, scc, directed=False).a
+        # wcc = set(np.nonzero(wcc)[0])
+        wcc = set(np.nonzero(gt.label_out_component(wcc_view, scc_node).a)[0])
         tube = set()
         out_tendril = set()
         in_tendril = set()
@@ -234,9 +236,32 @@ class Graph(object):
         self.save()
 
         bow_tie = [inc, scc, outc, in_tendril, out_tendril, tube, other]
-        bow_tie = [100 * len(x) / self.graph.num_vertices() for x in
-                   bow_tie]
+        bow_tie = [100 * len(x) / self.graph.num_vertices() for x in bow_tie]
         return bow_tie
+
+    def compute_bowtie_changes(self):
+        labels = ['IN', 'SCC', 'OUT', 'TL_IN', 'TL_OUT', 'TUBE', 'OTHER']
+        comp2num = {l: i for l, i in zip(labels, range(len(labels)))}
+        if self.N == 1:
+            return None
+        elif self.N == 5:
+            prev_N = 1
+        else:
+            prev_N = self.N - 5
+        prev_gt_file_path = self.gt_file_path.split('_')[0] +\
+            '_' + unicode(prev_N) + '.gt'
+        prev_graph = gt.load_graph(prev_gt_file_path, fmt='gt')
+
+        changes = np.zeros((len(labels), len(labels)))
+        for node in self.graph.vertices():
+            c1 = comp2num[self.graph.vp['bowtie'][node]]
+            try:
+                c2 = comp2num[prev_graph.vp['bowtie'][node]]
+            except KeyError:
+                c2 = comp2num['OTHER']
+            changes[c1, c2] += 1
+        changes /= prev_graph.num_vertices()
+        return changes
 
     def eccentricity(self, use_sample=False):
         component, histogram = gt.label_components(self.graph)
@@ -265,46 +290,20 @@ class Graph(object):
         return ecc
 
 
-def compute_bowtie_changes(dataset, rec_type, div_types, N):
-    labels = ['IN', 'SCC', 'OUT', 'TL_IN', 'TL_OUT', 'TUBE', 'OTHER']
-    comp2num = {l: i for l, i in zip(labels, range(len(labels)))}
-    graph_folder = os.path.join('data', dataset, 'graphs')
-    gt_file_path = os.path.join(graph_folder,
-                                rec_type + '_' + unicode(N) + '.gt')
-    graph = gt.load_graph(gt_file_path, fmt='gt')
-    graph_name = rec_type + '_' + unicode(N)
-    stats = {}
-    for div_type in div_types:
-        fpath_div = os.path.join(
-            graph_folder,
-            rec_type + '_' + unicode(N) + div_type + '.gt'
-        )
-        graph_div = gt.load_graph(fpath_div, fmt='gt')
-        graph_div_name = rec_type + '_' + unicode(N) + div_type
-        changes = np.zeros((len(labels), len(labels)))
-        for node in graph.vertices():
-            c1 = comp2num[graph.vp['bowtie'][node]]
-            try:
-                c2 = comp2num[graph_div.vp['bowtie'][node]]
-            except KeyError:
-                c2 = comp2num['OTHER']
-            changes[c1, c2] += 1
-        changes /= graph_div.num_vertices()
-        stats[graph_div_name] = changes
-    return graph_name, stats
-
-
 if __name__ == '__main__':
+    np.set_printoptions(precision=3)
+    np.set_printoptions(suppress=True)
+
     datasets = [
         'movielens',
-        # 'bookcrossing',
+        'bookcrossing',
     ]
     rec_types = [
         # 'cb',
-        'rb',
-        'rbmf',
         'rbar',
+        'rb',
         'rbiw',
+        'rbmf',
     ]
     div_types = [
         '',
@@ -313,9 +312,10 @@ if __name__ == '__main__':
         # '_div_exprel'
     ]
     Ns = [
+        1,
         5,
-        # 10,
-        # 15,
+        10,
+        15,
         20
     ]
     bowtie_stats = {}
@@ -329,10 +329,3 @@ if __name__ == '__main__':
                     g.load_graph()
                     # g.compute_stats()
                     g.update_stats()
-        #         graph_name, stats = compute_bowtie_changes(dataset=dataset, N=N,
-        #                                                    rec_type=rec_type,
-        #                                                    div_types=div_types)
-        #         bowtie_stats[graph_name] = stats
-        # ofpath = os.path.join('data', dataset, 'stats', 'bowtie_changes.obj')
-        # with open(ofpath, 'wb') as outfile:
-        #     pickle.dump(bowtie_stats, outfile, -1)

@@ -25,7 +25,8 @@ DEBUG = False
 DEBUG_SIZE = 255
 # DEBUG_SIZE = 750
 DATA_BASE_FOLDER = 'data'
-NUMBER_OF_RECOMMENDATIONS = [5, 10, 15, 20]
+# NUMBER_OF_RECOMMENDATIONS = [1, 5, 10, 15, 20]
+NUMBER_OF_RECOMMENDATIONS = [1]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4
 NUMBER_OF_POTENTIAL_RECOMMENDATIONS = 50  # should be 50
 
@@ -268,9 +269,9 @@ class Recommender(object):
     def get_recommendations(self):
         strategies = [
             TopNRecommendationStrategy,
-            TopNDivRandomRecommendationStrategy,
-            TopNDivDiversifyRecommendationStrategy,
-            TopNDivExpRelRecommendationStrategy,
+            # TopNDivRandomRecommendationStrategy,
+            # TopNDivDiversifyRecommendationStrategy,
+            # TopNDivExpRelRecommendationStrategy,
         ]
 
         for strategy in strategies:
@@ -708,14 +709,14 @@ if __name__ == '__main__':
 
     for dataset in [
         'movielens',
-        # 'bookcrossing',
+        'bookcrossing',
         # 'imdb',
     ]:
         ## r = ContentBasedRecommender(dataset=dataset)
-        r = RatingBasedRecommender(dataset=dataset)
-        # r = AssociationRuleRecommender(dataset=dataset)
-        # r = MatrixFactorizationRecommender(dataset=dataset)
-        # r = InterpolationWeightRecommender(dataset=dataset)
+        # r = RatingBasedRecommender(dataset=dataset, load_cached=True)
+        # r = AssociationRuleRecommender(dataset=dataset, load_cached=True)
+        # r = MatrixFactorizationRecommender(dataset=dataset, load_cached=True)
+        r = InterpolationWeightRecommender(dataset=dataset, load_cached=True)
 
         r.get_recommendations()
 
