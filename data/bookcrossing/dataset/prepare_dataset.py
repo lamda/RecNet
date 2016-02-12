@@ -540,7 +540,6 @@ def add_text():
         conn.commit()
 
 
-
 def add_title_to_text():
     db_file = os.path.join('..', 'database_new.db')
     conn = sqlite3.connect(db_file)

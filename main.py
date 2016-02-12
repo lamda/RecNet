@@ -707,8 +707,8 @@ if __name__ == '__main__':
     start_time = datetime.now()
 
     for dataset in [
-        # 'movielens',
-        'bookcrossing',
+        'movielens',
+        # 'bookcrossing',
         # 'imdb',
     ]:
         ## r = ContentBasedRecommender(dataset=dataset)

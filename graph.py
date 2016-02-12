@@ -128,10 +128,10 @@ class Graph(object):
         #       0.01 * stats['cp_size'] * stats['graph_size'] / 100)
         # print(100 * stats['recommenders'] / stats['graph_size'])
         # stats['cp_size'], stats['cp_count'] = self.largest_component()
-        stats['lc_ecc'] = self.eccentricity()
+        # stats['lc_ecc'] = self.eccentricity()
         # stats['cp_size'], stats['cp_count'] = self.largest_component()
         # print('SCC size:', stats['cp_size'] * self.graph.num_vertices())
-        # stats['bow_tie'] = self.bow_tie()
+        stats['bow_tie'] = self.bow_tie()
 
         print('saving...')
         with open(self.stats_file_path, 'wb') as outfile:
@@ -194,6 +194,7 @@ class Graph(object):
 
         # Tubes, Tendrils and Other
         wcc = gt.label_largest_component(self.graph, directed=False).a
+        pdb.set_trace()
         wcc = set(np.nonzero(wcc)[0])
         tube = set()
         out_tendril = set()
