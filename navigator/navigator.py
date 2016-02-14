@@ -777,15 +777,15 @@ n_vals = [
 
 
 if __name__ == '__main__':
-    # for dataset in [
-    #     # 'movielens',
-    #     'bookcrossing',
-    # ]:
-    #     dataset = DataSet(dataset, rec_types, div_types)
-    #     nav = Navigator(dataset)
-    #     print('running...')
-    #     nav.run()
+    for dataset in [
+        # 'movielens',
+        'bookcrossing',
+    ]:
+        dataset = DataSet(dataset, rec_types, div_types)
+        nav = Navigator(dataset)
+        print('running...')
+        nav.run()
 
-    evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
-    evaluator.plot_bar()
+    # evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
+    # evaluator.plot_bar()
 

@@ -104,7 +104,7 @@ var maxn = d3.max(data, function(t) { return t.length }),
 /* Make Vis */
 
 // settings and scales
-var w = 1000,
+var w = 800,
         h = 300,
         gapratio = .675,
         padding = 15,
@@ -200,7 +200,7 @@ nodes.append('svg:text')
                 return x(0) - w / 7.5 * gapratio;
             },
             "font-family": "Helvetica",
-            "font-size": "15px",
+            "font-size": "17px",
             fill: "black",
             "text-anchor": "middle",
             //"font-weight": "bold",
@@ -232,7 +232,12 @@ nodes.append('svg:text')
                 return x(0) - w / 7.5 * gapratio;
             },
             "font-family": "Helvetica",
-            "font-size": "15px",
+            //"font-size": "17px",
+            "font-size": function(d) {
+                if (d.nodeLabel == "OTHER")
+                    return "12px";
+                return "17px";
+            },
             fill: "black",
             "text-anchor": "middle",
             //"font-weight": "bold",
