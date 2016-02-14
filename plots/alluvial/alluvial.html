@@ -152,6 +152,8 @@ var links = nodes.selectAll('path.link')
         .enter().append('svg:path')
         .attr('class', 'link')
         .attr('d', function(l, i) {
+            if (l.value < 1)
+                return;
             var source = nodeMap[l.source],
                     target = nodeMap[l.target],
                     gapWidth = x(0),
