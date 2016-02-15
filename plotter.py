@@ -200,16 +200,17 @@ class Plotter(object):
         #         plt.savefig(fpath + ftype)
         #     plt.close()
         # plot_ecc_legend()
-        pdb.set_trace()
-
 
         for gidx, graph_type in enumerate(self.graph_order):
-            fig, ax = plt.subplots(1, figsize=(6, 3))
+            fig, ax = plt.subplots(1, figsize=(6.25, 2.5))
             vals = [self.graph_data[graph_name]['lc_ecc']
                     for graph_name in self.graphs[graph_type]]
-
+            print(graph_type)
             for vidx, val, in enumerate(vals):
                 val = [100 * v / sum(val) for v in val]
+                for v in val:
+                    print('%.2f, ' % v, end='')
+                print()
                 bars = ax.bar(range(len(val)), val, color=self.colors[gidx], lw=2)
                 # Beautification
                 for bidx, bar in enumerate(bars):
@@ -219,32 +220,8 @@ class Plotter(object):
             ax.set_xlim(0, 40)
             ax.set_ylim(0, 100)
             ax.set_xlabel('Eccentricity')
-            ax.set_ylabel('Fraction of Nodes')
-            plt.title(self.rec_type2label[graph_type])
-            plt.tight_layout()
-            fpath = os.path.join(self.plot_folder, self.label + '_' + graph_type + '_ecc')
-            for ftype in self.plot_file_types:
-                plt.savefig(fpath + ftype)
-            plt.close()
-        # plot_ecc_legend()
-        for gidx, graph_type in enumerate(self.graph_order):
-            fig, ax = plt.subplots(1, figsize=(6, 3))
-            vals = [self.graph_data[graph_name]['lc_ecc']
-                    for graph_name in self.graphs[graph_type]]
-
-            for vidx, val, in enumerate(vals):
-                val = [100 * v / sum(val) for v in val]
-                bars = ax.bar(range(len(val)), val, color=self.colors[gidx], lw=2)
-                # Beautification
-                for bidx, bar in enumerate(bars):
-                    bar.set_fill(False)
-                    bar.set_hatch(self.hatches[vidx])
-                    bar.set_edgecolor(self.colors[gidx])
-            ax.set_xlim(0, 40)
-            ax.set_ylim(0, 100)
-            ax.set_xlabel('Eccentricity')
-            ax.set_ylabel('Fraction of Nodes')
-            plt.title(self.rec_type2label[graph_type])
+            ax.set_ylabel('% of Nodes')
+            # plt.title(self.rec_type2label[graph_type])
             plt.tight_layout()
             fpath = os.path.join(self.plot_folder, self.label + '_' + graph_type + '_ecc')
             for ftype in self.plot_file_types:
@@ -486,19 +463,19 @@ class Plotter(object):
 
 if __name__ == '__main__':
     n_vals = [
-            '1',
+            # '1',
             '5',
-            '10',
-            '15',
+            # '10',
+            # '15',
             '20',
         ]
     to_plot = [
         # 'cp_count',
         # 'cp_size',
         # 'cc',
-        # 'ecc',
+        'ecc',
         # 'bow_tie',
-        'bow_tie_alluvial',
+        # 'bow_tie_alluvial',
     ]
     for sf in [
         'movielens',

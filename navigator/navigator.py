@@ -191,8 +191,6 @@ class Strategy(object):
     strategies = [
         u'random',
         u'title',
-        u'neighbors',
-        # u'wp_neighbors',  # not working anymore for now
         u'optimal'
     ]
 
@@ -703,6 +701,16 @@ class Evaluator(object):
                     bar.set_hatch(self.hatches[bidx % 2])
                     bar.set_edgecolor(self.colors[int(bidx/2)])
 
+                # plot random walk solutions (as a dot)
+                bar_vals = []
+                for graph_type in self.graph_order:
+                    rec_type = self.label2rec_type[graph_type]
+                    for nidx, N in enumerate(n_vals):
+                        g = data_set.folder_graphs + '/' + rec_type +\
+                                '_' + str(N) + '.gt'
+                        bar_vals.append(data_set.missions[rec_type][g]['random'][scenario][-1])
+                ax.plot(x_vals, bar_vals, c='black', ls='', marker='.', ms=10)
+
                 ax.set_xlim(0.25, 3 * len(self.graphs))
                 ax.set_xticks([x - 0.25 for x in x_vals])
                 for tic in ax.xaxis.get_major_ticks():
@@ -777,15 +785,15 @@ n_vals = [
 
 
 if __name__ == '__main__':
-    for dataset in [
-        # 'movielens',
-        'bookcrossing',
-    ]:
-        dataset = DataSet(dataset, rec_types, div_types)
-        nav = Navigator(dataset)
-        print('running...')
-        nav.run()
+    # for dataset in [
+    #     # 'movielens',
+    #     'bookcrossing',
+    # ]:
+    #     dataset = DataSet(dataset, rec_types, div_types)
+    #     nav = Navigator(dataset)
+    #     print('running...')
+    #     nav.run()
 
-    # evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
-    # evaluator.plot_bar()
+    evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
+    evaluator.plot_bar()
 
