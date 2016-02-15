@@ -208,8 +208,11 @@ class Plotter(object):
             print(graph_type)
             for vidx, val, in enumerate(vals):
                 val = [100 * v / sum(val) for v in val]
-                for v in val:
+                av = 0
+                for vidx2, v in enumerate(val):
                     print('%.2f, ' % v, end='')
+                    av += vidx2 * v
+                print('average = %.2f' % (av/100))
                 print()
                 bars = ax.bar(range(len(val)), val, color=self.colors[gidx], lw=2)
                 # Beautification
@@ -478,7 +481,7 @@ if __name__ == '__main__':
         # 'bow_tie_alluvial',
     ]
     for sf in [
-        'movielens',
+        # 'movielens',
         'bookcrossing',
     ]:
         p = Plotter(sf, to_plot=to_plot)
