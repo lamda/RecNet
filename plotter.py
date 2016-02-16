@@ -473,7 +473,7 @@ if __name__ == '__main__':
             '20',
         ]
     to_plot = [
-        'cp_count',
+        # 'cp_count',
         'cp_size',
         # 'cc',
         # 'ecc',

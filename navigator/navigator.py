@@ -695,9 +695,8 @@ class Evaluator(object):
                         r = data_set.missions[rec_type][g]['random'][scenario][-1]
                         o = data_set.missions[rec_type][g]['optimal'][scenario][-1]
                         bar_vals.append(s)
-                        if N == 20:
-                            print('%.2f' % s)
-                        # print('            %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
+                        hugo.append(r)
+                        print('            %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
                 bars = ax.bar(x_vals, bar_vals, align='center')
 
                 # Beautification
@@ -732,6 +731,9 @@ class Evaluator(object):
                 for ftype in self.plot_file_types:
                     plt.savefig(fpath + ftype)
                 plt.close()
+        # print('simulations were on average %.2f times better than the random walks' % np.average(hugo))
+        #     print('random walks averge is %.2f' % np.average(hugo))
+
     def plot_sample(self):
         """plot and save an example evaluation showing all types of background
         knowledge used in the simulations
