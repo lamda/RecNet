@@ -57,8 +57,8 @@ class Plotter(object):
             os.makedirs(self.plot_folder)
         self.load_graph_data()
         self.plot_file_types = [
-            '.png',
-            # '.pdf',
+            # '.png',
+            '.pdf',
         ]
 
         if 'cp_size' in to_plot:
@@ -123,83 +123,24 @@ class Plotter(object):
         plt.close()
 
     def plot_ecc(self):
-        def plot_ecc_legend_old(label, color):
-            # plot the legend in a separate plot
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-            lines = [plt.plot([0, 1], [1, 2])[0] for i in range(self.graph_types)]
-            for lidx, l in enumerate(lines):
-                l.set_color(color)
-                l.set_linestyle(self.linestyles[lidx])
-                l.set_linewidth(3)
-            figlegend = plt.figure(figsize=(2, 2.5))
-            labels = ['Unmodified'] + [l[2:] for l in self.div_labels[1:]]
-            leg = figlegend.legend(lines, labels, ncol=1)
-            # leg.get_frame().set_linewidth(0.0)
-            fig.subplots_adjust(left=0.19, bottom=0.06, right=0.91, top=0.92,
-                                wspace=0.34, hspace=0.32)
-            for ftype in self.plot_file_types:
-                figlegend.savefig(os.path.join('plots', 'ecc_legend_' +
-                                               label + ftype))
-
-        def plot_ecc_legend():
-            # plot the legend in a separate plot
-            fig = plt.figure()
-            figlegend = plt.figure(figsize=(3,2))
-            ax = fig.add_subplot(111)
-            # lines = ax.plot(range(10), range(10), range(10), range(10))
-            patches = ax.bar([0, 1], [0, 1])
-            plt.close(figlegend)
-            figlegend.legend(patches.get_children(), ('one', 'two'), 'center')
-            figlegend.savefig('plots/legend.png')
-
-            # fig = plt.figure()
-            # ax = fig.add_subplot(111)
-            # labels = ['N = 5', 'N = 20']
-            # patches = [ax.bar([0], [0], label=labels[i]) for i in range(2)]
-            # for pidx, p in enumerate(patches):
-            #     p[0].set_fill(False)
-            #     p[0].set_edgecolor('black')
-            #     p[0].set_hatch(self.hatches[pidx])
-            # figlegend = plt.figure(figsize=(7.75, 0.465))
-            # pdb.set_trace()
-            # figlegend.legend(patches, ['N = 5', 'N = 20'], ncol=2)
-            # # fig.subplots_adjust(left=0.19, bottom=0.06, right=0.91, top=0.92,
-            # #                     wspace=0.34, hspace=0.32)
-            # plt.show()
-            # figlegend.savefig('plots/nav_legend.pdf')
-
-        # import seaborn.apionly as sns  # apionly doesn't change style
-        # for gidx, graph_type in enumerate(self.graph_order):
-        #     fig, ax = plt.subplots(1, figsize=(10, 5))
-        #     vals = [self.graph_data[graph_name]['lc_ecc']
-        #             for graph_name in self.graphs[graph_type]]
-        #     for vidx, val, in enumerate(vals):
-        #         vs = [[idx] * v for idx, v in enumerate(val) if v]
-        #         vs = reduce(lambda x, y: x + y, vs)
-        #         ax = sns.distplot(vs, bins=range(40), color=self.colors[gidx],
-        #                           kde_kws={'bw': 0.5},
-        #                           hist_kws={'align': 'left', 'lw': 3})
-        #     bars = [rect for rect in ax.get_children()
-        #             if isinstance(rect, matplotlib.patches.Rectangle)]
-        #     # Beautification
-        #     for bidx, bar in enumerate(bars[:40]):
-        #         bar.set_fill(False)
-        #         bar.set_hatch(self.hatches[0])
-        #         bar.set_edgecolor(self.colors[gidx])
-        #     for bidx, bar in enumerate(bars[40:-1]):
-        #         bar.set_fill(False)
-        #         bar.set_hatch(self.hatches[1])
-        #         bar.set_edgecolor(self.colors[gidx])
-        #     ax.set_xlim(0, 40)
-        #     plt.tight_layout()
-        #     # plt.show()
-        #     fpath = os.path.join(self.plot_folder,
-        #                          self.label + '_' + graph_type + '_ecc')
-        #     for ftype in self.plot_file_types:
-        #         plt.savefig(fpath + ftype)
-        #     plt.close()
         # plot_ecc_legend()
+        fig = plt.figure()
+        figlegend = plt.figure(figsize=(3, 2))
+        ax = fig.add_subplot(111)
+        objects = [
+            matplotlib.patches.Patch(color='black', hatch='---'),
+            matplotlib.patches.Patch(color='black', hatch='//')
+        ]
+        labels = ['N = 5', 'N = 20']
+        for pidx, patch in enumerate(objects):
+            patch.set_fill(False)
+
+        figlegend.legend(objects, labels)
+        figlegend.savefig('plots/legend_ecc_full.pdf')
+        cmd = 'pdfcrop --margins 5 ' +\
+              'plots/legend_ecc_full.pdf plots/legend_ecc.pdf'
+        os.system(cmd)
+        print(cmd)
 
         for gidx, graph_type in enumerate(self.graph_order):
             fig, ax = plt.subplots(1, figsize=(6.25, 2.5))
@@ -474,9 +415,9 @@ if __name__ == '__main__':
         ]
     to_plot = [
         # 'cp_count',
-        'cp_size',
+        # 'cp_size',
         # 'cc',
-        # 'ecc',
+        'ecc',
         # 'bow_tie',
         # 'bow_tie_alluvial',
     ]

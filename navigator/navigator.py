@@ -527,8 +527,8 @@ class Evaluator(object):
         }
         self.label2rec_type = {v: k for k, v in self.rec_type2label.items()}
         self.plot_file_types = [
-            '.png',
-            # '.pdf',
+            # '.png',
+            '.pdf',
         ]
 
     def compute(self, label, data_set):
