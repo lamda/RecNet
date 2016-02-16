@@ -137,10 +137,12 @@ class IFMission(Mission):
         for i, n in enumerate(self.path[:len(self.stats)]):
             if n in targets:
                 targets.remove(n)
-                curr += (1 / len(self.targets_original[0]))
+                # curr += (1 / len(self.targets_original[0]))  # old
+                curr += (1 / 3)  # new: normalize by no. of clusters instead
             self.stats[i] = curr
         if i < len(self.stats):
             self.stats[i:] = curr
+        self.stats = np.array([min(i, 1.0) for i in self.stats])
 
 
 class BPMission(Mission):
@@ -657,10 +659,10 @@ class Evaluator(object):
         #                     wspace=0.34, hspace=0.32)
         # # plt.show()
         # figlegend.savefig('plots/nav_legend.pdf')
-
         # plot the scenarios
         x_vals = [1, 2, 4, 5, 7, 8, 10, 11]
         for scenario in Mission.missions:
+            hugo = []
             print(scenario)
             for data_set in self.data_sets:
                 print('   ', data_set.label)
@@ -689,10 +691,13 @@ class Evaluator(object):
                     for nidx, N in enumerate(n_vals):
                         g = data_set.folder_graphs + '/' + rec_type +\
                                 '_' + str(N) + '.gt'
-                        bar_vals.append(data_set.missions[rec_type][g]['title'][scenario][-1])
+                        s = data_set.missions[rec_type][g]['title'][scenario][-1]
                         r = data_set.missions[rec_type][g]['random'][scenario][-1]
                         o = data_set.missions[rec_type][g]['optimal'][scenario][-1]
-                        print('            %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
+                        bar_vals.append(s)
+                        if N == 20:
+                            print('%.2f' % s)
+                        # print('            %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
                 bars = ax.bar(x_vals, bar_vals, align='center')
 
                 # Beautification
@@ -727,8 +732,6 @@ class Evaluator(object):
                 for ftype in self.plot_file_types:
                     plt.savefig(fpath + ftype)
                 plt.close()
-
-
     def plot_sample(self):
         """plot and save an example evaluation showing all types of background
         knowledge used in the simulations

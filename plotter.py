@@ -473,15 +473,15 @@ if __name__ == '__main__':
             '20',
         ]
     to_plot = [
-        # 'cp_count',
-        # 'cp_size',
+        'cp_count',
+        'cp_size',
         # 'cc',
-        'ecc',
+        # 'ecc',
         # 'bow_tie',
         # 'bow_tie_alluvial',
     ]
     for sf in [
-        # 'movielens',
+        'movielens',
         'bookcrossing',
     ]:
         p = Plotter(sf, to_plot=to_plot)
