@@ -669,6 +669,7 @@ class Evaluator(object):
         # # plt.show()
         # figlegend.savefig('plots/nav_legend.pdf')
         # plot the scenarios
+        better = []
         x_vals = [1, 2, 4, 5, 7, 8, 10, 11]
         for scenario in Mission.missions:
             hugo = []
@@ -704,6 +705,7 @@ class Evaluator(object):
                         r = data_set.missions[rec_type][g]['random'][scenario][-1]
                         o = data_set.missions[rec_type][g]['optimal'][scenario][-1]
                         bar_vals.append(s)
+                        better.append(s/r)
                         hugo.append(r)
                         print('            %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
                 bars = ax.bar(x_vals, bar_vals, align='center')
@@ -740,8 +742,10 @@ class Evaluator(object):
                 for ftype in self.plot_file_types:
                     plt.savefig(fpath + ftype)
                 plt.close()
-        # print('simulations were on average %.2f times better than the random walks' % np.average(hugo))
-        #     print('random walks averge is %.2f' % np.average(hugo))
+            print('random walks averge is %.2f' % np.average(hugo))
+        print('simulations were on average %.2f times better than'
+              ' the random walks' % np.average(better))
+
 
     def plot_sample(self):
         """plot and save an example evaluation showing all types of background
@@ -799,14 +803,14 @@ n_vals = [
 
 
 if __name__ == '__main__':
-    for dataset in [
-        'movielens',
-        'bookcrossing',
-    ]:
-        dataset = DataSet(dataset, rec_types, div_types)
-        nav = Navigator(dataset)
-        print('running...')
-        nav.run()
+    # for dataset in [
+    #     'movielens',
+    #     'bookcrossing',
+    # ]:
+    #     dataset = DataSet(dataset, rec_types, div_types)
+    #     nav = Navigator(dataset)
+    #     print('running...')
+    #     nav.run()
 
     evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
     evaluator.plot_bar()
