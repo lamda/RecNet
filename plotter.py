@@ -89,6 +89,9 @@ class Plotter(object):
         for graph_type in self.graph_order:
             bar_vals += [self.graph_data[graph_name][prop]
                          for graph_name in self.graphs[graph_type]]
+            print(graph_type)
+            for b, N in zip(bar_vals[-2:], n_vals):
+                print('   ', N, ' ', b)
         x_vals = [1, 2, 4, 5, 7, 8, 10, 11]
         bars = ax.bar(x_vals, bar_vals, align='center')
 
@@ -135,8 +138,8 @@ class Plotter(object):
         for pidx, patch in enumerate(objects):
             patch.set_fill(False)
 
-        figlegend.legend(objects, labels)
-        figlegend.savefig('plots/legend_ecc_full.pdf')
+        figlegend.legend(objects, labels, ncol=2)
+        figlegend.savefig('plots/legend_ecc_full.pdf', bbox_inches='tight')
         cmd = 'pdfcrop --margins 5 ' +\
               'plots/legend_ecc_full.pdf plots/legend_ecc.pdf'
         os.system(cmd)
@@ -149,11 +152,12 @@ class Plotter(object):
             print(graph_type)
             for vidx, val, in enumerate(vals):
                 val = [100 * v / sum(val) for v in val]
-                av = 0
-                for vidx2, v in enumerate(val):
-                    print('%.2f, ' % v, end='')
-                    av += vidx2 * v
-                print('average = %.2f' % (av/100))
+                print(len(val) - 1)
+                # av = 0
+                # for vidx2, v in enumerate(val):
+                #     print('%.2f, ' % v, end='')
+                #     av += vidx2 * v
+                # print('average = %.2f' % (av/100))
                 print()
                 bars = ax.bar(range(len(val)), val, color=self.colors[gidx], lw=2)
                 # Beautification
@@ -230,87 +234,6 @@ class Plotter(object):
         for ftype in self.plot_file_types:
             plt.savefig(fpath + ftype)
         plt.close()
-
-    def plot_alluvial_old(self):
-        """ produce an alluvial diagram (sort of like a flow chart) for the
-        bowtie membership changes over N"""
-        fpath = os.path.join(self.stats_folder, 'bowtie_changes.obj')
-        with open(fpath, 'rb') as infile:
-            self.bowtie_changes = pickle.load(infile)
-        labels = ['IN', 'SCC', 'OUT', 'TL_IN', 'TL_OUT', 'TUBE', 'OTHER']
-
-        graphs = [
-            'rb',
-            'rbmf',
-            'rbiw',
-            'rbar',
-        ]
-        for N in self.Ns:
-            base_graphs = [g + '_' + N for g in graphs]
-            for g1 in base_graphs:
-                for g2_suffix in self.div_types[1:]:
-                    g2 = g1 + g2_suffix
-                    changes = self.bowtie_changes[g1][g2]
-                    with io.open('plots/alluvial/alluvial.html',
-                                 encoding='utf-8-sig') as infile:
-                        template = infile.read().split('"data.js"')
-                    fname = self.label + '_' + 'data_' + g1 + '_' + g2 + '.js'
-                    data = [
-                        self.graph_data[g1]['bow_tie'],
-                        self.graph_data[g2]['bow_tie']
-                    ]
-                    ind = u'    '
-                    with io.open('plots/alluvial/' + fname, 'w',
-                                 encoding='utf-8')as outfile:
-                        outfile.write(u'var data = {\n')
-                        outfile.write(ind + u'"times": [\n')
-                        for iden, d in enumerate(data):
-                            t = d
-                            outfile.write(ind * 2 + u'[\n')
-                            for jdx, n in enumerate(t):
-                                outfile.write(ind * 3 + u'{\n')
-                                outfile.write(ind * 4 + u'"nodeName": "Node ' +
-                                              unicode(jdx) + u'",\n')
-                                nid = unicode(iden * len(labels) + jdx)
-                                outfile.write(ind * 4 + u'"id": ' + nid +
-                                              u',\n')
-                                outfile.write(ind * 4 + u'"nodeValue": ' +
-                                              unicode(int(n * 100)) + u',\n')
-                                outfile.write(ind * 4 + u'"nodeLabel": "' +
-                                              labels[jdx] + u'"\n')
-                                outfile.write(ind * 3 + u'}')
-                                if jdx != (len(t) - 1):
-                                    outfile.write(u',')
-                                outfile.write(u'\n')
-                            outfile.write(ind * 2 + u']')
-                            if iden != (len(data) - 1):
-                                outfile.write(u',')
-                            outfile.write(u'\n')
-                        outfile.write(ind + u'],\n')
-
-                        outfile.write(ind + u'"links": [\n')
-                        for cidx, ci in enumerate([changes]):
-                            for mindex, val in np.ndenumerate(ci):
-                                outfile.write(ind * 2 + u'{\n')
-                                s = unicode(cidx * len(labels) + mindex[0])
-                                t = unicode((cidx+1) * len(labels) + mindex[1])
-                                outfile.write(ind * 3 + u'"source": ' + s +
-                                              ',\n')
-                                outfile.write(ind * 3 + u'"target": ' + t
-                                              + ',\n')
-                                outfile.write(ind * 3 + u'"value": ' +
-                                              unicode(val * 5000) + '\n')
-                                outfile.write(ind * 2 + u'}')
-                                if mindex != (len(ci) - 1):
-                                    outfile.write(u',')
-                                outfile.write(u'\n')
-                        outfile.write(ind + u']\n')
-                        outfile.write(u'}')
-                    hfname = 'plots/alluvial/alluvial_' + self.label + '_' +\
-                             g1 + '_' + g2 + '.html'
-                    with io.open(hfname, 'w', encoding='utf-8') as outfile:
-                        outfile.write(template[0] + '"' + fname + '"' +
-                                      template[1])
 
     def plot_alluvial(self):
         """ produce an alluvial diagram (sort of like a flow chart) for the

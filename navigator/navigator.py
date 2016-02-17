@@ -222,6 +222,9 @@ class Strategy(object):
             candidates = {n: matrix[n, mission.targets[0][0]] for n in nodes}
         except KeyError:
             pdb.set_trace()
+        except TypeError, e:
+            print(e)
+            pdb.set_trace()
         if not candidates:
             chosen_node = None  # abort search
         else:
@@ -344,6 +347,7 @@ class Navigator(object):
         """
         print('    strategies...')
         matrix_file = ''
+        matrix_s, matrix_c = None, None
         # run for all but the optimal version
         item2matrix = os.path.join(self.data_set.base_folder, 'item2matrix.txt')
         for rec_type in self.data_set.graphs:
@@ -353,16 +357,21 @@ class Navigator(object):
                 for strategy in Strategy.strategies:
                     if strategy == 'optimal':
                         continue
-                    debug(strategy)
+                    print('            ', strategy)
                     m_new = self.data_set.matrices[rec_type][graph][strategy][0]
                     m_newc = self.data_set.matrices[rec_type][graph][strategy][1]
+                    debug('             ----', m_new)
+                    debug('             ----', m_newc)
                     if not m_new:
-                        matrix_s, matrix_c = None, None
+                        debug('             ---- not m_new')
+                        matrix_s, matrix_c, matrix_file = None, None, None
                     elif matrix_file != m_new:
                         matrix_s = SimilarityMatrix(item2matrix, m_new)
                         matrix_c = SimilarityMatrix(item2matrix, m_newc)
                         matrix_file = m_new
+                        debug('            ---- matrix_file != m_new')
                     for miss in self.data_set.missions[rec_type][graph][strategy]:
+                        print('                ', miss)
                         if miss in ['Information Foraging', 'Berrypicking']:
                             matrix = matrix_c
                         else:
@@ -776,9 +785,9 @@ rec_types = [
 
 div_types = [
     '',
-    '_div_random',
-    '_div_diversify',
-    '_div_exprel'
+    # '_div_random',
+    # '_div_diversify',
+    # '_div_exprel'
 ]
 
 n_vals = [
@@ -790,15 +799,16 @@ n_vals = [
 
 
 if __name__ == '__main__':
-    # for dataset in [
-    #     # 'movielens',
-    #     'bookcrossing',
-    # ]:
-    #     dataset = DataSet(dataset, rec_types, div_types)
-    #     nav = Navigator(dataset)
-    #     print('running...')
-    #     nav.run()
+    for dataset in [
+        'movielens',
+        'bookcrossing',
+    ]:
+        dataset = DataSet(dataset, rec_types, div_types)
+        nav = Navigator(dataset)
+        print('running...')
+        nav.run()
 
     evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
     evaluator.plot_bar()
+
 

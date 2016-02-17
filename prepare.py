@@ -179,7 +179,7 @@ class ItemCollection(object):
             for n in c:
                 cd[n] = c
 
-        selected_clusters = [c for c in cluster_items if 3 <= len(c) <= 30]
+        selected_clusters = [c for c in cluster_items if 4 <= len(c) <= 30]
         mission_limit = 1200
         pairs = set()
         numpairs = len(ids) * (len(ids) - 1) if len(ids) < 35 else mission_limit
