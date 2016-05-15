@@ -713,8 +713,8 @@ if __name__ == '__main__':
         'imdb',
     ]:
         ## r = ContentBasedRecommender(dataset=dataset)
-        # r = RatingBasedRecommender(dataset=dataset, load_cached=True)
-        r = AssociationRuleRecommender(dataset=dataset, load_cached=True)
+        r = RatingBasedRecommender(dataset=dataset, load_cached=True)
+        # r = AssociationRuleRecommender(dataset=dataset, load_cached=True)
         # r = MatrixFactorizationRecommender(dataset=dataset, load_cached=True)
         # r = InterpolationWeightRecommender(dataset=dataset, load_cached=True)
 
