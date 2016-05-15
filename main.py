@@ -209,7 +209,15 @@ class Recommender(object):
         )
         db_file = 'database_new.db'
         self.db_file = os.path.join(self.data_folder, db_file)
-        self.db_main_table = 'books' if dataset == 'bookcrossing' else 'movies'
+        if dataset == 'bookcrossing':
+            self.db_main_table = 'books'
+        elif dataset == 'movielens':
+            self.db_main_table = 'movies'
+        elif dataset == 'imdb':
+            self.db_main_table = 'movies'
+        else:
+            print('Error - dataset not suppoted')
+            pdb.set_trace()
         if not os.path.exists(self.graph_folder):
             os.makedirs(self.graph_folder)
         if not os.path.exists(self.recommendation_data_folder):
@@ -385,9 +393,9 @@ class RatingBasedRecommender(Recommender):
             sim_mat = self.load_recommendation_data('sim_mat')
             return sim_mat
         um = self.get_utility_matrix()
-        # with open('um_' + self.dataset + '.obj', 'wb') as outfile:
-        #     pickle.dump(um, outfile, -1)
-        # sys.exit()
+        with open('um_' + self.dataset + '.obj', 'wb') as outfile:
+            pickle.dump(um, outfile, -1)
+        sys.exit()
 
         print('centering...')
         # use the centered version for similarity computation
@@ -468,6 +476,13 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
                                regularize=True, eta=0.0001, init='random_small',
                                lamda=0.25, reset_params=True)
 
+        elif self.dataset == 'imdb':
+            # for IMDb:
+            #     k=15, nsteps=500, eta_type='bold_driver', regularize=True,
+            #     eta=0.00001, init='random'
+            f = recsys.Factors(um, k=15, eta=0.00001, eta_type='bold_driver',
+                               init='random', regularize=True, nsteps=1000)
+
         return f.q
 
 
@@ -540,6 +555,8 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             threshold = 1
         elif self.dataset == 'bookcrossing':
             threshold = 1
+        elif self.dataset == 'movielens':
+            threshold = 1
 
         sims = np.zeros((um.shape[1], um.shape[1]))
         for x in range(um.shape[1]):
@@ -586,6 +603,21 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             wf = recsys.WeightedCFNNBiased(um, k=20, eta_type='bold_driver',
                                            eta=0.00001, regularize=True,
                                            init='zeros', nsteps=60)
+
+        elif self.dataset == 'imdb':
+            # for IMDb:
+            # beta = 1
+            # um = recsys.UtilityMatrix(m_nan, beta=beta)
+            # wf = recsys.WeightedCFNNBiased(um, eta_type='bold_driver', k=15,
+            #                                eta=0.000001, regularize=True,
+            #                                init='sim', nsteps=50)
+
+            beta = 1
+            um = recsys.UtilityMatrix(m_nan, beta=beta)
+            wf = recsys.WeightedCFNNBiased(um, eta_type='bold_driver', k=15,
+                                           eta=0.00001, regularize=True,
+                                           init='sim', nsteps=50)
+
 
         print('beta = ', beta)
         self.save_recommendation_data([wf.w, wf.k, beta], 'iw_data')
@@ -713,10 +745,10 @@ if __name__ == '__main__':
         'imdb',
     ]:
         ## r = ContentBasedRecommender(dataset=dataset)
-        r = RatingBasedRecommender(dataset=dataset, load_cached=True)
-        # r = AssociationRuleRecommender(dataset=dataset, load_cached=True)
-        # r = MatrixFactorizationRecommender(dataset=dataset, load_cached=True)
-        # r = InterpolationWeightRecommender(dataset=dataset, load_cached=True)
+        r = RatingBasedRecommender(dataset=dataset, load_cached=False)
+        # r = AssociationRuleRecommender(dataset=dataset, load_cached=False)
+        # r = MatrixFactorizationRecommender(dataset=dataset, load_cached=False)
+        # r = InterpolationWeightRecommender(dataset=dataset, load_cached=False)
 
         r.get_recommendations()
 

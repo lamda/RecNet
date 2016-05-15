@@ -118,7 +118,8 @@ def retrieve_and_condense():
     db_connector = DbConnector()
     stmt = '''SELECT movie_id, title, title2, title3,
                      plot, storyline, genre, years
-              FROM scrape'''
+              FROM scrape
+              '''
     result = db_connector.execute(stmt)
     df = pd.DataFrame(result)
 
@@ -126,17 +127,17 @@ def retrieve_and_condense():
     df['plot'] = df['plot']
     df['storyline'] = df['storyline']
     df.replace('n/a', np.NaN, inplace=True)
-    # df.dropna(how='all', subset=['plot', 'storyline'], inplace=True)
+    df.dropna(how='all', subset=['plot', 'storyline'], inplace=True)
     # df.dropna(how='any', subset=['genre', 'years'], inplace=True)
     # df.dropna(how='any', subset=['plot', 'storyline', 'genre', 'years'],
     #           inplace=True)
-    pdb.set_trace()  # TODO: decide which dropna to use
+    # pdb.set_trace()  # TODO: decide which dropna to use
     df_titles = df
 
     print('getting rating data...')
     db_connector = DbConnector()
-    stmt = '''SELECT movie_id, user_id, rating
-              FROM ratings'''
+    # stmt = '''SELECT movie_id, user_id, rating FROM ratings'''
+    stmt = '''SELECT movie_id, user_id, rating FROM revs'''
     result = db_connector.execute(stmt)
     df_ratings = pd.DataFrame(result)
 
@@ -160,9 +161,9 @@ def retrieve_and_condense():
         df_ratings = df_ratings[df_ratings['user_id'].isin(users_to_keep)]
         df_titles = df_titles[df_titles['movie_id'].isin(titles_to_keep)]
 
-    print('%d/%d: found %d titles with %d ratings' %
+    print('%d/%d: found %d titles with %d ratings by %d users' %
           (user_ratings, title_ratings, len(titles_to_keep),
-           df_ratings.shape[0]))
+           df_ratings.shape[0]), df_ratings['user_id'].unique().shape[0])
 
     df_ratings.to_pickle('df_ratings_condensed.obj')
     df_titles.to_pickle('df_titles_condensed.obj')
@@ -293,15 +294,15 @@ if __name__ == '__main__':
     start_time = datetime.now()
 
     # create_database()
-    # # retrieve_and_condense()
+    # retrieve_and_condense()
     # populate_database_titles()
     # populate_database_genres()
 
-    # export_ratings()
+    export_ratings()
     # sample_ratings()
 
     # TODO: reduce the number of ratings to make the dataset manageable
-    sample_ratings_large()
+    # sample_ratings_large()
 
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
