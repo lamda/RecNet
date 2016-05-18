@@ -136,14 +136,14 @@ def retrieve_and_condense():
 
     print('getting rating data...')
     db_connector = DbConnector()
-    # stmt = '''SELECT movie_id, user_id, rating FROM ratings'''
-    stmt = '''SELECT movie_id, user_id, rating FROM revs'''
+    stmt = '''SELECT movie_id, user_id, rating FROM ratings'''
+    # stmt = '''SELECT movie_id, user_id, rating FROM revs'''
     result = db_connector.execute(stmt)
     df_ratings = pd.DataFrame(result)
 
     print('condensing data')
-    user_ratings = 5
-    title_ratings = 20
+    user_ratings = 50
+    title_ratings = 50
     valid_ids = set(df_titles['movie_id'])
     df_ratings = df_ratings[df_ratings['movie_id'].isin(valid_ids)]
     old_shape = (0, 0)
@@ -161,12 +161,12 @@ def retrieve_and_condense():
         df_ratings = df_ratings[df_ratings['user_id'].isin(users_to_keep)]
         df_titles = df_titles[df_titles['movie_id'].isin(titles_to_keep)]
 
-    print('%d/%d: found %d titles with %d ratings by %d users' %
-          (user_ratings, title_ratings, len(titles_to_keep),
-           df_ratings.shape[0]), df_ratings['user_id'].unique().shape[0])
-
     df_ratings.to_pickle('df_ratings_condensed.obj')
     df_titles.to_pickle('df_titles_condensed.obj')
+
+    print('%d/%d: found %d titles with %d ratings by %d users' %
+          (user_ratings, title_ratings, len(titles_to_keep),
+           df_ratings.shape[0], df_ratings['user_id'].unique().shape[0]))
 
 
 def populate_database_titles():
@@ -176,6 +176,7 @@ def populate_database_titles():
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
     hparser = HTMLParser.HTMLParser()
+    df['years'] = df['years'].replace(np.nan, '0', regex=True)
 
     for ridx, row in df.iterrows():
         print('\r', ridx+1, '/', df.shape[0], end='')
@@ -293,15 +294,14 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
+    retrieve_and_condense()
+
     # create_database()
-    # retrieve_and_condense()
     # populate_database_titles()
     # populate_database_genres()
+    # export_ratings()
 
-    export_ratings()
     # sample_ratings()
-
-    # TODO: reduce the number of ratings to make the dataset manageable
     # sample_ratings_large()
 
     end_time = datetime.now()

@@ -25,8 +25,8 @@ DEBUG = False
 DEBUG_SIZE = 255
 # DEBUG_SIZE = 750
 DATA_BASE_FOLDER = 'data'
-# NUMBER_OF_RECOMMENDATIONS = [1, 5, 10, 15, 20]
-NUMBER_OF_RECOMMENDATIONS = [1]
+NUMBER_OF_RECOMMENDATIONS = [1, 5, 10, 15, 20]
+# NUMBER_OF_RECOMMENDATIONS = [1]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4
 NUMBER_OF_POTENTIAL_RECOMMENDATIONS = 50  # should be 50
 
@@ -211,9 +211,7 @@ class Recommender(object):
         self.db_file = os.path.join(self.data_folder, db_file)
         if dataset == 'bookcrossing':
             self.db_main_table = 'books'
-        elif dataset == 'movielens':
-            self.db_main_table = 'movies'
-        elif dataset == 'imdb':
+        elif dataset in ('movielens', 'imdb'):
             self.db_main_table = 'movies'
         else:
             print('Error - dataset not suppoted')
@@ -223,7 +221,10 @@ class Recommender(object):
         if not os.path.exists(self.recommendation_data_folder):
             os.makedirs(self.recommendation_data_folder)
 
-        data = self.query_db('SELECT id, cf_title, wp_title, wp_text, original_title, wp_id FROM ' + self.db_main_table)
+        data = self.query_db(
+            'SELECT id, cf_title, wp_title, wp_text, original_title, wp_id '
+            'FROM ' + self.db_main_table
+        )
         data = [(d[0], d[1], d[2], d[4], d[5], d[3]) for d in data]
         cols = ['dataset_id', 'cf_title', 'wp_title', 'original_title',
                 'wp_id', 'wp_text']
@@ -285,6 +286,7 @@ class Recommender(object):
         for strategy in strategies:
             s = strategy(self.similarity_matrix)
             print(s.label)
+            pdb.set_trace()
             for n in NUMBER_OF_RECOMMENDATIONS:
                 print('   ', n)
                 recs = s.get_recommendations(n=n)
@@ -411,6 +413,7 @@ class RatingBasedRecommender(Recommender):
         print('returning...')
         # correlation is undefined for zero vectors --> set it to the max
         # max distance is 2 because the pearson correlation runs from -1...+1
+        pdb.set_trace()
         similarity[np.isnan(similarity)] = 2.0  # for correlation
         similarity = scipy.spatial.distance.squareform(similarity)
         sim_mat = SimilarityMatrix(1 - similarity)
@@ -745,9 +748,9 @@ if __name__ == '__main__':
         'imdb',
     ]:
         ## r = ContentBasedRecommender(dataset=dataset)
-        # r = RatingBasedRecommender(dataset=dataset, load_cached=False)
+        r = RatingBasedRecommender(dataset=dataset, load_cached=False)
         # r = AssociationRuleRecommender(dataset=dataset, load_cached=False)
-        r = MatrixFactorizationRecommender(dataset=dataset, load_cached=False)
+        # r = MatrixFactorizationRecommender(dataset=dataset, load_cached=False)
         # r = InterpolationWeightRecommender(dataset=dataset, load_cached=False)
 
         r.get_recommendations()
