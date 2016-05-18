@@ -393,9 +393,9 @@ class RatingBasedRecommender(Recommender):
             sim_mat = self.load_recommendation_data('sim_mat')
             return sim_mat
         um = self.get_utility_matrix()
-        with open('um_' + self.dataset + '.obj', 'wb') as outfile:
-            pickle.dump(um, outfile, -1)
-        sys.exit()
+        # with open('um_' + self.dataset + '.obj', 'wb') as outfile:
+        #     pickle.dump(um, outfile, -1)
+        # sys.exit()
 
         print('centering...')
         # use the centered version for similarity computation
@@ -745,9 +745,9 @@ if __name__ == '__main__':
         'imdb',
     ]:
         ## r = ContentBasedRecommender(dataset=dataset)
-        r = RatingBasedRecommender(dataset=dataset, load_cached=False)
+        # r = RatingBasedRecommender(dataset=dataset, load_cached=False)
         # r = AssociationRuleRecommender(dataset=dataset, load_cached=False)
-        # r = MatrixFactorizationRecommender(dataset=dataset, load_cached=False)
+        r = MatrixFactorizationRecommender(dataset=dataset, load_cached=False)
         # r = InterpolationWeightRecommender(dataset=dataset, load_cached=False)
 
         r.get_recommendations()

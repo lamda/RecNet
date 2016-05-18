@@ -805,9 +805,9 @@ if __name__ == '__main__':
 
     # complete MovieLens matrix
     # with open('um_bookcrossing.obj', 'rb') as infile:
-    # with open('um_movielens.obj', 'rb') as infile:
-    #     m = pickle.load(infile).astype(float)
-    # m[m == 0] = np.nan
+    with open('um_imdb.obj', 'rb') as infile:
+        m = pickle.load(infile).astype(float)
+    m[m == 0] = np.nan
 
     # with open('m255.obj', 'rb') as infile: # sample of 255 from MovieLens
     #     m = pickle.load(infile).astype(float)
@@ -815,22 +815,22 @@ if __name__ == '__main__':
 
     # m = read_movie_lens_data() # Denis's MovieLens sample
 
-    m = np.array([  # simple test case
-        [5, 1, np.NAN, 2, 2, 4, 3, 2],
-        [1, 5, 2, 5, 5, 1, 1, 4],
-        [2, np.NAN, 3, 5, 4, 1, 2, 4],
-        [4, 3, 5, 3, np.NAN, 5, 3, np.NAN],
-        [2, np.NAN, 1, 3, np.NAN, 2, 5, 3],
-        [4, 1, np.NAN, 1, np.NAN, 4, 3, 2],
-        [4, 2, 1, 1, np.NAN, 5, 4, 1],
-        [5, 2, 2, np.NAN, 2, 5, 4, 1],
-        [4, 3, 3, np.NAN, np.NAN, 4, 3, np.NAN]
-    ])
-    hidden = np.array([
-        [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
-        [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
-    ])
-    um = UtilityMatrix(m, hidden=hidden)
+    # m = np.array([  # simple test case
+    #     [5, 1, np.NAN, 2, 2, 4, 3, 2],
+    #     [1, 5, 2, 5, 5, 1, 1, 4],
+    #     [2, np.NAN, 3, 5, 4, 1, 2, 4],
+    #     [4, 3, 5, 3, np.NAN, 5, 3, np.NAN],
+    #     [2, np.NAN, 1, 3, np.NAN, 2, 5, 3],
+    #     [4, 1, np.NAN, 1, np.NAN, 4, 3, 2],
+    #     [4, 2, 1, 1, np.NAN, 5, 4, 1],
+    #     [5, 2, 2, np.NAN, 2, 5, 4, 1],
+    #     [4, 3, 3, np.NAN, np.NAN, 4, 3, np.NAN]
+    # ])
+    # hidden = np.array([
+    #     [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
+    #     [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
+    # ])
+    # um = UtilityMatrix(m, hidden=hidden)
 
     # m = np.array([  # simple test case 2
     #     [1, 5, 5, np.NAN, np.NAN, np.NAN],
@@ -849,7 +849,7 @@ if __name__ == '__main__':
     # ])
     # um = UtilityMatrix(m, hidden=hidden)
 
-    # um = UtilityMatrix(m)
+    um = UtilityMatrix(m)
 
     # cfnn = CFNN(um, k=5); cfnn.print_test_error()
     # f = Factors(um, k=5, nsteps=500, eta_type='increasing', regularize=True, eta=0.00001, init='random')
@@ -860,19 +860,24 @@ if __name__ == '__main__':
     # gar = GlobalAverageRecommender(um); gar.print_test_error()
     # uiar = UserItemAverageRecommender(um); uiar.print_test_error()
     # for k in [
-    #     1,
-    #     2,
-    #     5,
-    #     10,
-    #     15,
-    # #     # 20,
-    # #     # 25
+        # 1,
+        # 2,
+        # 5,
+        # 10,
+        # 15,
+        # 20,
+        # 25
+        # 40,
+        # 50
+        # 60,
+        # 80,
+        # 100
     # ]:
     #     cfnn = CFNN(um, k=k); cfnn.print_test_error()
 
     # wf = WeightedCFNNUnbiased(um, k=5, eta=0.0001, regularize=True,
     #                           eta_type='bold_driver', init='random')
-    wf = WeightedCFNNBiased(um, eta_type='bold_driver', k=5, eta=0.00001, init='random')
+    # wf = WeightedCFNNBiased(um, eta_type='bold_driver', k=5, eta=0.00001, init='random')
 
 
     # errors = []
