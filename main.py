@@ -11,6 +11,7 @@ import operator
 import os
 import pandas as pd
 import pdb
+from scipy import sparse as sparse
 import scipy.spatial.distance
 import sklearn.feature_extraction.text
 import sqlite3
@@ -214,7 +215,7 @@ class Recommender(object):
         elif dataset in ('movielens', 'imdb'):
             self.db_main_table = 'movies'
         else:
-            print('Error - dataset not suppoted')
+            print('Error - dataset not supported')
             pdb.set_trace()
         if not os.path.exists(self.graph_folder):
             os.makedirs(self.graph_folder)
@@ -296,15 +297,17 @@ class Recommender(object):
         class_name = str(self.__class__).strip("<>'").rsplit('.', 1)[-1]
         fname = os.path.join(self.recommendation_data_folder,
                              class_name + '_' + label + '.obj')
-        with open(fname, 'wb') as outfile:
-            pickle.dump(obj, outfile, -1)
+        # with open(fname, 'wb') as outfile:
+        #     pickle.dump(obj, outfile, -1)
+        np.save(fname, obj)
 
     def load_recommendation_data(self, label):
         class_name = str(self.__class__).strip("<>'").rsplit('.', 1)[-1]
         fname = os.path.join(self.recommendation_data_folder,
                              class_name + '_' + label + '.obj')
-        with open(fname, 'rb') as infile:
-            obj = pickle.load(infile)
+        # with open(fname, 'rb') as infile:
+        #     obj = pickle.load(infile)
+        obj = np.load(fname)
         return obj
 
 
@@ -361,10 +364,15 @@ class RatingBasedRecommender(Recommender):
                                                      load_cached)
 
     def get_recommendations(self):
-        self.similarity_matrix = self.get_similarity_matrix()
+        # self.similarity_matrix = self.get_similarity_matrix()
+        # sim1 = self.get_similarity_matrix().sims
+        self.similarity_matrix = SimilarityMatrix(self.get_similarity_matrix_fast())
         super(RatingBasedRecommender, self).get_recommendations()
 
     def get_utility_matrix(self):
+        if self.load_cached:
+            um = self.load_recommendation_data('um')
+            return um
         # load user ids
         item_ids = set(map(str, self.df['dataset_id']))
         item2matrix = {m: i for i, m in enumerate(self.df['dataset_id'])}
@@ -388,16 +396,14 @@ class RatingBasedRecommender(Recommender):
                 if user in user_ids and item in item_ids:
                     um[user2matrix[user], item2matrix[item]] = rat
         um = um.astype(int)
+        self.save_recommendation_data(um, 'um')
         return um
 
     def get_similarity_matrix(self):
-        if self.load_cached:
-            sim_mat = self.load_recommendation_data('sim_mat')
-            return sim_mat
+        # if self.load_cached:
+        #     sim_mat = self.load_recommendation_data('sim_mat')
+        #     return sim_mat
         um = self.get_utility_matrix()
-        # with open('um_' + self.dataset + '.obj', 'wb') as outfile:
-        #     pickle.dump(um, outfile, -1)
-        # sys.exit()
 
         print('centering...')
         # use the centered version for similarity computation
@@ -413,11 +419,97 @@ class RatingBasedRecommender(Recommender):
         print('returning...')
         # correlation is undefined for zero vectors --> set it to the max
         # max distance is 2 because the pearson correlation runs from -1...+1
-        pdb.set_trace()
+        # pdb.set_trace() ++++++++++++++++++++++++++++++++++++++++++++++++++++++
         similarity[np.isnan(similarity)] = 2.0  # for correlation
         similarity = scipy.spatial.distance.squareform(similarity)
         sim_mat = SimilarityMatrix(1 - similarity)
         self.save_recommendation_data(sim_mat, 'sim_mat')
+        return sim_mat
+
+    def get_similarity_matrix_fast(self):
+        if self.load_cached:
+            um = self.load_recommendation_data('sim_mat2')
+            return um
+        # def compute_cosine_sim_1(self):
+        self.ftype = ''
+        print('loading um...')
+        um = self.get_utility_matrix()
+
+        print('centering...')
+        # use the centered version for similarity computation
+        um_centered = um.astype(np.float32)
+        um_centered[np.where(um_centered == 0)] = np.nan
+        um_centered = um_centered - np.nanmean(um_centered, axis=0)[np.newaxis, :]
+        um_centered[np.where(np.isnan(um_centered))] = 0
+
+        print(1)
+        # via http://stackoverflow.com/questions/17627219
+        A = sparse.csr_matrix(um_centered)
+
+        print(2)
+        # transpose, as the code below compares rows
+        A = A.T
+
+        print(3)
+        # base similarity matrix (all dot products)
+        similarity = A.dot(A.T)
+
+        print(4)
+        # squared magnitude of preference vectors (number of occurrences)
+        square_mag = similarity.diagonal()
+
+        print(5)
+        # inverse squared magnitude
+        inv_square_mag = 1 / square_mag
+
+        print(6)
+        # if it doesn't occur, set the inverse magnitude to 0 (instead of inf)
+        inv_square_mag[np.isinf(inv_square_mag)] = 0
+
+        print(7)
+        # inverse of the magnitude
+        inv_mag = np.sqrt(inv_square_mag)
+
+        print(8)
+        # cosine similarity (elementwise multiply by inverse magnitudes)
+        col_ind = range(len(inv_mag))
+        row_ind = np.zeros(len(inv_mag))
+        inv_mag2 = sparse.csr_matrix((inv_mag, (col_ind, row_ind)))
+
+        print(9)
+        cosine = similarity.multiply(inv_mag2)
+        # for v, l in [
+        #     (cosine, '_cosine_' + self.ftype),
+        #     (inv_mag2, '_inv_mag2_' + self.ftype)
+        # ]:
+        #     np.save('tmp/data' + l, v.data)
+        #     np.save('tmp/indices' + l, v.indices)
+        #     np.save('tmp/indptr' + l, v.indptr)
+        #
+        # # def compute_cosine_sim_2(self):
+        # data = np.load('tmp/data_cosine_' + self.ftype + '.npy')
+        # indices = np.load('tmp/indices_cosine_' + self.ftype + '.npy')
+        # indptr = np.load('tmp/indptr_cosine_' + self.ftype + '.npy')
+        # cosine = sparse.csr_matrix((data, indices, indptr))
+        #
+        # data = np.load('tmp/data_inv_mag2_' + self.ftype + '.npy')
+        # indices = np.load('tmp/indices_inv_mag2_' + self.ftype + '.npy')
+        # indptr = np.load('tmp/indptr_inv_mag2_' + self.ftype + '.npy')
+        # inv_mag2 = sparse.csr_matrix((data, indices, indptr))
+
+        print(10)
+        cosine = cosine.T.multiply(inv_mag2)
+
+        print(11)
+        cosine.setdiag(1)
+
+        print(12)
+        # pickling doesn't work for some reason --> np.save to the rescue
+        # np.save('tmp/data_' + self.ftype, cosine.data)
+        # np.save('tmp/indices_' + self.ftype, cosine.indices)
+        # np.save('tmp/indptr_' + self.ftype, cosine.indptr)
+        sim_mat = cosine.todense()
+        self.save_recommendation_data(sim_mat, 'sim_mat2')
         return sim_mat
 
 
@@ -748,7 +840,7 @@ if __name__ == '__main__':
         'imdb',
     ]:
         ## r = ContentBasedRecommender(dataset=dataset)
-        r = RatingBasedRecommender(dataset=dataset, load_cached=False)
+        r = RatingBasedRecommender(dataset=dataset, load_cached=True)
         # r = AssociationRuleRecommender(dataset=dataset, load_cached=False)
         # r = MatrixFactorizationRecommender(dataset=dataset, load_cached=False)
         # r = InterpolationWeightRecommender(dataset=dataset, load_cached=False)
