@@ -364,7 +364,8 @@ class RatingBasedRecommender(Recommender):
                                                      load_cached)
 
     def get_recommendations(self):
-        # self.similarity_matrix = self.get_similarity_matrix()
+        self.similarity_matrix = self.get_similarity_matrix()
+
         # sim1 = self.get_similarity_matrix().sims
         self.similarity_matrix = SimilarityMatrix(self.get_similarity_matrix_fast())
         super(RatingBasedRecommender, self).get_recommendations()
@@ -835,12 +836,12 @@ if __name__ == '__main__':
     start_time = datetime.now()
 
     for dataset in [
-        # 'movielens',
+        'movielens',
         # 'bookcrossing',
-        'imdb',
+        # 'imdb',
     ]:
         ## r = ContentBasedRecommender(dataset=dataset)
-        r = RatingBasedRecommender(dataset=dataset, load_cached=True)
+        r = RatingBasedRecommender(dataset=dataset, load_cached=False)
         # r = AssociationRuleRecommender(dataset=dataset, load_cached=False)
         # r = MatrixFactorizationRecommender(dataset=dataset, load_cached=False)
         # r = InterpolationWeightRecommender(dataset=dataset, load_cached=False)

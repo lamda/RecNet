@@ -62,7 +62,16 @@ class Matrix(object):
         print(1)
         # via http://stackoverflow.com/questions/17627219
         with open('utility.pickle', 'rb') as infile:
-            A = pickle.load(infile)
+            A_original = pickle.load(infile)
+
+        print('centering...')
+        # use the centered version for similarity computation
+        A_original = A_original.toarray()
+        um_centered = A_original.astype(np.float32)
+        um_centered[np.where(um_centered == 0)] = np.nan
+        um_centered = um_centered - np.nanmean(um_centered, axis=0)[np.newaxis, :]
+        um_centered[np.where(np.isnan(um_centered))] = 0
+        A = sparse.csr_matrix(um_centered)
 
         print(2)
         # transpose, as the code below compares rows
@@ -119,7 +128,7 @@ class Matrix(object):
         cosine = cosine.T.multiply(inv_mag2)
 
         print(11)
-        cosine.setdiag(1)
+        cosine.setdiag(0)
 
         print(12)
         # pickling doesn't work for some reason --> np.save to the rescue
@@ -128,6 +137,7 @@ class Matrix(object):
         np.save('indptr', cosine.indptr)
 
     def get_top_50(self):
+        print('getting top 50...')
         print(1)
         sims = self.load_sim_matrix()
         print(2)
@@ -168,19 +178,17 @@ class Matrix(object):
         ttid2matrix = self.load_ttid2matrix()
         matrix2ttid = {v: k for k, v in ttid2matrix.iteritems()}
 
-        ofname = 'rating_ids_top50_imdb_' + self.ftype + \
-                 ('_sample' if self.use_sample else '') + '.txt'
-        fpath = os.path.join(self.graph_folder, ofname)
+        fpath = 'top50.txt'
         with io.open(fpath, 'w', encoding='utf-8') as outfile:
             for idx, ridx in enumerate(nz):
-                if (idx+1 % 100) == 0:
-                    print(idx+1, '/', len(nz), end='\r')
+            #     if (idx+1 % 100) == 0:
+                print(idx+1, '/', len(nz), end='\r')
                 indices = sims.indices[sims.indptr[ridx]:sims.indptr[ridx+1]]
                 data = sims.data[sims.indptr[ridx]:sims.indptr[ridx+1]]
                 vals = [(v, r) for v, r in zip(data, indices)]
                 nbs = sorted(vals, reverse=True)[:50]
-                nbs = ';'.join(matrix2ttid[v[1]] for v in nbs)
-                outfile.write(matrix2ttid[ridx] + '\t' + nbs + '\n')
+                nbs = ';'.join(unicode(matrix2ttid[v[1]]) for v in nbs)
+                outfile.write(unicode(matrix2ttid[ridx]) + '\t' + nbs + '\n')
 
     def load_sim_matrix(self, folder='.'):
         data = np.load(os.path.join(folder, 'data.npy'))
@@ -222,9 +230,10 @@ class Matrix(object):
                         pdb.set_trace()
 
 if __name__ == '__main__':
+        # m = Matrix(dataset='movielens')
         m = Matrix(dataset='imdb')
         m.create_matrix()
         m.compute_cosine_sim_1()
         m.compute_cosine_sim_2()
-        m.get_top_50()
+        m.get_top_50_alternative()
         m.resolve_graphs()
