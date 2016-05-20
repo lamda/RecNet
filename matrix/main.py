@@ -64,6 +64,8 @@ class Matrix(object):
         with open('utility.pickle', 'rb') as infile:
             A_original = pickle.load(infile)
 
+        # A_original = ...
+
         print('centering...')
         # use the centered version for similarity computation
         A_original = A_original.toarray()
@@ -129,6 +131,24 @@ class Matrix(object):
 
         print(11)
         cosine.setdiag(0)
+        # pdb.set_trace()
+
+        # # DEBUG
+        # um = A_original
+        #
+        # import scipy.spatial
+        # similarity = scipy.spatial.distance.pdist(um_centered.T, 'cosine')
+        # similarity = scipy.spatial.distance.squareform(similarity)
+        # similarity = 1 - similarity
+        # np.fill_diagonal(similarity, 0)
+        # similarity[np.isnan(similarity)] = 0.0  # 2.0 for correlation
+        # sim_main = similarity
+        # cosine = sparse.csr_matrix(sim_main)
+        #
+        # # sim_main = np.load('RatingBasedRecommender_sim_mat_bare.obj.npy')
+        # sim_matrix = cosine.toarray()
+        # pdb.set_trace()
+        # # /DEBUG
 
         print(12)
         # pickling doesn't work for some reason --> np.save to the rescue
@@ -136,7 +156,7 @@ class Matrix(object):
         np.save('indices', cosine.indices)
         np.save('indptr', cosine.indptr)
 
-    def get_top_50(self):
+    def get_top(self):
         print('getting top 50...')
         print(1)
         sims = self.load_sim_matrix()
@@ -171,24 +191,25 @@ class Matrix(object):
                 nbs = ';'.join(unicode(matrix2ttid[v]) for v in cur_data[:50])
                 outfile.write(unicode(matrix2ttid[cur_row]) + u'\t' + nbs + u'\n')
 
-    def get_top_50_alternative(self):
+    def get_top_alternative(self, n=10):
         sims = self.load_sim_matrix()
         nz = sims.getnnz(axis=1)
         nz = np.where(nz >= 100)[0]
         ttid2matrix = self.load_ttid2matrix()
         matrix2ttid = {v: k for k, v in ttid2matrix.iteritems()}
 
-        fpath = 'top50.txt'
+        fpath = 'top' + unicode(n) + '.txt'
         with io.open(fpath, 'w', encoding='utf-8') as outfile:
             for idx, ridx in enumerate(nz):
-            #     if (idx+1 % 100) == 0:
-                print(idx+1, '/', len(nz), end='\r')
+                if (idx+1) % 100 == 0:
+                    print('\r', idx+1, '/', len(nz), end='')
                 indices = sims.indices[sims.indptr[ridx]:sims.indptr[ridx+1]]
                 data = sims.data[sims.indptr[ridx]:sims.indptr[ridx+1]]
                 vals = [(v, r) for v, r in zip(data, indices)]
-                nbs = sorted(vals, reverse=True)[:50]
-                nbs = ';'.join(unicode(matrix2ttid[v[1]]) for v in nbs)
-                outfile.write(unicode(matrix2ttid[ridx]) + '\t' + nbs + '\n')
+                left = unicode(matrix2ttid[ridx])
+                for nb in sorted(vals, reverse=True)[:n]:
+                    outfile.write(left + '\t' + unicode(matrix2ttid[nb[1]]) +
+                                  '\n')
 
     def load_sim_matrix(self, folder='.'):
         data = np.load(os.path.join(folder, 'data.npy'))
@@ -203,31 +224,30 @@ class Matrix(object):
             ttid2matrix = pickle.load(infile)
         return ttid2matrix
 
-    def resolve_graphs(self):
+    def resolve_graphs(self, n=10):
         print('resolving graphs...')
         fpath = os.path.join('..', 'data', self.dataset, 'database_new.db')
         conn = sqlite3.connect(fpath)
         cursor = conn.cursor()
-        query = 'SELECT id, cf_title FROM ' + self.db_main_table
+        query = 'SELECT id, original_title FROM ' + self.db_main_table
         cursor.execute(query)
         data = cursor.fetchall()
         conn.close()
         id2title = {unicode(d[0]): d[1] for d in data}
 
         for fname in [
-            'top50.txt',
+            'top' + unicode(n) + '.txt',
         ]:
             print(fname)
             with io.open(fname, encoding='utf-8') as infile, \
                     io.open(fname + '_resolved.txt', 'w', encoding='utf-8') as outfile:
                 for line in infile:
                     left, right = line.strip().split('\t')
-                    left = id2title[left]
-                    right = [id2title[r] for r in right.split(';')]
                     try:
-                        outfile.write(left + u'\t' + u';'.join(right) + u'\n')
+                        outfile.write(id2title[left] + '\t' + id2title[right] + '\n')
                     except (UnicodeDecodeError, UnicodeEncodeError):
                         pdb.set_trace()
+
 
 if __name__ == '__main__':
         # m = Matrix(dataset='movielens')
@@ -235,5 +255,5 @@ if __name__ == '__main__':
         m.create_matrix()
         m.compute_cosine_sim_1()
         m.compute_cosine_sim_2()
-        m.get_top_50_alternative()
+        m.get_top_alternative()
         m.resolve_graphs()

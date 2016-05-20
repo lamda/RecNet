@@ -26,8 +26,8 @@ DEBUG = False
 DEBUG_SIZE = 255
 # DEBUG_SIZE = 750
 DATA_BASE_FOLDER = 'data'
-NUMBER_OF_RECOMMENDATIONS = [1, 5, 10, 15, 20]
-# NUMBER_OF_RECOMMENDATIONS = [1]
+# NUMBER_OF_RECOMMENDATIONS = [1, 5, 10, 15, 20]
+NUMBER_OF_RECOMMENDATIONS = [10]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4
 NUMBER_OF_POTENTIAL_RECOMMENDATIONS = 50  # should be 50
 
@@ -287,7 +287,6 @@ class Recommender(object):
         for strategy in strategies:
             s = strategy(self.similarity_matrix)
             print(s.label)
-            pdb.set_trace()
             for n in NUMBER_OF_RECOMMENDATIONS:
                 print('   ', n)
                 recs = s.get_recommendations(n=n)
@@ -367,35 +366,59 @@ class RatingBasedRecommender(Recommender):
         self.similarity_matrix = self.get_similarity_matrix()
 
         # sim1 = self.get_similarity_matrix().sims
-        self.similarity_matrix = SimilarityMatrix(self.get_similarity_matrix_fast())
+        # self.similarity_matrix = SimilarityMatrix(self.get_similarity_matrix_fast())
         super(RatingBasedRecommender, self).get_recommendations()
 
     def get_utility_matrix(self):
         if self.load_cached:
             um = self.load_recommendation_data('um')
             return um
-        # load user ids
-        item_ids = set(map(str, self.df['dataset_id']))
-        item2matrix = {m: i for i, m in enumerate(self.df['dataset_id'])}
-        user_ids = set()
+
         path_ratings = os.path.join(self.dataset_folder, 'ratings.dat')
-        with io.open(path_ratings, encoding='latin-1') as infile:
-            for line in infile:
-                user, item = line.split('::')[:2]
-                if item in item_ids:
-                    user_ids.add(int(user))
 
-        user2matrix = {u: i for i, u in enumerate(sorted(user_ids))}
-        um = np.zeros((len(user_ids), len(item_ids)), dtype=np.int8)
+        # # load user ids
+        # item_ids = set(map(str, self.df['dataset_id']))
+        # item2matrix = {m: i for i, m in enumerate(self.df['dataset_id'])}
+        # user_ids = set()
+        # with io.open(path_ratings, encoding='latin-1') as infile:
+        #     for line in infile:
+        #         user, item = line.split('::')[:2]
+        #         if item in item_ids:
+        #             user_ids.add(int(user))
+        #
+        # user2matrix = {u: i for i, u in enumerate(sorted(user_ids))}
+        # um = np.zeros((len(user_ids), len(item_ids)), dtype=np.int8)
+        #
+        # # load ratings
+        # with io.open(path_ratings, encoding='latin-1') as infile:
+        #     for line in infile:
+        #         user, item, rat = line.split('::')[:3]
+        #         user = int(user)
+        #         rat = float(rat)
+        #         if user in user_ids and item in item_ids:
+        #             um[user2matrix[user], item2matrix[item]] = rat
 
-        # load ratings
-        with io.open(path_ratings, encoding='latin-1') as infile:
+        ratings = []
+        with open(path_ratings) as infile:
             for line in infile:
-                user, item, rat = line.split('::')[:3]
-                user = int(user)
-                rat = float(rat)
-                if user in user_ids and item in item_ids:
-                    um[user2matrix[user], item2matrix[item]] = rat
+                user_id, movie_id, rating = line.strip().split('::')[:3]
+                ratings.append((int(movie_id), int(user_id), int(rating)))
+
+        users = sorted(set([a[1] for a in ratings]))
+        user2matrix = {user: i for user, i in zip(users, range(len(users)))}
+
+        ttids = sorted(set([a[0] for a in ratings]))
+        ttid2matrix = {ttid: i for ttid, i in zip(ttids, range(len(ttids)))}
+
+        ratings = [(user2matrix[r[1]], ttid2matrix[r[0]], r[2])
+                   for r in ratings]
+        row_ind = [r[0] for r in ratings]
+        col_ind = [r[1] for r in ratings]
+        data = [r[2] for r in ratings]
+        utility = sparse.csr_matrix((data, (row_ind, col_ind)))
+        um = utility.toarray()
+        # pdb.set_trace()
+
         um = um.astype(int)
         self.save_recommendation_data(um, 'um')
         return um
@@ -415,17 +438,29 @@ class RatingBasedRecommender(Recommender):
 
         print('computing similarities...')
         # transpose M because pdist calculates similarities between rows
-        similarity = scipy.spatial.distance.pdist(um_centered.T, 'cosine')
+        # similarity = scipy.spatial.distance.pdist(um_centered.T, 'cosine')
 
         print('returning...')
         # correlation is undefined for zero vectors --> set it to the max
         # max distance is 2 because the pearson correlation runs from -1...+1
         # pdb.set_trace() ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        similarity[np.isnan(similarity)] = 2.0  # for correlation
-        similarity = scipy.spatial.distance.squareform(similarity)
-        sim_mat = SimilarityMatrix(1 - similarity)
-        self.save_recommendation_data(sim_mat, 'sim_mat')
-        return sim_mat
+        # similarity = scipy.spatial.distance.pdist(um_centered.T, 'cosine')
+        # similarity[np.isnan(similarity)] = 2.0  # for correlation
+        # similarity = scipy.spatial.distance.squareform(similarity)
+        # sim_mat = SimilarityMatrix(1 - similarity)
+
+        similarity2 = scipy.spatial.distance.pdist(um_centered.T, 'cosine')
+        similarity2 = scipy.spatial.distance.squareform(similarity2)
+        similarity2 = 1 - similarity2
+        np.fill_diagonal(similarity2, 0)
+        # similarity2[np.isnan(similarity2)] = -2.0  # 2.0 for correlation
+        similarity2[np.isnan(similarity2)] = 0.0  # 2.0 for correlation
+        sim_mat2 = SimilarityMatrix(similarity2)
+        # pdb.set_trace()
+
+        self.save_recommendation_data(sim_mat2, 'sim_mat')
+        self.save_recommendation_data(similarity2, 'sim_mat_bare')
+        return sim_mat2
 
     def get_similarity_matrix_fast(self):
         if self.load_cached:
@@ -836,9 +871,9 @@ if __name__ == '__main__':
     start_time = datetime.now()
 
     for dataset in [
-        'movielens',
+        # 'movielens',
         # 'bookcrossing',
-        # 'imdb',
+        'imdb',
     ]:
         ## r = ContentBasedRecommender(dataset=dataset)
         r = RatingBasedRecommender(dataset=dataset, load_cached=False)
