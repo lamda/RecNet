@@ -236,8 +236,40 @@ def condense_data(user_ratings=5, movie_ratings=20):
             outfile.write(str(row['rating']) + str('\n'))
 
 
+def clean_data():
+    """delete all unrated titles from the database"""
+    db_file = '../database_new.db'
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+    df_ratings = pd.read_csv('ratings.dat', sep='::', encoding='utf-8',
+                             names=['user_id', 'movie_id',
+                                    'rating', 'timestamp']
+                             )
+    df_ratings.drop('timestamp', 1, inplace=True)
+
+    # get items already in the database
+    stmt = '''SELECT id, cf_title, original_title
+              FROM movies ORDER BY id ASC'''
+    cursor.execute(stmt)
+    response = cursor.fetchall()
+    df_movies = pd.DataFrame(data=response,
+                             columns=['movie_id', 'cf_title', 'original_title'])
+
+    db_ids = set(df_movies['movie_id'])
+    rating_ids = set(df_ratings['movie_id'])
+    to_delete = db_ids - rating_ids
+    
+    # delete movies not satisfying these conditions from the database
+    print('deleting...')
+    for movie_id in to_delete:
+        stmt = 'DELETE FROM movies WHERE id=?;'
+        data = (str(movie_id),)
+        cursor.execute(stmt, data)
+    conn.commit()
+    
 if __name__ == '__main__':
     # create_database()
     # populate_database()
-    add_text()
+    # add_text()
     ## condense_data()
+    clean_data()
