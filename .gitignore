@@ -2,10 +2,12 @@
 *.dat
 *.db
 *.exe
-*.png
-*.pyc
-*.obj
 *.html
 !plots/alluvial/alluvial.html
 *.js
 !plots/alluvial/d3.v3.min.js
+*.npy
+*.obj
+*.pickle
+*.png
+*.pyc

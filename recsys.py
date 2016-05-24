@@ -805,8 +805,13 @@ if __name__ == '__main__':
 
     # complete MovieLens matrix
     # with open('um_bookcrossing.obj', 'rb') as infile:
-    with open('um_imdb.obj', 'rb') as infile:
-        m = pickle.load(infile).astype(float)
+    # with open('um_imdb.obj', 'rb') as infile:
+    #     m = pickle.load(infile).astype(float)
+    print(0)
+    m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um.obj.npy')
+    print(1)
+    m = m.astype(float)
+    print(2)
     m[m == 0] = np.nan
 
     # with open('m255.obj', 'rb') as infile: # sample of 255 from MovieLens
@@ -849,6 +854,7 @@ if __name__ == '__main__':
     # ])
     # um = UtilityMatrix(m, hidden=hidden)
 
+    print(3)
     um = UtilityMatrix(m)
 
     # cfnn = CFNN(um, k=5); cfnn.print_test_error()
@@ -857,23 +863,24 @@ if __name__ == '__main__':
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
 
-    # gar = GlobalAverageRecommender(um); gar.print_test_error()
-    # uiar = UserItemAverageRecommender(um); uiar.print_test_error()
-    # for k in [
-        # 1,
-        # 2,
-        # 5,
-        # 10,
-        # 15,
-        # 20,
-        # 25
-        # 40,
-        # 50
-        # 60,
-        # 80,
-        # 100
-    # ]:
-    #     cfnn = CFNN(um, k=k); cfnn.print_test_error()
+    print(4)
+    gar = GlobalAverageRecommender(um); gar.print_test_error()
+    uiar = UserItemAverageRecommender(um); uiar.print_test_error()
+    for k in [
+        1,
+        2,
+        5,
+        10,
+        15,
+        20,
+        25,
+        40,
+        50,
+        60,
+        80,
+        100
+    ]:
+        cfnn = CFNN(um, k=k); cfnn.print_test_error()
 
     # wf = WeightedCFNNUnbiased(um, k=5, eta=0.0001, regularize=True,
     #                           eta_type='bold_driver', init='random')

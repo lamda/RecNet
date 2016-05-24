@@ -115,7 +115,7 @@ class Matrix(object):
             np.save('indices' + l, v.indices)
             np.save('indptr' + l, v.indptr)
 
-    def compute_cosine_sim_2(self):
+    # def compute_cosine_sim_2(self):
         data = np.load('data_cosine.npy')
         indices = np.load('indices_cosine.npy')
         indptr = np.load('indptr_cosine.npy')
@@ -127,6 +127,7 @@ class Matrix(object):
         inv_mag2 = sparse.csr_matrix((data, indices, indptr))
 
         print(10)
+        pdb.set_trace()
         cosine = cosine.T.multiply(inv_mag2)
 
         print(11)
@@ -250,8 +251,8 @@ class Matrix(object):
 
 
 if __name__ == '__main__':
-        # m = Matrix(dataset='movielens')
-        m = Matrix(dataset='imdb')
+        m = Matrix(dataset='movielens')
+        # m = Matrix(dataset='imdb')
         m.create_matrix()
         m.compute_cosine_sim_1()
         m.compute_cosine_sim_2()

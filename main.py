@@ -6,6 +6,8 @@ import collections
 import io
 import itertools
 import numpy as np
+import numpy.matlib
+np.matlib = numpy.matlib
 import cPickle as pickle
 import operator
 import os
@@ -15,8 +17,10 @@ from scipy import sparse as sparse
 import scipy.spatial.distance
 import sklearn.feature_extraction.text
 import sqlite3
+import sys
 
 import recsys
+import recsys_sparse
 
 
 pd.set_option('display.width', 1000)
@@ -26,8 +30,8 @@ DEBUG = False
 DEBUG_SIZE = 255
 # DEBUG_SIZE = 750
 DATA_BASE_FOLDER = 'data'
-# NUMBER_OF_RECOMMENDATIONS = [1, 5, 10, 15, 20]
-NUMBER_OF_RECOMMENDATIONS = [10]
+NUMBER_OF_RECOMMENDATIONS = [1, 5, 10, 15, 20]
+# NUMBER_OF_RECOMMENDATIONS = [10]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4
 NUMBER_OF_POTENTIAL_RECOMMENDATIONS = 50  # should be 50
 
@@ -306,7 +310,9 @@ class Recommender(object):
                              class_name + '_' + label + '.obj')
         # with open(fname, 'rb') as infile:
         #     obj = pickle.load(infile)
-        obj = np.load(fname)
+        obj = np.load(fname + '.npy')
+        if not obj.shape:
+            obj = obj.item()
         return obj
 
 
@@ -358,9 +364,11 @@ class ContentBasedRecommender(Recommender):
 
 
 class RatingBasedRecommender(Recommender):
-    def __init__(self, dataset, label='rb', load_cached=False):
-        super(RatingBasedRecommender, self).__init__(dataset, label,
-                                                     load_cached)
+    def __init__(self, dataset, label='rb', load_cached=False, sparse=False):
+        super(RatingBasedRecommender, self).__init__(
+            dataset, label, load_cached
+        )
+        self.sparse = sparse
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
@@ -371,7 +379,10 @@ class RatingBasedRecommender(Recommender):
 
     def get_utility_matrix(self):
         if self.load_cached:
-            um = self.load_recommendation_data('um')
+            if self.sparse:
+                um = self.load_recommendation_data('um_sparse')
+            else:
+                um = self.load_recommendation_data('um')
             return um
 
         path_ratings = os.path.join(self.dataset_folder, 'ratings.dat')
@@ -417,16 +428,21 @@ class RatingBasedRecommender(Recommender):
         data = [r[2] for r in ratings]
         utility = sparse.csr_matrix((data, (row_ind, col_ind)))
         um = utility.toarray()
-        # pdb.set_trace()
-
         um = um.astype(int)
         self.save_recommendation_data(um, 'um')
-        return um
+        self.save_recommendation_data(utility, 'um_sparse')
+        if self.sparse:
+            return utility
+        else:
+            return um
 
     def get_similarity_matrix(self):
-        # if self.load_cached:
-        #     sim_mat = self.load_recommendation_data('sim_mat')
-        #     return sim_mat
+        if self.load_cached:
+            data = self.load_recommendation_data('cosine-data')
+            indices = self.load_recommendation_data('cosine-indices')
+            indptr = self.load_recommendation_data('cosine-indptr')
+            cosine = sparse.csr_matrix((data, indices, indptr))
+            return SimilarityMatrix(cosine.toarray())
         um = self.get_utility_matrix()
 
         print('centering...')
@@ -443,24 +459,65 @@ class RatingBasedRecommender(Recommender):
         print('returning...')
         # correlation is undefined for zero vectors --> set it to the max
         # max distance is 2 because the pearson correlation runs from -1...+1
-        # pdb.set_trace() ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # OLD VERSION BELOW  +++++++++++++++++++++++++++++++++++++++++++++++++++
         # similarity = scipy.spatial.distance.pdist(um_centered.T, 'cosine')
         # similarity[np.isnan(similarity)] = 2.0  # for correlation
+        # similarity = scipy.spatial.distance.squareform(1 - similarity)
+
+        # NEW VERSION BELOW
+        # similarity = scipy.spatial.distance.pdist(um_centered.T, 'cosine')
         # similarity = scipy.spatial.distance.squareform(similarity)
-        # sim_mat = SimilarityMatrix(1 - similarity)
+        # similarity = 1 - similarity
+        # np.fill_diagonal(similarity, 0)
+        # # similarity[np.isnan(similarity)] = -2.0  # 2.0 for correlation
+        # similarity[np.isnan(similarity)] = 0.0  # 2.0 for correlation
 
-        similarity2 = scipy.spatial.distance.pdist(um_centered.T, 'cosine')
-        similarity2 = scipy.spatial.distance.squareform(similarity2)
-        similarity2 = 1 - similarity2
-        np.fill_diagonal(similarity2, 0)
-        # similarity2[np.isnan(similarity2)] = -2.0  # 2.0 for correlation
-        similarity2[np.isnan(similarity2)] = 0.0  # 2.0 for correlation
-        sim_mat2 = SimilarityMatrix(similarity2)
-        # pdb.set_trace()
+        # NEWEST AND FASTEST VERSION BELOW
+        A = sparse.csr_matrix(um_centered)
 
-        self.save_recommendation_data(sim_mat2, 'sim_mat')
-        self.save_recommendation_data(similarity2, 'sim_mat_bare')
-        return sim_mat2
+        print(1)
+        # transpose, as the code below compares rows
+        A = A.T
+
+        print(2)
+        # base similarity matrix (all dot products)
+        similarity = A.dot(A.T)
+
+        print(3)
+        # squared magnitude of preference vectors (number of occurrences)
+        square_mag = similarity.diagonal()
+
+        print(4)
+        # inverse squared magnitude
+        inv_square_mag = 1 / square_mag
+
+        print(5)
+        # if it doesn't occur, set the inverse magnitude to 0 (instead of inf)
+        inv_square_mag[np.isinf(inv_square_mag)] = 0
+
+        print(6)
+        # inverse of the magnitude
+        inv_mag = np.sqrt(inv_square_mag)
+
+        print(7)
+        # cosine similarity (elementwise multiply by inverse magnitudes)
+        col_ind = range(len(inv_mag))
+        row_ind = np.zeros(len(inv_mag))
+        inv_mag2 = sparse.csr_matrix((inv_mag, (col_ind, row_ind)))
+
+        print(8)
+        cosine = similarity.multiply(inv_mag2)
+
+        print(9)
+        cosine = cosine.T.multiply(inv_mag2)
+
+        print(10)
+        cosine.setdiag(0)
+
+        self.save_recommendation_data(cosine.data, 'cosine-data')
+        self.save_recommendation_data(cosine.indices, 'cosine-indices')
+        self.save_recommendation_data(cosine.indptr, 'cosine-indptr')
+        return SimilarityMatrix(cosine.toarray())
 
     def get_similarity_matrix_fast(self):
         if self.load_cached:
@@ -550,9 +607,10 @@ class RatingBasedRecommender(Recommender):
 
 
 class MatrixFactorizationRecommender(RatingBasedRecommender):
-    def __init__(self, dataset, load_cached=False):
-        super(MatrixFactorizationRecommender, self).__init__(dataset, 'rbmf',
-                                                             load_cached)
+    def __init__(self, dataset, load_cached=False, sparse=False):
+        super(MatrixFactorizationRecommender, self).__init__(
+            dataset, 'rbmf', load_cached, sparse
+        )
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
@@ -562,7 +620,10 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         if self.load_cached:
             sim_mat = self.load_recommendation_data('sim_mat')
             return sim_mat
+        print('loading utility matrix...')
         um = self.get_utility_matrix()
+
+        print('factorizing...')
         q = self.factorize(um)
 
         # use the centered version for similarity computation
@@ -608,11 +669,22 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
                                lamda=0.25, reset_params=True)
 
         elif self.dataset == 'imdb':
-            # for IMDb:
             #     k=15, nsteps=500, eta_type='bold_driver', regularize=True,
             #     eta=0.00001, init='random'
-            f = recsys.Factors(um, k=15, eta=0.00001, eta_type='bold_driver',
-                               init='random', regularize=True, nsteps=1000)
+            # f = recsys.Factors(um, k=5, eta=0.00001, eta_type='bold_driver',
+            #                    init='random', regularize=True, nsteps=1000)
+            kwargs = {
+                'k': 5,
+                'eta': 0.00001,
+                'eta_type': 'bold_driver',
+                'init': 'random',
+                'regularize': True,
+                'nsteps': 1000
+            }
+            if self.sparse:
+                f = recsys_sparse.Factors(um, **kwargs)
+            else:
+                f = recsys.Factors(um, **kwargs)
 
         return f.q
 
@@ -756,9 +828,10 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
 
 class AssociationRuleRecommender(RatingBasedRecommender):
-    def __init__(self, dataset, load_cached=False):
-        super(AssociationRuleRecommender, self).__init__(dataset, 'rbar',
-                                                         load_cached=load_cached)
+    def __init__(self, dataset, load_cached=False, sparse=False):
+        super(AssociationRuleRecommender, self).__init__(
+            dataset, 'rbar', load_cached=load_cached, sparse=sparse
+        )
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
@@ -808,7 +881,7 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         complex = self.ar_complex(um, coratings, x, y)
         print('s: %.4f, c: %.4f' % (simple, complex))
 
-    def get_similarity_matrix(self):
+    def get_similarity_matrix_old(self):
         if self.load_cached:
             sim_mat = self.load_recommendation_data('sim_mat')
             return sim_mat
@@ -818,25 +891,25 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         ucount = um.shape[0]
         icount = um.shape[1]
 
-        coratings = {i: collections.defaultdict(int) for i in range(icount)}
-        for u in range(ucount):
-            print('\r', u+1, '/', ucount, end='')
-            items = np.nonzero(um[u, :])[0]
-            for i in itertools.combinations(items, 2):
-                coratings[i[0]][i[1]] += 1
-                coratings[i[1]][i[0]] += 1
-        self.save_recommendation_data(coratings, 'coratings')
-        # coratings = self.load_recommendation_data('coratings')
+        # coratings = {i: collections.defaultdict(int) for i in range(icount)}
+        # for u in range(ucount):
+        #     print('\r', u+1, '/', ucount, end='')
+        #     items = np.nonzero(um[u, :])[0]
+        #     for i in itertools.combinations(items, 2):
+        #         coratings[i[0]][i[1]] += 1
+        #         coratings[i[1]][i[0]] += 1
+        # self.save_recommendation_data(coratings, 'coratings')
+        coratings = self.load_recommendation_data('coratings')
 
-        not_coratings = {i: collections.defaultdict(int) for i in range(icount)}
-        for i in coratings.keys():
-            print('\r', i+1, '/', len(coratings), end='')
-            not_rated_i = set(np.where(um[:, i] == 0)[0])
-            for j in coratings[i].keys():
-                rated_j = set(np.where(um[:, j] == 1)[0])
-                not_coratings[i][j] = len(not_rated_i & rated_j)
-        self.save_recommendation_data(not_coratings, 'not_coratings')
-        # coratings = self.load_recommendation_data('not_coratings')
+        # not_coratings = {i: collections.defaultdict(int) for i in range(icount)}
+        # for i in coratings.keys():
+        #     print('\r', i+1, '/', len(coratings), end='')
+        #     not_rated_i = set(np.where(um[:, i] == 0)[0])
+        #     for j in coratings[i].keys():
+        #         rated_j = set(np.where(um[:, j] == 1)[0])
+        #         not_coratings[i][j] = len(not_rated_i & rated_j)
+        # self.save_recommendation_data(not_coratings, 'not_coratings')
+        not_coratings = self.load_recommendation_data('not_coratings')
 
         # # debug helpers
         # self.rating_stats(um)
@@ -861,10 +934,99 @@ class AssociationRuleRecommender(RatingBasedRecommender):
                 if numerator > 0:
                     sims[x, y] = denominator / numerator
 
+        pdb.set_trace()
+
         sim_mat = SimilarityMatrix(1 - sims)
         self.save_recommendation_data(sim_mat, 'sim_mat')
         return sim_mat
 
+    def get_similarity_matrix(self):
+        if self.load_cached:
+            sim_mat = self.load_recommendation_data('sim_mat_sparse')
+            return SimilarityMatrix(sim_mat)
+
+        print(1)
+        um = self.get_utility_matrix()
+        um.data = np.ones(um.data.shape[0])
+
+        print(2)
+        coratings = um.T.dot(um).toarray()
+        np.fill_diagonal(coratings, 0)
+        um = um.toarray()
+
+        print(3)
+        um_inv = np.copy(um)
+        print(3.1)
+        # np.place(um_inv, um_inv == 0, 2)
+        um_inv[um_inv == 0] = 2
+        print(3.2)
+        # np.place(um_inv, um_inv == 1, 0)
+        um_inv[um_inv == 1] = 0
+        print(3.3)
+        # np.place(um_inv, um_inv == 2, 1)
+        um_inv[um_inv == 2] = 1
+
+        print(4)
+        not_coratings = um_inv.T.dot(um)
+        # icount = um.shape[1]
+        # coratings_dense = self.load_recommendation_data('coratings')
+        # tmp = scipy.sparse.dok_matrix((icount, icount))
+        # for i in range(icount):
+        #     print('\r', i+1, '/', icount, end='')
+        #     for j in range(icount):
+        #         tmp[i, j] = coratings_dense[i][j]
+        # print()
+        # tmp = tmp.toarray()
+        # pdb.set_trace()
+
+        # # debug helpers
+        # self.rating_stats(um)
+        # self.corating_stats(coratings, item_id=0)
+        # self.ar_simple(um, coratings, 0, 2849)
+        # self.ar_complex(um, coratings, 0, 2849)
+        # self.ar_both(um, coratings, 0, 2849)
+
+        print(5)
+        col_sum = um.sum(axis=0)
+        not_col_sum = um.shape[0] - col_sum
+
+        # sims = np.zeros((icount, icount))
+        # for x in range(icount):
+        #     print('\r', x, end='')
+        #     for y in range(icount):
+        #         # # (x and y) / x  simple version
+        #         # denominator = coratings[x, y]
+        #         # numerator = col_sum[x]
+        #
+        #         # ((x and y) * !x) / ((!x and y) * x)  complex version
+        #         denominator = coratings[x, y] * not_col_sum[x]
+        #         numerator = not_coratings[x, y] * col_sum[x]
+        #
+        #         if numerator > 0:
+        #             sims[x, y] = denominator / numerator
+
+        print(6)
+        col_sums = np.matlib.repmat(col_sum, coratings.shape[0], 1)
+        not_col_sums = np.matlib.repmat(not_col_sum, not_coratings.shape[0], 1)
+
+        print(7)
+        denominator = coratings * not_col_sums.T
+        numerator = not_coratings * col_sums.T
+
+        print(8)
+        sims = denominator / numerator
+        sims[np.isnan(sims)] = 0
+        sims[np.isinf(sims)] = 0
+
+        # self.corating_stats_sparse(coratings, item_id=0)
+
+        self.save_recommendation_data(sims, 'sim_mat_sparse')
+        return SimilarityMatrix(sims)
+
+    def corating_stats_sparse(self, coratings, item_id=0):
+        print('coratings for item %d %s:' % (item_id, self.id2title[item_id]))
+        for r in np.argsort(coratings[0])[-10:]:
+            print('   ', int(coratings[item_id, r]), self.id2title[r], '(', r, ')')
 
 if __name__ == '__main__':
     from datetime import datetime
@@ -876,9 +1038,9 @@ if __name__ == '__main__':
         'imdb',
     ]:
         ## r = ContentBasedRecommender(dataset=dataset)
-        r = RatingBasedRecommender(dataset=dataset, load_cached=False)
-        # r = AssociationRuleRecommender(dataset=dataset, load_cached=False)
-        # r = MatrixFactorizationRecommender(dataset=dataset, load_cached=False)
+        # r = RatingBasedRecommender(dataset=dataset, load_cached=False)
+        r = AssociationRuleRecommender(dataset=dataset, load_cached=False, sparse=True)
+        # r = MatrixFactorizationRecommender(dataset=dataset, load_cached=False, sparse=True)
         # r = InterpolationWeightRecommender(dataset=dataset, load_cached=False)
 
         r.get_recommendations()
