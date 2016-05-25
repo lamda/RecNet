@@ -10,7 +10,10 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.matlib
+np.matlib = numpy.matlib
 import pdb
+import scipy.sparse
 
 np.set_printoptions(linewidth=225)
 # np.seterr(all='raise')
@@ -29,7 +32,6 @@ class UtilityMatrix:
         # b_u = np.nanmean(hugo, axis=1) - mu
         self.coratings_r = self.get_coratings(self.r)
         self.coratings_rt = self.get_coratings(self.rt)
-        pdb.set_trace()
         self.s_r = self.get_similarities(self.r, self.coratings_r)
         self.s_rt = self.get_similarities(self.rt, self.coratings_rt)
         self.sirt_cache = {}
@@ -44,7 +46,7 @@ class UtilityMatrix:
             i, j = r_coo.row, r_coo.col
             rands = np.random.choice(
                 len(i),
-                np.floor(training_share * len(i)),
+                int(training_share * len(i)),
                 replace=False
             )
             hidden = np.vstack((i[rands], j[rands]))
@@ -58,6 +60,7 @@ class UtilityMatrix:
     def entrymean(self, m, axis=None):
         """Average a matrix over the given axis. If the axis is None,
         average over both rows and columns, returning a scalar.
+        (via some SciPy function)
         """
         # Mimic numpy's casting.  The int32/int64 check works around numpy
         # 1.5.x behavior of np.issubdtype, see gh-2677.
@@ -73,8 +76,15 @@ class UtilityMatrix:
 
         m = m.astype(res_dtype)
         mu = m.sum(None) / m.getnnz()
-        b_i = m.sum(0) / m.getnnz(axis=0) - mu
-        b_u = m.sum(1).T / m.getnnz(axis=1) - mu
+        # if user or item has no ratings (stripped from training data), set to 0
+        b_i = m.sum(0)
+        b_u = m.sum(1)
+        with np.errstate(invalid='ignore'):
+            b_i = (b_i / m.getnnz(axis=0)) - mu
+            b_u = (b_u.T / m.getnnz(axis=1)) - mu
+        b_i[np.isnan(b_i)] = 0
+        b_u[np.isnan(b_u)] = 0
+
         return mu, b_i, b_u
 
     def get_coratings(self, r):
@@ -82,23 +92,85 @@ class UtilityMatrix:
         # r_copy[np.isnan(r_copy)] = 0
         # r_copy[r_copy > 0] = 1
         # coratings = r_copy.T.dot(r_copy)
-        # TODO: set all ratings to 1
-        pdb.set_trace()
-        coratings = r.T.dot(r)
+
+        um = scipy.sparse.csr_matrix(r)
+        um.data = np.ones(um.data.shape[0])
+        coratings = um.T.dot(um)
+        coratings.setdiag(0)
         return coratings
 
     def get_similarities(self, r, coratings):
-        # compute similarities
-        rc = r - np.nanmean(r, axis=0)  # ratings - item average
-        rc[np.isnan(rc)] = 0.0
-        # ignore division errors, set the resulting nans to zero
-        with np.errstate(all='ignore'):
-            s = np.corrcoef(rc.T)
-        s[np.isnan(s)] = 0.0
+        # # compute similarities
+        # rc = r - np.nanmean(r, axis=0)  # ratings - item average
+        # rc[np.isnan(rc)] = 0.0
+        # # ignore division errors, set the resulting nans to zero
+        # with np.errstate(all='ignore'):
+        #     s = np.corrcoef(rc.T)
+        # s[np.isnan(s)] = 0.0
+        #
+        # # shrink similarities
+        # s = (coratings * s) / (coratings + self.beta)
+        # return s
 
+        print('centering...')
+        # use the centered version for similarity computation
+        um_centered = r.toarray().astype(np.float32)
+        um_centered[np.where(um_centered == 0)] = np.nan
+        um_centered = um_centered - np.nanmean(um_centered, axis=0)[np.newaxis, :]
+        um_centered[np.where(np.isnan(um_centered))] = 0
+
+        print('computing similarities...')
+        A = scipy.sparse.csr_matrix(um_centered)
+
+        print(1)
+        # transpose, as the code below compares rows
+        A = A.T
+
+        print(2)
+        # base similarity matrix (all dot products)
+        similarity = A.dot(A.T)
+
+        print(3)
+        # squared magnitude of preference vectors (number of occurrences)
+        square_mag = similarity.diagonal()
+
+        print(4)
+        # inverse squared magnitude
+        inv_square_mag = 1 / square_mag
+
+        print(5)
+        # if it doesn't occur, set the inverse magnitude to 0 (instead of inf)
+        inv_square_mag[np.isinf(inv_square_mag)] = 0
+
+        print(6)
+        # inverse of the magnitude
+        inv_mag = np.sqrt(inv_square_mag)
+
+        print(7)
+        # cosine similarity (elementwise multiply by inverse magnitudes)
+        col_ind = range(len(inv_mag))
+        row_ind = np.zeros(len(inv_mag))
+        inv_mag2 = scipy.sparse.csr_matrix((inv_mag, (col_ind, row_ind)))
+
+        print(8)
+        cosine = similarity.multiply(inv_mag2)
+
+        print(9)
+        cosine = cosine.T.multiply(inv_mag2)
+
+        print(10)
+        cosine.setdiag(0)
+
+        s = cosine.toarray()
         # shrink similarities
-        s = (coratings * s) / (coratings + self.beta)
-        return s
+        # this is "s = (coratings * s) / (coratings + self.beta)" in sparse form
+        coratings_shrunk = scipy.sparse.csr_matrix((
+            coratings.data / (coratings.data + self.beta),
+            coratings.indices,
+            coratings.indptr)
+        )
+
+        return scipy.sparse.csr_matrix(coratings_shrunk.multiply(s))
 
     def similar_items(self, u, i, k, use_all=False):
         try:
@@ -121,14 +193,20 @@ class UtilityMatrix:
             return s_i_k
 
     def get_not_nan_indices(self, m):
-        nnan = np.where(~np.isnan(m))
-        nnan_indices = zip(nnan[0], nnan[1])
-        return nnan_indices
+        # nnan = np.where(~np.isnan(m))
+        # nnan_indices = zip(nnan[0], nnan[1])
+        # return nnan_indices
+
+        indices = m.nonzero()
+        return zip(indices[0], indices[1])
 
     def get_nan_indices(self, m):
-        ynan = np.where(np.isnan(m))
-        ynan_indices = zip(ynan[0], ynan[1])
-        return ynan_indices
+        # ynan = np.where(np.isnan(m))
+        # ynan_indices = zip(ynan[0], ynan[1])
+        # return ynan_indices
+
+        # TODO!
+        return [(-1, -1)]
 
 
 class Recommender:
@@ -136,21 +214,32 @@ class Recommender:
         self.m = m
         self.rmse = []
 
-    def predict(self, u, i, dbg=False):
+    def predict_single(self, u, i, dbg=False):
         raise NotImplementedError
 
-    def training_error(self):
+    def predict_all(self, r):
+        raise NotImplementedError
+
+    def training_error_single(self):
         sse = 0.0
         for u, i in self.m.rt_not_nan_indices:
-            err = self.m.rt[u, i] - self.predict(u, i)
+            err = self.m.rt[u, i] - self.predict_single(u, i)
             sse += err ** 2
         return np.sqrt(sse / len(self.m.rt_not_nan_indices))
 
-    def test_error(self):
+    def training_error_all(self):
+        err = self.m.rt - self.predict_all(self.m.rt)
+        sse = (err ** 2).sum()
+        return np.sqrt(sse / self.rt.nnz)
+
+    def training_error(self):
+        return self.training_error_all()
+
+    def test_error_single(self):
         sse = 0.0
         # errs = []
         for u, i in self.m.hidden.T:
-            err = self.m.r[u, i] - self.predict(u, i)
+            err = self.m.r[u, i] - self.predict_single(u, i)
             sse += err ** 2
             # errs.append(err)
             # print(self.m.r[u, i], self.predict(u, i), err)
@@ -162,6 +251,14 @@ class Recommender:
         # return np.sqrt(sse) / self.m.hidden.shape[1]
         # pdb.set_trace()
         return np.sqrt(sse / self.m.hidden.shape[1])
+
+    def test_error_all(self):
+        err = self.m.r - self.predict_all(self.m.r)
+        sse = np.square(err).sum()
+        return np.sqrt(sse / self.m.r.nnz)
+
+    def test_error(self):
+        return self.test_error_all()
 
     def print_test_error(self):
         print('%.3f - Test Error %s' %
@@ -181,25 +278,27 @@ class GlobalAverageRecommender(Recommender):
     def __init__(self, m):
         Recommender.__init__(self, m)
 
-    def predict(self, u, i, dbg=False):
+    def predict_single(self, u, i, dbg=False):
         return self.m.mu
+
+    def predict_all(self, r):
+        return np.ones(r.shape) * self.m.mu
 
 
 class UserItemAverageRecommender(Recommender):
     def __init__(self, m):
         Recommender.__init__(self, m)
 
-    def predict(self, u, i, dbg=False):
+    def predict_single(self, u, i, dbg=False):
         # predict an item-based CF rating based on the training data
         b_xi = self.m.mu + self.m.b_u[u] + self.m.b_i[i]
-        if np.isnan(b_xi):
-            if np.isnan(self.m.b_u[u]) and np.isnan(self.m.b_i[i]):
-                return self.m.mu
-            elif np.isnan(self.m.b_u[u]):
-                return self.m.mu + self.m.b_i[i]
-            else:
-                return self.m.mu + self.m.b_u[u]
         return b_xi
+
+    def predict_all(self, r):
+        P = np.ones(r.shape) * self.m.mu
+        P += np.matlib.repmat(self.m.b_i, r.shape[0], 1)
+        P += np.matlib.repmat(self.m.b_u.T, 1, r.shape[1])
+        return P
 
 
 class CFNN(Recommender):
@@ -210,7 +309,7 @@ class CFNN(Recommender):
         self.normalize = True
         print('k =', k)
 
-    def predict_basic(self, u, i, dbg=False):
+    def predict_basic_old(self, u, i, dbg=False):
         pdb.set_trace()
         n_u_i = self.m.similar_items(u, i, self.k)
         r = 0
@@ -230,8 +329,7 @@ class CFNN(Recommender):
                 r /= s
         return r
 
-    def predict(self, u, i, dbg=False):
-        # pdb.set_trace()
+    def predict_single(self, u, i, dbg=False):
         # predict an item-based CF rating based on the training data
         b_xi = self.m.mu + self.m.b_u[u] + self.m.b_i[i]
         if np.isnan(b_xi):
@@ -266,6 +364,11 @@ class CFNN(Recommender):
                     pdb.set_trace()
                 r /= s
         return b_xi + r
+
+    def predict_all(self, r):
+        P = np.ones(r.shape) * self.m.mu
+        P += np.matlib.repmat(self.m.b_i, r.shape[0], 1)
+        P += np.matlib.repmat(self.m.b_u.T, 1, r.shape[1])
 
 
 class Factors(Recommender):
@@ -832,15 +935,16 @@ if __name__ == '__main__':
     # with open('um_bookcrossing.obj', 'rb') as infile:
     # with open('um_imdb.obj', 'rb') as infile:
     #     m = pickle.load(infile).astype(float)
-    print(0)
-    # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
-    m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
-    m = m.item()
 
-    # print(1)
+    # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+    # m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+    # m = m.item()
+    # m = m.astype('int32')
+
+
     # pdb.set_trace()
     # m = m.astype(float)
-    # print(2)
+
     # m[m == 0] = np.nan
 
     # with open('m255.obj', 'rb') as infile: # sample of 255 from MovieLens
@@ -849,22 +953,22 @@ if __name__ == '__main__':
 
     # m = read_movie_lens_data() # Denis's MovieLens sample
 
-    # m = np.array([  # simple test case
-    #     [5, 1, np.NAN, 2, 2, 4, 3, 2],
-    #     [1, 5, 2, 5, 5, 1, 1, 4],
-    #     [2, np.NAN, 3, 5, 4, 1, 2, 4],
-    #     [4, 3, 5, 3, np.NAN, 5, 3, np.NAN],
-    #     [2, np.NAN, 1, 3, np.NAN, 2, 5, 3],
-    #     [4, 1, np.NAN, 1, np.NAN, 4, 3, 2],
-    #     [4, 2, 1, 1, np.NAN, 5, 4, 1],
-    #     [5, 2, 2, np.NAN, 2, 5, 4, 1],
-    #     [4, 3, 3, np.NAN, np.NAN, 4, 3, np.NAN]
-    # ])
-    # hidden = np.array([
-    #     [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
-    #     [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
-    # ])
-    # um = UtilityMatrix(m, hidden=hidden)
+    m = scipy.sparse.csr_matrix(np.array([  # simple test case
+        [5, 1, 0, 2, 2, 4, 3, 2],
+        [1, 5, 2, 5, 5, 1, 1, 4],
+        [2, 0, 3, 5, 4, 1, 2, 4],
+        [4, 3, 5, 3, 0, 5, 3, 0],
+        [2, 0, 1, 3, 0, 2, 5, 3],
+        [4, 1, 0, 1, 0, 4, 3, 2],
+        [4, 2, 1, 1, 0, 5, 4, 1],
+        [5, 2, 2, 0, 2, 5, 4, 1],
+        [4, 3, 3, 0, 0, 4, 3, 0]
+    ]))
+    hidden = np.array([
+        [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
+        [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
+    ])
+    um = UtilityMatrix(m, hidden=hidden)
 
     # m = np.array([  # simple test case 2
     #     [1, 5, 5, np.NAN, np.NAN, np.NAN],
@@ -883,8 +987,7 @@ if __name__ == '__main__':
     # ])
     # um = UtilityMatrix(m, hidden=hidden)
 
-    print(3)
-    um = UtilityMatrix(m)
+    # um = UtilityMatrix(m)
 
     # cfnn = CFNN(um, k=5); cfnn.print_test_error()
     # f = Factors(um, k=5, nsteps=500, eta_type='increasing', regularize=True, eta=0.00001, init='random')
@@ -892,22 +995,21 @@ if __name__ == '__main__':
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
 
-    print(4)
-    gar = GlobalAverageRecommender(um); gar.print_test_error()
-    uiar = UserItemAverageRecommender(um); uiar.print_test_error()
+    # gar = GlobalAverageRecommender(um); gar.print_test_error()
+    # uiar = UserItemAverageRecommender(um); uiar.print_test_error()
     for k in [
         1,
         2,
         5,
-        10,
-        15,
-        20,
-        25,
-        40,
-        50,
-        60,
-        80,
-        100
+        # 10,
+        # 15,
+        # 20,
+        # 25,
+        # 40,
+        # 50,
+        # 60,
+        # 80,
+        # 100
     ]:
         cfnn = CFNN(um, k=k); cfnn.print_test_error()
 
