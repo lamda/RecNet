@@ -9,3 +9,4 @@
 !plots/alluvial/alluvial.html
 *.js
 !plots/alluvial/d3.v3.min.js
+plots/alluvial/*.pdf
