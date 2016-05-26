@@ -2,9 +2,11 @@
 
 from __future__ import division, print_function
 
+import bottleneck
 import collections
 import cPickle as pickle
 import datetime
+import heapq
 import itertools
 import matplotlib
 matplotlib.use('Agg')
@@ -85,7 +87,7 @@ class UtilityMatrix:
         b_i[np.isnan(b_i)] = 0
         b_u[np.isnan(b_u)] = 0
 
-        return mu, b_i, b_u
+        return mu, np.array(b_i)[0], np.array(b_u)[0]
 
     def get_coratings(self, r):
         # r_copy = np.copy(r)
@@ -169,26 +171,69 @@ class UtilityMatrix:
             coratings.indices,
             coratings.indptr)
         )
-
         return scipy.sparse.csr_matrix(coratings_shrunk.multiply(s))
 
+    # @profile
     def similar_items(self, u, i, k, use_all=False):
         try:
             return self.sirt_cache[(u, i, k)]
         except KeyError:
             if use_all:  # use entire matrix
                 r_u = self.r[u, :]   # user ratings
-                s_i = np.copy(self.s_r[i, :])  # item similarity
+                # r_u = self.r.getrow(u)   # user ratings
+                # s_i = np.copy(self.s_r[i, :])  # item similarity
+                # s_i = self.s_r.getrow(i)  # item similarity
+                s_i = self.s_r[i, :]
             else:  # use training matrix
-                r_u = self.rt[u, :]  # user ratings
-                s_i = np.copy(self.s_rt[i, :])  # item similarity
-            # s_i[s_i < 0.0] = np.nan  # mask only to similar items
-            s_i[i] = np.nan  # mask the item
-            s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
-            nn = np.isnan(s_i).sum()  # how many invalid items
+                # r_u = self.rt[u, :]  # user ratings
+                r_u = self.rt.getrow(u)  # user ratings
+                # s_i = np.copy(self.s_rt[i, :])  # item similarity
+                # s_i = self.s_rt.getrow(i)  # item similarity
+                s_i = self.s_rt[i, :]
 
-            s_i_sorted = np.argsort(s_i)
-            s_i_k = tuple(s_i_sorted[-k - nn:-nn])
+            # old version
+            # s_i[s_i < 0.0] = np.nan  # mask only to similar items
+            # s_i[i] = np.nan  # mask the item
+            # s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
+            # s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
+            # nn = np.isnan(s_i).sum()  # how many invalid items
+            #
+            # s_i_sorted = np.argsort(s_i)
+            # s_i_k = tuple(s_i_sorted[-k - nn:-nn])
+
+            # new but slow version
+            # vals = [(s_i[0, i], i) for i in r_u.nonzero()[1]]
+            # s_i_k = heapq.nlargest(k, vals)
+            # s_i_k = tuple(e[1] for e in s_i_k)
+
+            # new and faster version
+            nnz = set(r_u.nonzero()[1])
+            s_i_sorted = np.argsort(s_i.toarray())
+            top = []
+
+            for el in s_i_sorted[0]:
+                if el in nnz:
+                    top.append(el)
+                if len(top) == k:
+                    break
+            s_i_k = tuple(top)
+
+            # new new version
+            # nnz = set(r_u.nonzero()[1])
+            # s_i_array = s_i.toarray()
+            # top = []
+            # k_top = k
+            # while len(top) < k or k_top < s_i_array.shape[1]:
+            #     k_top = min(k_top + 10, s_i_array.shape[1])
+            #     s_i_sorted = bottleneck.argpartsort(s_i_array, k_top)
+            #
+            #     for el in s_i_sorted[0][:k_top]:
+            #         if el in nnz:
+            #             top.append(el)
+            #         if len(top) == k:
+            #             break
+            # s_i_k = tuple(top)
+
             self.sirt_cache[(u, i, k)] = s_i_k
             return s_i_k
 
@@ -238,18 +283,19 @@ class Recommender:
     def test_error_single(self):
         sse = 0.0
         # errs = []
-        for u, i in self.m.hidden.T:
+        no_hidden = self.m.hidden.T.shape[0]
+        for idx, (u, i) in enumerate(self.m.hidden.T):
+            print('\r    ', idx+1, '/', no_hidden, end='')
             err = self.m.r[u, i] - self.predict_single(u, i)
             sse += err ** 2
             # errs.append(err)
             # print(self.m.r[u, i], self.predict(u, i), err)
-            # pdb.set_trace()
+
             # if err > 100:
             #     print(err, self.m.r[u, i], self.predict(u, i))
             #     self.predict(u, i, dbg=True)
+        print()
 
-        # return np.sqrt(sse) / self.m.hidden.shape[1]
-        # pdb.set_trace()
         return np.sqrt(sse / self.m.hidden.shape[1])
 
     def test_error_all(self):
@@ -297,7 +343,7 @@ class UserItemAverageRecommender(Recommender):
     def predict_all(self, r):
         P = np.ones(r.shape) * self.m.mu
         P += np.matlib.repmat(self.m.b_i, r.shape[0], 1)
-        P += np.matlib.repmat(self.m.b_u.T, 1, r.shape[1])
+        P += np.matlib.repmat(self.m.b_u, r.shape[1], 1).T
         return P
 
 
@@ -369,6 +415,9 @@ class CFNN(Recommender):
         P = np.ones(r.shape) * self.m.mu
         P += np.matlib.repmat(self.m.b_i, r.shape[0], 1)
         P += np.matlib.repmat(self.m.b_u.T, 1, r.shape[1])
+
+    def test_error(self):
+        return self.test_error_single()
 
 
 class Factors(Recommender):
@@ -930,19 +979,37 @@ def read_movie_lens_data():
 
 if __name__ == '__main__':
     start_time = datetime.datetime.now()
+    np.set_printoptions(precision=2)
 
     # complete MovieLens matrix
     # with open('um_bookcrossing.obj', 'rb') as infile:
     # with open('um_imdb.obj', 'rb') as infile:
     #     m = pickle.load(infile).astype(float)
 
-    # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
-    # m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
-    # m = m.item()
-    # m = m.astype('int32')
+    if 1:
+        # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+        m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+        m = m.item()
+        m = m.astype('int32')
+        um = UtilityMatrix(m)
+    else:
+        m = scipy.sparse.csr_matrix(np.array([  # simple test case
+            [5, 1, 0, 2, 2, 4, 3, 2],
+            [1, 5, 2, 5, 5, 1, 1, 4],
+            [2, 0, 3, 5, 4, 1, 2, 4],
+            [4, 3, 5, 3, 0, 5, 3, 0],
+            [2, 0, 1, 3, 0, 2, 5, 3],
+            [4, 1, 0, 1, 0, 4, 3, 2],
+            [4, 2, 1, 1, 0, 5, 4, 1],
+            [5, 2, 2, 0, 2, 5, 4, 1],
+            [4, 3, 3, 0, 0, 4, 3, 0]
+        ]))
+        hidden = np.array([
+            [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
+            [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
+        ])
+        um = UtilityMatrix(m, hidden=hidden)
 
-
-    # pdb.set_trace()
     # m = m.astype(float)
 
     # m[m == 0] = np.nan
@@ -953,22 +1020,6 @@ if __name__ == '__main__':
 
     # m = read_movie_lens_data() # Denis's MovieLens sample
 
-    m = scipy.sparse.csr_matrix(np.array([  # simple test case
-        [5, 1, 0, 2, 2, 4, 3, 2],
-        [1, 5, 2, 5, 5, 1, 1, 4],
-        [2, 0, 3, 5, 4, 1, 2, 4],
-        [4, 3, 5, 3, 0, 5, 3, 0],
-        [2, 0, 1, 3, 0, 2, 5, 3],
-        [4, 1, 0, 1, 0, 4, 3, 2],
-        [4, 2, 1, 1, 0, 5, 4, 1],
-        [5, 2, 2, 0, 2, 5, 4, 1],
-        [4, 3, 3, 0, 0, 4, 3, 0]
-    ]))
-    hidden = np.array([
-        [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
-        [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
-    ])
-    um = UtilityMatrix(m, hidden=hidden)
 
     # m = np.array([  # simple test case 2
     #     [1, 5, 5, np.NAN, np.NAN, np.NAN],
@@ -987,29 +1038,27 @@ if __name__ == '__main__':
     # ])
     # um = UtilityMatrix(m, hidden=hidden)
 
-    # um = UtilityMatrix(m)
-
     # cfnn = CFNN(um, k=5); cfnn.print_test_error()
     # f = Factors(um, k=5, nsteps=500, eta_type='increasing', regularize=True, eta=0.00001, init='random')
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.000001, regularize=True, init='random')
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
 
-    # gar = GlobalAverageRecommender(um); gar.print_test_error()
-    # uiar = UserItemAverageRecommender(um); uiar.print_test_error()
+    gar = GlobalAverageRecommender(um); gar.print_test_error()
+    uiar = UserItemAverageRecommender(um); uiar.print_test_error()
     for k in [
         1,
         2,
         5,
-        # 10,
-        # 15,
-        # 20,
-        # 25,
-        # 40,
-        # 50,
-        # 60,
-        # 80,
-        # 100
+        10,
+        15,
+        20,
+        25,
+        40,
+        50,
+        60,
+        80,
+        100
     ]:
         cfnn = CFNN(um, k=k); cfnn.print_test_error()
 
