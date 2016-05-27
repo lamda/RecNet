@@ -207,32 +207,34 @@ class UtilityMatrix:
             # s_i_k = tuple(e[1] for e in s_i_k)
 
             # new and faster version
-            nnz = set(r_u.nonzero()[1])
-            s_i_sorted = np.argsort(s_i.toarray())
-            top = []
-
-            for el in s_i_sorted[0]:
-                if el in nnz:
-                    top.append(el)
-                if len(top) == k:
-                    break
-            s_i_k = tuple(top)
+            # 8:25 for Movielens k = 1, 2, 5
+            # nnz = set(r_u.nonzero()[1])
+            # s_i_sorted = np.argsort(s_i.toarray())
+            # top = []
+            #
+            # for el in s_i_sorted[0]:
+            #     if el in nnz:
+            #         top.append(el)
+            #     if len(top) == k:
+            #         break
+            # s_i_k = tuple(top)
 
             # new new version
-            # nnz = set(r_u.nonzero()[1])
-            # s_i_array = s_i.toarray()
-            # top = []
-            # k_top = k
-            # while len(top) < k or k_top < s_i_array.shape[1]:
-            #     k_top = min(k_top + 10, s_i_array.shape[1])
-            #     s_i_sorted = bottleneck.argpartsort(s_i_array, k_top)
-            #
-            #     for el in s_i_sorted[0][:k_top]:
-            #         if el in nnz:
-            #             top.append(el)
-            #         if len(top) == k:
-            #             break
-            # s_i_k = tuple(top)
+            # 8:10 for Movielens k = 1, 2, 5
+            nnz = set(r_u.nonzero()[1])
+            s_i_array = s_i.toarray()
+            top = []
+            k_top = k
+            while len(top) < k or k_top < s_i_array.shape[1]:
+                k_top = min(k_top + 10, s_i_array.shape[1])
+                s_i_sorted = bottleneck.argpartsort(s_i_array, k_top)
+
+                for el in s_i_sorted[0][:k_top]:
+                    if el in nnz:
+                        top.append(el)
+                    if len(top) == k:
+                        break
+            s_i_k = tuple(top)
 
             self.sirt_cache[(u, i, k)] = s_i_k
             return s_i_k
@@ -978,7 +980,7 @@ def read_movie_lens_data():
 
 
 if __name__ == '__main__':
-    start_time = datetime.datetime.now()
+    # start_time = datetime.datetime.now()
     np.set_printoptions(precision=2)
 
     # complete MovieLens matrix
@@ -987,8 +989,8 @@ if __name__ == '__main__':
     #     m = pickle.load(infile).astype(float)
 
     if 1:
-        # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
-        m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+        m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+        # m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
         m = m.item()
         m = m.astype('int32')
         um = UtilityMatrix(m)
@@ -1046,6 +1048,7 @@ if __name__ == '__main__':
 
     gar = GlobalAverageRecommender(um); gar.print_test_error()
     uiar = UserItemAverageRecommender(um); uiar.print_test_error()
+    start_time = datetime.datetime.now()
     for k in [
         1,
         2,
