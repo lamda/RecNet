@@ -173,7 +173,6 @@ class UtilityMatrix:
         )
         return scipy.sparse.csr_matrix(coratings_shrunk.multiply(s))
 
-    # @profile
     def similar_items(self, u, i, k, use_all=False):
         try:
             return self.sirt_cache[(u, i, k)]
@@ -208,33 +207,33 @@ class UtilityMatrix:
 
             # new and faster version
             # 8:25 for Movielens k = 1, 2, 5
-            # nnz = set(r_u.nonzero()[1])
-            # s_i_sorted = np.argsort(s_i.toarray())
-            # top = []
-            #
-            # for el in s_i_sorted[0]:
-            #     if el in nnz:
-            #         top.append(el)
-            #     if len(top) == k:
-            #         break
-            # s_i_k = tuple(top)
-
-            # new new version
-            # 8:10 for Movielens k = 1, 2, 5
             nnz = set(r_u.nonzero()[1])
-            s_i_array = s_i.toarray()
+            s_i_sorted = np.argsort(s_i.toarray())
             top = []
-            k_top = k
-            while len(top) < k or k_top < s_i_array.shape[1]:
-                k_top = min(k_top + 10, s_i_array.shape[1])
-                s_i_sorted = bottleneck.argpartsort(s_i_array, k_top)
 
-                for el in s_i_sorted[0][:k_top]:
-                    if el in nnz:
-                        top.append(el)
-                    if len(top) == k:
-                        break
+            for el in s_i_sorted[0]:
+                if el in nnz:
+                    top.append(el)
+                if len(top) == k:
+                    break
             s_i_k = tuple(top)
+
+            # new new and slow version
+            # 8:10 for Movielens k = 1, 2, 5
+            # nnz = set(r_u.nonzero()[1])
+            # s_i_array = s_i.toarray()
+            # top = []
+            # k_top = k
+            # while len(top) < k or k_top < s_i_array.shape[1]:
+            #     k_top = min(k_top + 10, s_i_array.shape[1])
+            #     s_i_sorted = bottleneck.argpartsort(s_i_array, k_top)
+            #
+            #     for el in s_i_sorted[0][:k_top]:
+            #         if el in nnz:
+            #             top.append(el)
+            #         if len(top) == k:
+            #             break
+            # s_i_k = tuple(top)
 
             self.sirt_cache[(u, i, k)] = s_i_k
             return s_i_k
@@ -261,34 +260,23 @@ class Recommender:
         self.m = m
         self.rmse = []
 
-    def predict_single(self, u, i, dbg=False):
+    def predict(self, u, i, dbg=False):
         raise NotImplementedError
 
-    def predict_all(self, r):
-        raise NotImplementedError
-
-    def training_error_single(self):
+    def training_error(self):
         sse = 0.0
         for u, i in self.m.rt_not_nan_indices:
-            err = self.m.rt[u, i] - self.predict_single(u, i)
+            err = self.m.rt[u, i] - self.predict(u, i)
             sse += err ** 2
         return np.sqrt(sse / len(self.m.rt_not_nan_indices))
 
-    def training_error_all(self):
-        err = self.m.rt - self.predict_all(self.m.rt)
-        sse = (err ** 2).sum()
-        return np.sqrt(sse / self.rt.nnz)
-
-    def training_error(self):
-        return self.training_error_all()
-
-    def test_error_single(self):
+    def test_error(self):
         sse = 0.0
         # errs = []
         no_hidden = self.m.hidden.T.shape[0]
         for idx, (u, i) in enumerate(self.m.hidden.T):
             print('\r    ', idx+1, '/', no_hidden, end='')
-            err = self.m.r[u, i] - self.predict_single(u, i)
+            err = self.m.r[u, i] - self.predict(u, i)
             sse += err ** 2
             # errs.append(err)
             # print(self.m.r[u, i], self.predict(u, i), err)
@@ -299,14 +287,6 @@ class Recommender:
         print()
 
         return np.sqrt(sse / self.m.hidden.shape[1])
-
-    def test_error_all(self):
-        err = self.m.r - self.predict_all(self.m.r)
-        sse = np.square(err).sum()
-        return np.sqrt(sse / self.m.r.nnz)
-
-    def test_error(self):
-        return self.test_error_all()
 
     def print_test_error(self):
         print('%.3f - Test Error %s' %
@@ -326,27 +306,18 @@ class GlobalAverageRecommender(Recommender):
     def __init__(self, m):
         Recommender.__init__(self, m)
 
-    def predict_single(self, u, i, dbg=False):
+    def predict(self, u, i, dbg=False):
         return self.m.mu
-
-    def predict_all(self, r):
-        return np.ones(r.shape) * self.m.mu
 
 
 class UserItemAverageRecommender(Recommender):
     def __init__(self, m):
         Recommender.__init__(self, m)
 
-    def predict_single(self, u, i, dbg=False):
+    def predict(self, u, i, dbg=False):
         # predict an item-based CF rating based on the training data
         b_xi = self.m.mu + self.m.b_u[u] + self.m.b_i[i]
         return b_xi
-
-    def predict_all(self, r):
-        P = np.ones(r.shape) * self.m.mu
-        P += np.matlib.repmat(self.m.b_i, r.shape[0], 1)
-        P += np.matlib.repmat(self.m.b_u, r.shape[1], 1).T
-        return P
 
 
 class CFNN(Recommender):
@@ -377,22 +348,15 @@ class CFNN(Recommender):
                 r /= s
         return r
 
-    def predict_single(self, u, i, dbg=False):
+    def predict(self, u, i, dbg=False):
         # predict an item-based CF rating based on the training data
         b_xi = self.m.mu + self.m.b_u[u] + self.m.b_i[i]
-        if np.isnan(b_xi):
-            if np.isnan(self.m.b_u[u]) and np.isnan(self.m.b_i[i]):
-                return self.m.mu
-            elif np.isnan(self.m.b_u[u]):
-                return self.m.mu + self.m.b_i[i]
-            else:
-                return self.m.mu + self.m.b_u[u]
 
-        n_u_i = self.m.similar_items(u, i, self.k)
+        # the > 0  resolves problems with near-zero weight sums
+        n_u_i = [v for v in self.m.similar_items(u, i, self.k) if v > 0]
+
         r = 0
         for j in n_u_i:
-            if self.w[i, j] < 0:  # resolve problems with near-zero weight sums
-                continue
             diff = self.m.r[u, j] - (self.m.mu + self.m.b_u[u] + self.m.b_i[j])
             r += self.w[i, j] * diff
         if dbg:
@@ -403,23 +367,12 @@ class CFNN(Recommender):
             pdb.set_trace()
         if self.normalize:
             if r != 0:
-                s = sum(self.w[i, j] for j in n_u_i
-                        # resolve problems with near-zero weight sums
-                        if self.w[i, j] > 0
-                        )
+                s = sum(self.w[i, j] for j in n_u_i)
                 if not np.isfinite(r/sum(self.w[i, j] for j in n_u_i)) or\
                         np.isnan(r/sum(self.w[i, j] for j in n_u_i)):
                     pdb.set_trace()
                 r /= s
         return b_xi + r
-
-    def predict_all(self, r):
-        P = np.ones(r.shape) * self.m.mu
-        P += np.matlib.repmat(self.m.b_i, r.shape[0], 1)
-        P += np.matlib.repmat(self.m.b_u.T, 1, r.shape[1])
-
-    def test_error(self):
-        return self.test_error_single()
 
 
 class Factors(Recommender):
@@ -989,8 +942,8 @@ if __name__ == '__main__':
     #     m = pickle.load(infile).astype(float)
 
     if 1:
-        m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
-        # m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+        # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+        m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
         m = m.item()
         m = m.astype('int32')
         um = UtilityMatrix(m)
@@ -1048,6 +1001,7 @@ if __name__ == '__main__':
 
     gar = GlobalAverageRecommender(um); gar.print_test_error()
     uiar = UserItemAverageRecommender(um); uiar.print_test_error()
+    pdb.set_trace()
     start_time = datetime.datetime.now()
     for k in [
         1,
