@@ -24,40 +24,35 @@ np.set_printoptions(linewidth=225)
 class UtilityMatrix:
     def __init__(self, r, beta=1, hidden=None):
         self.beta = beta
-        self.r = r  # rating matrix (=utility matrix)
-        self.rt, self.hidden = self.get_training_data(hidden)
+        self.r = r.astype(float)  # rating matrix (=utility matrix)
+        self.r_coo = self.r.tocoo()
+        self.rt, self.rt_coo, self.hidden_indices, self.hidden_vals =\
+            self.get_training_data(hidden)
         self.mu, self.b_i, self.b_u = self.entrymean(self.rt)
-        # hugo = self.rt.toarray().astype(float)
-        # hugo[hugo == 0] = np.nan
-        # mu = np.nanmean(hugo)
-        # b_i = np.nanmean(hugo, axis=0) - mu
-        # b_u = np.nanmean(hugo, axis=1) - mu
         self.coratings_r = self.get_coratings(self.r)
         self.coratings_rt = self.get_coratings(self.rt)
         self.s_r = self.get_similarities(self.r, self.coratings_r)
         self.s_rt = self.get_similarities(self.rt, self.coratings_rt)
         self.sirt_cache = {}
-        self.rt_not_nan_indices = self.get_not_nan_indices(self.rt)
-        self.rt_nan_indices = self.get_nan_indices(self.rt)
-        # self.r_nan_indices = self.get_nan_indices(self.r)
-        # self.r_not_nan_indices = self.get_not_nan_indices(self.r)
 
     def get_training_data(self, hidden, training_share=0.2):
-        r_coo = self.r.tocoo(copy=True)
+        np.random.seed(0)
         if hidden is None:  # take some of the input as training data
-            i, j = r_coo.row, r_coo.col
+            i, j = self.r_coo.row, self.r_coo.col
             rands = np.random.choice(
                 len(i),
                 int(training_share * len(i)),
                 replace=False
             )
             hidden = np.vstack((i[rands], j[rands]))
-        r_dok = r_coo.todok()
+        r_dok = self.r_coo.todok()
+        vals = np.zeros(hidden.shape[1])
         for idx in range(hidden.shape[1]):
+            vals[idx] = r_dok[hidden[0, idx], hidden[1, idx]]
             del r_dok[hidden[0, idx], hidden[1, idx]]
+
         r_coo = r_dok.tocoo()
-        r = r_coo.tocsr()
-        return r, hidden
+        return r_coo.tocsr(), r_coo, hidden.T, vals
 
     def entrymean(self, m, axis=None):
         """Average a matrix over the given axis. If the axis is None,
@@ -90,11 +85,6 @@ class UtilityMatrix:
         return mu, np.array(b_i)[0], np.array(b_u)[0]
 
     def get_coratings(self, r):
-        # r_copy = np.copy(r)
-        # r_copy[np.isnan(r_copy)] = 0
-        # r_copy[r_copy > 0] = 1
-        # coratings = r_copy.T.dot(r_copy)
-
         um = scipy.sparse.csr_matrix(r)
         um.data = np.ones(um.data.shape[0])
         coratings = um.T.dot(um)
@@ -102,18 +92,6 @@ class UtilityMatrix:
         return coratings
 
     def get_similarities(self, r, coratings):
-        # # compute similarities
-        # rc = r - np.nanmean(r, axis=0)  # ratings - item average
-        # rc[np.isnan(rc)] = 0.0
-        # # ignore division errors, set the resulting nans to zero
-        # with np.errstate(all='ignore'):
-        #     s = np.corrcoef(rc.T)
-        # s[np.isnan(s)] = 0.0
-        #
-        # # shrink similarities
-        # s = (coratings * s) / (coratings + self.beta)
-        # return s
-
         print('centering...')
         # use the centered version for similarity computation
         um_centered = r.toarray().astype(np.float32)
@@ -124,43 +102,43 @@ class UtilityMatrix:
         print('computing similarities...')
         A = scipy.sparse.csr_matrix(um_centered)
 
-        print(1)
+        print('\r', 1, end='')
         # transpose, as the code below compares rows
         A = A.T
 
-        print(2)
+        print('\r', 2, end='')
         # base similarity matrix (all dot products)
         similarity = A.dot(A.T)
 
-        print(3)
+        print('\r', 3, end='')
         # squared magnitude of preference vectors (number of occurrences)
         square_mag = similarity.diagonal()
 
-        print(4)
+        print('\r', 4, end='')
         # inverse squared magnitude
         inv_square_mag = 1 / square_mag
 
-        print(5)
+        print('\r', 5, end='')
         # if it doesn't occur, set the inverse magnitude to 0 (instead of inf)
         inv_square_mag[np.isinf(inv_square_mag)] = 0
 
-        print(6)
+        print('\r', 6, end='')
         # inverse of the magnitude
         inv_mag = np.sqrt(inv_square_mag)
 
-        print(7)
+        print('\r', 7, end='')
         # cosine similarity (elementwise multiply by inverse magnitudes)
         col_ind = range(len(inv_mag))
         row_ind = np.zeros(len(inv_mag))
         inv_mag2 = scipy.sparse.csr_matrix((inv_mag, (col_ind, row_ind)))
 
-        print(8)
+        print('\r', 8, end='')
         cosine = similarity.multiply(inv_mag2)
 
-        print(9)
+        print('\r', 9, end='')
         cosine = cosine.T.multiply(inv_mag2)
 
-        print(10)
+        print('\r', 10, end='')
         cosine.setdiag(0)
 
         s = cosine.toarray()
@@ -171,6 +149,7 @@ class UtilityMatrix:
             coratings.indices,
             coratings.indptr)
         )
+        print()
         return scipy.sparse.csr_matrix(coratings_shrunk.multiply(s))
 
     def similar_items(self, u, i, k, use_all=False):
@@ -178,27 +157,36 @@ class UtilityMatrix:
             return self.sirt_cache[(u, i, k)]
         except KeyError:
             if use_all:  # use entire matrix
-                r_u = self.r[u, :]   # user ratings
+                m = self.r
+                s = self.s_r
+                # r_u = self.r[u, :]   # user ratings
                 # r_u = self.r.getrow(u)   # user ratings
                 # s_i = np.copy(self.s_r[i, :])  # item similarity
                 # s_i = self.s_r.getrow(i)  # item similarity
-                s_i = self.s_r[i, :]
+                # s_i = self.s_r[i, :]
             else:  # use training matrix
                 # r_u = self.rt[u, :]  # user ratings
-                r_u = self.rt.getrow(u)  # user ratings
+                # r_u = self.rt.getrow(u)  # user ratings
                 # s_i = np.copy(self.s_rt[i, :])  # item similarity
                 # s_i = self.s_rt.getrow(i)  # item similarity
-                s_i = self.s_rt[i, :]
+                # s_i = self.s_rt[i, :]
+                m = self.rt
+                s = self.s_rt
 
             # old version
+            r_u = m[u, :].toarray()[0]
+            s_i = s[i, :].toarray()[0]
+            r_u[r_u == 0] = np.nan
+            s_i[s_i <= 0] = np.nan
+
+            # if (u, i) == (0, 0):
+            #     pdb.set_trace()
             # s_i[s_i < 0.0] = np.nan  # mask only to similar items
-            # s_i[i] = np.nan  # mask the item
-            # s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
-            # s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
-            # nn = np.isnan(s_i).sum()  # how many invalid items
-            #
-            # s_i_sorted = np.argsort(s_i)
-            # s_i_k = tuple(s_i_sorted[-k - nn:-nn])
+            s_i[i] = np.nan  # mask the item
+            s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
+            nn = np.isnan(s_i).sum()  # how many invalid items
+            s_i_sorted = np.argsort(s_i)
+            s_i_k = s_i_sorted[-k - nn:-nn]
 
             # new but slow version
             # vals = [(s_i[0, i], i) for i in r_u.nonzero()[1]]
@@ -207,16 +195,16 @@ class UtilityMatrix:
 
             # new and faster version
             # 8:25 for Movielens k = 1, 2, 5
-            nnz = set(r_u.nonzero()[1])
-            s_i_sorted = np.argsort(s_i.toarray())
-            top = []
-
-            for el in s_i_sorted[0]:
-                if el in nnz:
-                    top.append(el)
-                if len(top) == k:
-                    break
-            s_i_k = tuple(top)
+            # nnz = set(r_u.nonzero()[1])
+            # s_i_sorted = np.argsort(s_i.toarray())
+            # top = []
+            #
+            # for el in s_i_sorted[0]:
+            #     if el in nnz:
+            #         top.append(el)
+            #     if len(top) == k:
+            #         break
+            # s_i_k = tuple(top)
 
             # new new and slow version
             # 8:10 for Movielens k = 1, 2, 5
@@ -235,58 +223,90 @@ class UtilityMatrix:
             #             break
             # s_i_k = tuple(top)
 
-            self.sirt_cache[(u, i, k)] = s_i_k
-            return s_i_k
+            self.sirt_cache[(u, i, k)] = tuple(s_i_k)
+            return self.sirt_cache[(u, i, k)]
 
-    def get_not_nan_indices(self, m):
-        # nnan = np.where(~np.isnan(m))
-        # nnan_indices = zip(nnan[0], nnan[1])
-        # return nnan_indices
+    def rt_not_nan_iterator(self):
+        for u, i, v in itertools.izip(
+                self.rt_coo.row, self.r_coo.col, self.r_coo.data
+        ):
+            yield (u, i, v)
 
-        indices = m.nonzero()
-        return zip(indices[0], indices[1])
-
-    def get_nan_indices(self, m):
-        # ynan = np.where(np.isnan(m))
-        # ynan_indices = zip(ynan[0], ynan[1])
-        # return ynan_indices
-
-        # TODO!
-        return [(-1, -1)]
+    def r_not_nan_iterator(self):
+        for u, i, v in itertools.izip(
+                self.r_coo.row, self.r_coo.col, self.r_coo.data
+        ):
+            yield (u, i, v)
 
 
 class Recommender:
     def __init__(self, m):
         self.m = m
         self.rmse = []
+        self.rt_predicted = None
+        self.rt_nnz = self.m.rt.nnz
+        self.r_t_predicted = self.get_baseline_predictions()
+
+    def get_baseline_predictions(self):
+        P = np.ones(self.m.rt.shape) * self.m.mu
+        P += np.matlib.repmat(self.m.b_i, self.m.rt.shape[0], 1)
+        P += np.matlib.repmat(self.m.b_u, self.m.rt.shape[1], 1).T
+        return P
 
     def predict(self, u, i, dbg=False):
         raise NotImplementedError
 
     def training_error(self):
         sse = 0.0
-        for u, i in self.m.rt_not_nan_indices:
-            err = self.m.rt[u, i] - self.predict(u, i)
+        for u, i, v in self.m.rt_not_nan_iterator():
+            err = v - self.predict(u, i)
             sse += err ** 2
-        return np.sqrt(sse / len(self.m.rt_not_nan_indices))
+        rmse_old = np.sqrt(sse / len(self.m.rt_not_nan_indices))
+
+        if self.rt_predicted is None:
+            self.rt_predicted = self.m.rt.tocoo()
+
+        for u, i in itertools.izip(
+                self.rt_predicted.row,
+                self.rt_predicted.col,
+        ):
+            self.rt_predicted[u, i] = self.predict(u, i)
+        sse = sum((self.rt_predicted - self.m.rt) ** 2)
+        rmse = np.sqrt(sse / self.rt_nnz)
+        print('check for equality with rmse_old!')
+        pdb.set_trace()
+        return rmse
 
     def test_error(self):
-        sse = 0.0
-        # errs = []
-        no_hidden = self.m.hidden.T.shape[0]
-        for idx, (u, i) in enumerate(self.m.hidden.T):
-            print('\r    ', idx+1, '/', no_hidden, end='')
-            err = self.m.r[u, i] - self.predict(u, i)
-            sse += err ** 2
-            # errs.append(err)
-            # print(self.m.r[u, i], self.predict(u, i), err)
+        # sse_old = 0.0
+        # # errs = []
+        # no_hidden = self.m.hidden_indices.shape[0]
+        # for idx, (u, i) in enumerate(self.m.hidden_indices):
+        #     print('\r    ', idx+1, '/', no_hidden, end='')
+        #     err = self.m.r[u, i] - self.predict(u, i)
+        #     sse_old += err ** 2
+        #     # errs.append(err)
+        #     # print(self.m.r[u, i], self.predict(u, i), err)
+        #
+        #     # if err > 100:
+        #     #     print(err, self.m.r[u, i], self.predict(u, i))
+        #     #     self.predict(u, i, dbg=True)
+        # print()
+        #
+        # rmse_old = np.sqrt(sse_old / self.m.hidden_indices.shape[0])
 
-            # if err > 100:
-            #     print(err, self.m.r[u, i], self.predict(u, i))
-            #     self.predict(u, i, dbg=True)
+        predictions = np.zeros(self.m.hidden_vals.shape)
+        no_hidden = self.m.hidden_vals.shape[0]
+        for idx, (u, i) in enumerate(self.m.hidden_indices):
+            print('\r', idx+1, no_hidden, end='')
+            predictions[idx] = self.predict(u, i)
         print()
+        sse = sum((predictions - self.m.hidden_vals) ** 2)
+        rmse = np.sqrt(sse / no_hidden)
 
-        return np.sqrt(sse / self.m.hidden.shape[1])
+        # print((predictions - self.m.hidden_vals) ** 2)
+        # pdb.set_trace()
+        return rmse
 
     def print_test_error(self):
         print('%.3f - Test Error %s' %
@@ -315,21 +335,19 @@ class UserItemAverageRecommender(Recommender):
         Recommender.__init__(self, m)
 
     def predict(self, u, i, dbg=False):
-        # predict an item-based CF rating based on the training data
-        b_xi = self.m.mu + self.m.b_u[u] + self.m.b_i[i]
-        return b_xi
+        return self.r_t_predicted[u, i]
 
 
 class CFNN(Recommender):
     def __init__(self, m, k):
         Recommender.__init__(self, m)
+        print('k =', k)
         self.w = self.m.s_rt
         self.k = k
         self.normalize = True
-        print('k =', k)
 
     def predict_basic_old(self, u, i, dbg=False):
-        pdb.set_trace()
+        # pdb.set_trace()
         n_u_i = self.m.similar_items(u, i, self.k)
         r = 0
         for j in n_u_i:
@@ -349,30 +367,38 @@ class CFNN(Recommender):
         return r
 
     def predict(self, u, i, dbg=False):
-        # predict an item-based CF rating based on the training data
-        b_xi = self.m.mu + self.m.b_u[u] + self.m.b_i[i]
-
         # the > 0  resolves problems with near-zero weight sums
-        n_u_i = [v for v in self.m.similar_items(u, i, self.k) if v > 0]
+        n_u_i = self.m.similar_items(u, i, self.k)
 
         r = 0
         for j in n_u_i:
-            diff = self.m.r[u, j] - (self.m.mu + self.m.b_u[u] + self.m.b_i[j])
+            if self.w[i, j] < 0:  # resolve problems with near-zero weight sums
+                continue
+            # diff = self.m.r[u, j] - (self.m.mu + self.m.b_u[u] + self.m.b_i[j])
+            diff = self.m.r[u, j] - self.r_t_predicted[u, j]
             r += self.w[i, j] * diff
-        if dbg:
-            print('r =', r)
-            print('r (normalized) =', r / sum(self.w[i, j] for j in n_u_i))
-            s = sum(self.w[i, j] for j in n_u_i)
-            print('s =', s)
-            pdb.set_trace()
+
+        # if (u, i) == (0, 0):
+        #     print(' ', r)
+        #     pdb.set_trace()
+
+        # if dbg:
+        #     print('r =', r)
+        #     print('r (normalized) =', r / sum(self.w[i, j] for j in n_u_i))
+        #     s = sum(self.w[i, j] for j in n_u_i)
+        #     print('s =', s)
+        #     pdb.set_trace()
         if self.normalize:
             if r != 0:
-                s = sum(self.w[i, j] for j in n_u_i)
+                s = sum(self.w[i, j] for j in n_u_i
+                        # resolve problems with near-zero weight sums
+                        if self.w[i, j] > 0
+                        )
                 if not np.isfinite(r/sum(self.w[i, j] for j in n_u_i)) or\
                         np.isnan(r/sum(self.w[i, j] for j in n_u_i)):
                     pdb.set_trace()
                 r /= s
-        return b_xi + r
+        return self.r_t_predicted[u, i] + r
 
 
 class Factors(Recommender):
@@ -945,7 +971,7 @@ if __name__ == '__main__':
         # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
         m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
         m = m.item()
-        m = m.astype('int32')
+        m = m.astype(float)
         um = UtilityMatrix(m)
     else:
         m = scipy.sparse.csr_matrix(np.array([  # simple test case
@@ -963,6 +989,7 @@ if __name__ == '__main__':
             [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
             [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
         ])
+        # um = UtilityMatrix(m)
         um = UtilityMatrix(m, hidden=hidden)
 
     # m = m.astype(float)
@@ -999,10 +1026,10 @@ if __name__ == '__main__':
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
 
+    start_time = datetime.datetime.now()
     gar = GlobalAverageRecommender(um); gar.print_test_error()
     uiar = UserItemAverageRecommender(um); uiar.print_test_error()
-    pdb.set_trace()
-    start_time = datetime.datetime.now()
+
     for k in [
         1,
         2,

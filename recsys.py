@@ -35,6 +35,7 @@ class UtilityMatrix:
         # self.r_not_nan_indices = self.get_not_nan_indices(self.r)
 
     def get_training_data(self, hidden, training_share=0.2):
+        np.random.seed(0)
         if hidden is None:  # take some of the input as training data
             i, j = np.where(~((self.r == 0) | (np.isnan(self.r))))
             rands = np.random.choice(
@@ -90,9 +91,12 @@ class UtilityMatrix:
             s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
             nn = np.isnan(s_i).sum()  # how many invalid items
 
+            # if (u, i) == (0, 0):
+            #     pdb.set_trace()
             s_i_sorted = np.argsort(s_i)
             s_i_k = tuple(s_i_sorted[-k - nn:-nn])
             self.sirt_cache[(u, i, k)] = s_i_k
+
             return s_i_k
 
     def get_not_nan_indices(self, m):
@@ -123,19 +127,18 @@ class Recommender:
 
     def test_error(self):
         sse = 0.0
-        # errs = []
+        errs = []
         for u, i in self.m.hidden.T:
             err = self.m.r[u, i] - self.predict(u, i)
             sse += err ** 2
-            # errs.append(err)
+            errs.append(err ** 2)
             # print(self.m.r[u, i], self.predict(u, i), err)
             # pdb.set_trace()
             # if err > 100:
             #     print(err, self.m.r[u, i], self.predict(u, i))
             #     self.predict(u, i, dbg=True)
 
-        # return np.sqrt(sse) / self.m.hidden.shape[1]
-        # pdb.set_trace()
+        # print(np.array(errs)); pdb.set_trace()
         return np.sqrt(sse / self.m.hidden.shape[1])
 
     def print_test_error(self):
@@ -224,12 +227,18 @@ class CFNN(Recommender):
                 continue
             diff = self.m.r[u, j] - (self.m.mu + self.m.b_u[u] + self.m.b_i[j])
             r += self.w[i, j] * diff
+
+        # if (u, i) == (0, 0):
+        #     print(' ', r)
+        #     pdb.set_trace()
+
         if dbg:
             print('r =', r)
             print('r (normalized) =', r / sum(self.w[i, j] for j in n_u_i))
             s = sum(self.w[i, j] for j in n_u_i)
             print('s =', s)
             pdb.set_trace()
+
         if self.normalize:
             if r != 0:
                 s = sum(self.w[i, j] for j in n_u_i
@@ -802,23 +811,31 @@ def read_movie_lens_data():
 
 if __name__ == '__main__':
     start_time = datetime.datetime.now()
+    np.set_printoptions(precision=2)
 
     # complete MovieLens matrix
     # with open('um_bookcrossing.obj', 'rb') as infile:
     # with open('um_imdb.obj', 'rb') as infile:
     #     m = pickle.load(infile).astype(float)
-    print(0)
-    m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um.obj.npy')
-    print(1)
-    m = m.astype(float)
-    print(2)
-    m[m == 0] = np.nan
+    # print(0)
+    # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um.obj.npy')
+    # print(1)
+    # m = m.astype(float)
+    # print(2)
+    # m[m == 0] = np.nan
 
     # with open('m255.obj', 'rb') as infile: # sample of 255 from MovieLens
     #     m = pickle.load(infile).astype(float)
     # m[m == 0] = np.nan
 
     # m = read_movie_lens_data() # Denis's MovieLens sample
+
+    # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+    m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+    m = m.item()
+    m = m.astype(float).toarray()
+    m[m == 0] = np.nan
+    um = UtilityMatrix(m)
 
     # m = np.array([  # simple test case
     #     [5, 1, np.NAN, 2, 2, 4, 3, 2],
@@ -854,8 +871,8 @@ if __name__ == '__main__':
     # ])
     # um = UtilityMatrix(m, hidden=hidden)
 
-    print(3)
-    um = UtilityMatrix(m)
+    # print(3)
+    # um = UtilityMatrix(m)
 
     # cfnn = CFNN(um, k=5); cfnn.print_test_error()
     # f = Factors(um, k=5, nsteps=500, eta_type='increasing', regularize=True, eta=0.00001, init='random')
@@ -870,15 +887,15 @@ if __name__ == '__main__':
         1,
         2,
         5,
-        10,
-        15,
-        20,
-        25,
-        40,
-        50,
-        60,
-        80,
-        100
+    #     10,
+    #     15,
+    #     20,
+    #     25,
+    #     40,
+    #     50,
+    #     60,
+    #     80,
+    #     100
     ]:
         cfnn = CFNN(um, k=k); cfnn.print_test_error()
 
