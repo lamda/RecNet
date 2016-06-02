@@ -24,8 +24,10 @@ class UtilityMatrix:
         self.mu = np.nanmean(self.rt)
         self.b_i = np.nanmean(self.rt, axis=0) - self.mu
         self.b_u = np.nanmean(self.rt, axis=1) - self.mu
+        print(1)
         self.coratings_r = self.get_coratings(self.r)
         self.coratings_rt = self.get_coratings(self.rt)
+        print(2)
         self.s_r = self.get_similarities(self.r, self.coratings_r)
         self.s_rt = self.get_similarities(self.rt, self.coratings_rt)
         self.sirt_cache = {}
@@ -35,7 +37,6 @@ class UtilityMatrix:
         # self.r_not_nan_indices = self.get_not_nan_indices(self.r)
 
     def get_training_data(self, hidden, training_share=0.2):
-        np.random.seed(0)
         if hidden is None:  # take some of the input as training data
             i, j = np.where(~((self.r == 0) | (np.isnan(self.r))))
             rands = np.random.choice(
@@ -810,69 +811,50 @@ def read_movie_lens_data():
 
 
 if __name__ == '__main__':
-    start_time = datetime.datetime.now()
     np.set_printoptions(precision=2)
+    np.random.seed(0)
 
-    # complete MovieLens matrix
-    # with open('um_bookcrossing.obj', 'rb') as infile:
-    # with open('um_imdb.obj', 'rb') as infile:
-    #     m = pickle.load(infile).astype(float)
-    # print(0)
-    # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um.obj.npy')
-    # print(1)
-    # m = m.astype(float)
-    # print(2)
-    # m[m == 0] = np.nan
+    if 1:
+        m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+        # m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+        m = m.item()
+        m = m.astype(float).toarray()
+        m[m == 0] = np.nan
+        um = UtilityMatrix(m)
+    else:
+        m = np.array([  # simple test case
+            [5, 1, np.NAN, 2, 2, 4, 3, 2],
+            [1, 5, 2, 5, 5, 1, 1, 4],
+            [2, np.NAN, 3, 5, 4, 1, 2, 4],
+            [4, 3, 5, 3, np.NAN, 5, 3, np.NAN],
+            [2, np.NAN, 1, 3, np.NAN, 2, 5, 3],
+            [4, 1, np.NAN, 1, np.NAN, 4, 3, 2],
+            [4, 2, 1, 1, np.NAN, 5, 4, 1],
+            [5, 2, 2, np.NAN, 2, 5, 4, 1],
+            [4, 3, 3, np.NAN, np.NAN, 4, 3, np.NAN]
+        ])
+        hidden = np.array([
+            [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
+            [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
+        ])
+        um = UtilityMatrix(m, hidden=hidden)
 
-    # with open('m255.obj', 'rb') as infile: # sample of 255 from MovieLens
-    #     m = pickle.load(infile).astype(float)
-    # m[m == 0] = np.nan
-
-    # m = read_movie_lens_data() # Denis's MovieLens sample
-
-    # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
-    m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
-    m = m.item()
-    m = m.astype(float).toarray()
-    m[m == 0] = np.nan
-    um = UtilityMatrix(m)
-
-    # m = np.array([  # simple test case
-    #     [5, 1, np.NAN, 2, 2, 4, 3, 2],
-    #     [1, 5, 2, 5, 5, 1, 1, 4],
-    #     [2, np.NAN, 3, 5, 4, 1, 2, 4],
-    #     [4, 3, 5, 3, np.NAN, 5, 3, np.NAN],
-    #     [2, np.NAN, 1, 3, np.NAN, 2, 5, 3],
-    #     [4, 1, np.NAN, 1, np.NAN, 4, 3, 2],
-    #     [4, 2, 1, 1, np.NAN, 5, 4, 1],
-    #     [5, 2, 2, np.NAN, 2, 5, 4, 1],
-    #     [4, 3, 3, np.NAN, np.NAN, 4, 3, np.NAN]
-    # ])
-    # hidden = np.array([
-    #     [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
-    #     [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
-    # ])
-    # um = UtilityMatrix(m, hidden=hidden)
-
-    # m = np.array([  # simple test case 2
-    #     [1, 5, 5, np.NAN, np.NAN, np.NAN],
-    #     [2, 4, 3, np.NAN, np.NAN, np.NAN],
-    #     [1, 4, 5, np.NAN, np.NAN, np.NAN],
-    #     [1, 5, 5, np.NAN, np.NAN, np.NAN],
-    #
-    #     [np.NAN, np.NAN, np.NAN, 1, 2, 3],
-    #     [np.NAN, np.NAN, np.NAN, 2, 1, 3],
-    #     [np.NAN, np.NAN, np.NAN, 3, 2, 2],
-    #     [np.NAN, np.NAN, np.NAN, 4, 3, 3],
-    # ])
-    # hidden = np.array([
-    #     [0, 1, 3, 4, 5],
-    #     [1, 2, 0, 4, 5]
-    # ])
-    # um = UtilityMatrix(m, hidden=hidden)
-
-    # print(3)
-    # um = UtilityMatrix(m)
+        # m = np.array([  # simple test case 2
+        #     [1, 5, 5, np.NAN, np.NAN, np.NAN],
+        #     [2, 4, 3, np.NAN, np.NAN, np.NAN],
+        #     [1, 4, 5, np.NAN, np.NAN, np.NAN],
+        #     [1, 5, 5, np.NAN, np.NAN, np.NAN],
+        #
+        #     [np.NAN, np.NAN, np.NAN, 1, 2, 3],
+        #     [np.NAN, np.NAN, np.NAN, 2, 1, 3],
+        #     [np.NAN, np.NAN, np.NAN, 3, 2, 2],
+        #     [np.NAN, np.NAN, np.NAN, 4, 3, 3],
+        # ])
+        # hidden = np.array([
+        #     [0, 1, 3, 4, 5],
+        #     [1, 2, 0, 4, 5]
+        # ])
+        # um = UtilityMatrix(m, hidden=hidden)
 
     # cfnn = CFNN(um, k=5); cfnn.print_test_error()
     # f = Factors(um, k=5, nsteps=500, eta_type='increasing', regularize=True, eta=0.00001, init='random')
@@ -880,37 +862,28 @@ if __name__ == '__main__':
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
 
-    print(4)
+    start_time = datetime.datetime.now()
     gar = GlobalAverageRecommender(um); gar.print_test_error()
     uiar = UserItemAverageRecommender(um); uiar.print_test_error()
     for k in [
         1,
         2,
         5,
-    #     10,
-    #     15,
-    #     20,
-    #     25,
-    #     40,
-    #     50,
-    #     60,
-    #     80,
-    #     100
+        10,
+        15,
+        20,
+        25,
+        40,
+        50,
+        60,
+        80,
+        100
     ]:
         cfnn = CFNN(um, k=k); cfnn.print_test_error()
 
     # wf = WeightedCFNNUnbiased(um, k=5, eta=0.0001, regularize=True,
     #                           eta_type='bold_driver', init='random')
     # wf = WeightedCFNNBiased(um, eta_type='bold_driver', k=5, eta=0.00001, init='random')
-
-
-    # errors = []
-    # for i in range(10):
-    #     um = UtilityMatrix(m)
-    # w = WeightedCFNN(um, k=5, eta=0.000001, regularize=True, init_sim=False)
-    #     # w = WeightedCFNNUnbiased(um, k=5, eta=0.000001, regularize=True, init_sim=False)
-    #     errors.append(w.test_error())
-    # print('\nMean Error for WeightedCFNN:', np.mean(errors))
 
     end_time = datetime.datetime.now()
     print('Duration: {}'.format(end_time - start_time))

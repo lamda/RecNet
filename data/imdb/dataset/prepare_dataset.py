@@ -114,37 +114,53 @@ def striplines(s):
 
 
 def retrieve_and_condense():
-    print('getting movie data...')
-    db_connector = DbConnector()
-    stmt = '''SELECT movie_id, title, title2, title3,
-                     plot, storyline, genre, years
-              FROM scrape
-              '''
-    result = db_connector.execute(stmt)
-    df = pd.DataFrame(result)
+    # print('getting movie data...')
+    # db_connector = DbConnector()
+    # stmt = '''SELECT movie_id, title, title2, title3,
+    #                  plot, storyline, genre, years
+    #           FROM scrape
+    #           '''
+    # result = db_connector.execute(stmt)
+    # df = pd.DataFrame(result)
+    #
+    # print('cleaning movie data...')
+    # df['plot'] = df['plot']
+    # df['storyline'] = df['storyline']
+    # df.replace('n/a', np.NaN, inplace=True)
+    # df.dropna(how='all', subset=['plot', 'storyline'], inplace=True)
+    # # df.dropna(how='any', subset=['genre', 'years'], inplace=True)
+    # # df.dropna(how='any', subset=['plot', 'storyline', 'genre', 'years'],
+    # #           inplace=True)
+    # # pdb.set_trace()  # TODO: decide which dropna to use
+    # df_titles = df
+    #
+    # print('getting rating data...')
+    # db_connector = DbConnector()
+    # stmt = '''SELECT movie_id, user_id, rating FROM ratings'''
+    # # stmt = '''SELECT movie_id, user_id, rating FROM ratings_test'''
+    # # stmt = '''SELECT movie_id, user_id, rating FROM revs'''
+    # result = db_connector.execute(stmt)
+    # df_ratings = pd.DataFrame(result)
 
-    print('cleaning movie data...')
-    df['plot'] = df['plot']
-    df['storyline'] = df['storyline']
-    df.replace('n/a', np.NaN, inplace=True)
-    df.dropna(how='all', subset=['plot', 'storyline'], inplace=True)
-    # df.dropna(how='any', subset=['genre', 'years'], inplace=True)
-    # df.dropna(how='any', subset=['plot', 'storyline', 'genre', 'years'],
-    #           inplace=True)
-    # pdb.set_trace()  # TODO: decide which dropna to use
-    df_titles = df
+    # df_titles.to_pickle('df_titles_all.obj')
+    # df_ratings.to_pickle('df_ratings_all.obj')
 
-    print('getting rating data...')
-    db_connector = DbConnector()
-    stmt = '''SELECT movie_id, user_id, rating FROM ratings'''
-    # stmt = '''SELECT movie_id, user_id, rating FROM revs'''
-    result = db_connector.execute(stmt)
-    df_ratings = pd.DataFrame(result)
+    df_titles = pd.read_pickle('df_titles_all.obj')
+    df_ratings = pd.read_pickle('df_ratings_all.obj')
+
+    print('compiling dictionary...')
+    ttid2year_last = {row['movie_id']: row['years'][-4:]
+                      for ridx, row in df_titles.iterrows()
+                      if not isinstance(row['years'], float)}
+    # first_year = '2005'  # 27,711
+    first_year = '2010'  # 13,460
+    ttid2year_last = {k: v for k, v in ttid2year_last.iteritems()
+                      if v > first_year}
 
     print('condensing data')
-    user_ratings = 50
-    title_ratings = 50
-    valid_ids = set(df_titles['movie_id'])
+    user_ratings = 5
+    title_ratings = 20
+    valid_ids = set(df_titles['movie_id']) & set(ttid2year_last.keys())
     df_ratings = df_ratings[df_ratings['movie_id'].isin(valid_ids)]
     old_shape = (0, 0)
     titles_to_keep = 0
@@ -161,8 +177,10 @@ def retrieve_and_condense():
         df_ratings = df_ratings[df_ratings['user_id'].isin(users_to_keep)]
         df_titles = df_titles[df_titles['movie_id'].isin(titles_to_keep)]
 
-    df_ratings.to_pickle('df_ratings_condensed.obj')
-    df_titles.to_pickle('df_titles_condensed.obj')
+    # suffix = str(user_ratings) + '_' + str(title_ratings)
+    suffix = first_year
+    df_ratings.to_pickle('df_ratings_condensed_' + suffix + '.obj')
+    df_titles.to_pickle('df_titles_condensed_' + suffix + '.obj')
 
     print('%d/%d: found %d titles with %d ratings by %d users' %
           (user_ratings, title_ratings, len(titles_to_keep),
@@ -170,7 +188,7 @@ def retrieve_and_condense():
 
 
 def populate_database_titles():
-    df = pd.read_pickle('df_titles_condensed.obj')
+    df = pd.read_pickle('df_titles_condensed_2010.obj')
     df.index = range(0, df.shape[0])
     db_file = '../database_new.db'
     conn = sqlite3.connect(db_file)
@@ -197,7 +215,7 @@ def populate_database_titles():
 
 
 def populate_database_genres():
-    df = pd.read_pickle('df_titles_condensed.obj')
+    df = pd.read_pickle('df_titles_condensed_2010.obj')
     df.index = range(0, df.shape[0])
     db_file = '../database_new.db'
     conn = sqlite3.connect(db_file)
@@ -235,7 +253,7 @@ def populate_database_genres():
 
 
 def export_ratings():
-    df = pd.read_pickle('df_ratings_condensed.obj')
+    df = pd.read_pickle('df_ratings_condensed_2010.obj')
     df.index = range(0, df.shape[0])
     with open('ratings.dat', 'w') as outfile:
         for ridx, row in df.iterrows():
@@ -294,12 +312,12 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    retrieve_and_condense()
+    # retrieve_and_condense()
 
-    # create_database()
-    # populate_database_titles()
-    # populate_database_genres()
-    # export_ratings()
+    create_database()
+    populate_database_titles()
+    populate_database_genres()
+    export_ratings()
 
     # sample_ratings()
     # sample_ratings_large()
