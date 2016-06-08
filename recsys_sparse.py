@@ -173,27 +173,32 @@ class UtilityMatrix:
                 s = self.s_rt
 
             # old version
-            r_u = m[u, :].toarray()[0]
-            s_i = s[i, :].toarray()[0]
-            r_u[r_u == 0] = np.nan
-            s_i[s_i <= 0] = np.nan
-
-            # if (u, i) == (0, 0):
-            #     pdb.set_trace()
-            # s_i[s_i < 0.0] = np.nan  # mask only to similar items
-            s_i[i] = np.nan  # mask the item
-            s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
-            nn = np.isnan(s_i).sum()  # how many invalid items
-            s_i_sorted = np.argsort(s_i)
-            s_i_k = s_i_sorted[-k - nn:-nn]
+            # 12.41, 12.25, 12.81
+            # r_u = m[u, :].toarray()[0]
+            # s_i = s[i, :].toarray()[0]
+            # r_u[r_u == 0] = np.nan
+            # s_i[s_i <= 0] = np.nan
+            # # if (u, i) == (0, 0):
+            # #     pdb.set_trace()
+            # # s_i[s_i < 0.0] = np.nan  # mask only to similar items
+            # s_i[i] = np.nan  # mask the item
+            # s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
+            # nn = np.isnan(s_i).sum()  # how many invalid items
+            # s_i_sorted = np.argsort(s_i)
+            # s_i_k = s_i_sorted[-k - nn:-nn]
 
             # new but slow version
+            # 32.24, 30.77
+            # r_u = m.getrow(u)
+            # s_i = s.getrow(i)
             # vals = [(s_i[0, i], i) for i in r_u.nonzero()[1]]
             # s_i_k = heapq.nlargest(k, vals)
             # s_i_k = tuple(e[1] for e in s_i_k)
 
             # new and faster version
-            # 8:25 for Movielens k = 1, 2, 5
+            # 6.92, 6.31, 7.01
+            # r_u = m.getrow(u)
+            # s_i = s.getrow(i)
             # nnz = set(r_u.nonzero()[1])
             # s_i_sorted = np.argsort(s_i.toarray())
             # top = []
@@ -206,21 +211,23 @@ class UtilityMatrix:
             # s_i_k = tuple(top)
 
             # new new and slow version
-            # 8:10 for Movielens k = 1, 2, 5
-            # nnz = set(r_u.nonzero()[1])
-            # s_i_array = s_i.toarray()
-            # top = []
-            # k_top = k
-            # while len(top) < k or k_top < s_i_array.shape[1]:
-            #     k_top = min(k_top + 10, s_i_array.shape[1])
-            #     s_i_sorted = bottleneck.argpartsort(s_i_array, k_top)
-            #
-            #     for el in s_i_sorted[0][:k_top]:
-            #         if el in nnz:
-            #             top.append(el)
-            #         if len(top) == k:
-            #             break
-            # s_i_k = tuple(top)
+            # extremly slow!
+            r_u = m.getrow(u)
+            s_i = s.getrow(i)
+            nnz = set(r_u.nonzero()[1])
+            s_i_array = s_i.toarray()
+            top = []
+            k_top = k
+            while len(top) < k or k_top < s_i_array.shape[1]:
+                k_top = min(k_top + 10, s_i_array.shape[1])
+                s_i_sorted = bottleneck.argpartsort(s_i_array, k_top)
+
+                for el in s_i_sorted[0][:k_top]:
+                    if el in nnz:
+                        top.append(el)
+                    if len(top) == k:
+                        break
+            s_i_k = tuple(top)
 
             self.sirt_cache[(u, i, k)] = tuple(s_i_k)
             return self.sirt_cache[(u, i, k)]
@@ -958,17 +965,19 @@ def read_movie_lens_data():
 
 
 if __name__ == '__main__':
-    start_time = datetime.datetime.now()
+    # start_time = datetime.datetime.now()
     np.set_printoptions(precision=2)
     np.random.seed(0)
 
-    if 1:
+    if 0:
         m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
         # m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
         m = m.item()
         m = m.astype(float)
+        pdb.set_trace()
+        data = [m[u, :].nonzero()[0].shape for u in range(m.shape[0])]
         um = UtilityMatrix(m)
-    else:
+    elif 0:
         m = scipy.sparse.csr_matrix(np.array([  # simple test case
             [5, 1, 0, 2, 2, 4, 3, 2],
             [1, 5, 2, 5, 5, 1, 1, 4],
@@ -985,6 +994,32 @@ if __name__ == '__main__':
             [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
         ])
         um = UtilityMatrix(m, hidden=hidden)
+    elif 1:
+        import csv
+        csvfile = open('data/ml_small.csv', 'r')
+        reader = csv.reader(csvfile, delimiter='\t')
+        ratings = {}
+        movies = set()
+        for row in reader:
+            user = row[0]
+            movie = row[1]
+            rating = row[2]
+            if user not in ratings:
+                ratings[user] = [(movie, rating)]
+            else:
+                ratings[user].append((movie, rating))
+            movies.add(movie)
+
+        m = list(movies)
+        r = np.zeros([len(ratings), len(movies)])
+        # r.fill(np.nan)
+        i = 0
+        for user in ratings:
+            uratings = ratings[user]
+            for rating in uratings:
+                r[i, m.index(rating[0])] = rating[1]
+            i += 1
+        um = UtilityMatrix(scipy.sparse.csr_matrix(r))
 
         # m = np.array([  # simple test case 2
         #     [1, 5, 5, np.NAN, np.NAN, np.NAN],
@@ -1017,15 +1052,15 @@ if __name__ == '__main__':
         1,
         2,
         5,
-        10,
-        15,
-        20,
-        25,
-        40,
-        50,
-        60,
-        80,
-        100
+        # 10,
+        # 15,
+        # 20,
+        # 25,
+        # 40,
+        # 50,
+        # 60,
+        # 80,
+        # 100
     ]:
         cfnn = CFNN(um, k=k); cfnn.print_test_error()
 
