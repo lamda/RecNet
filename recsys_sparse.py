@@ -151,6 +151,7 @@ class UtilityMatrix:
         print()
         return scipy.sparse.csr_matrix(coratings_shrunk.multiply(s))
 
+    # @profile
     def similar_items(self, u, i, k, use_all=False):
         try:
             return self.sirt_cache[(u, i, k)]
@@ -962,9 +963,11 @@ if __name__ == '__main__':
     np.set_printoptions(precision=2)
     np.random.seed(0)
 
-    if 1:
-        m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
-        # m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+    if 0:
+        # dataset = 'imdb'
+        dataset = 'movielens'
+        m = np.load('data/' + dataset + '/recommendation_data/' +
+                    'RatingBasedRecommender_um_sparse.obj.npy')
         m = m.item()
         m = m.astype(float)
         um = UtilityMatrix(m)
@@ -1010,9 +1013,9 @@ if __name__ == '__main__':
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
 
     start_time = datetime.datetime.now()
-    gar = GlobalAverageRecommender(um); gar.print_test_error()
-    uiar = UserItemAverageRecommender(um); uiar.print_test_error()
-
+    # gar = GlobalAverageRecommender(um); gar.print_test_error()
+    # uiar = UserItemAverageRecommender(um); uiar.print_test_error()
+    start_time = datetime.datetime.now()
     for k in [
         1,
         2,
