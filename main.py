@@ -436,11 +436,10 @@ class RatingBasedRecommender(Recommender):
         self.save_recommendation_data(um_centered, 'um_centered')
         self.save_recommendation_data(utility_centered, 'um_centered_sparse')
 
-        if self.load_cached:
-            str_sparse = '_sparse' if self.sparse else ''
-            str_centered = '_centered' if centered else ''
-            um = self.load_recommendation_data('um' + str_sparse + str_centered)
-            return um
+        str_sparse = '_sparse' if self.sparse else ''
+        str_centered = '_centered' if centered else ''
+        um = self.load_recommendation_data('um' + str_sparse + str_centered)
+        return um
 
     def get_similarity_matrix(self):
         if self.load_cached:
@@ -547,22 +546,49 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         # k should be smaller than #users and #items (2-300?)
         m = m.astype(float)
         m[m == 0] = np.nan
-        um = recsys.UtilityMatrix(m)
+        if self.sparse:
+            um = recsys_sparse.UtilityMatrix(m, similarities=False)
+        else:
+            um = recsys_sparse.UtilityMatrix(m)
         # f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, eta=eta)
         if self.dataset == 'movielens':
             # for MovieLens:
             #     k=15, nsteps=500, eta_type='bold_driver', regularize=True,
             #     eta=0.00001, init='random'
-            f = recsys.Factors(um, k=15, eta=0.00001, eta_type='bold_driver',
-                               init='random', regularize=True, nsteps=1000)
+            kwargs = {
+                'k': 15,
+                'eta': 0.00001,
+                'eta_type': 'bold_driver',
+                'init': 'random',
+                'regularize': True,
+                'nsteps': 1000
+            }
+            if self.sparse:
+                f = recsys_sparse.Factors(um, **kwargs)
+            else:
+                f = recsys.Factors(um, **kwargs)
 
         elif self.dataset == 'bookcrossing':
             # for BookCrossing:
             #       k=5, nsteps=500, eta_type='increasing', regularize=True,
             #       eta=0.00001, init='random'
-            f = recsys.Factors(um, k=5, nsteps=150, eta_type='bold_driver',
-                               regularize=True, eta=0.0001, init='random_small',
-                               lamda=0.25, reset_params=True)
+            # f = recsys.Factors(um, k=5, nsteps=150, eta_type='bold_driver',
+            #                    regularize=True, eta=0.0001, init='random_small',
+            #                    lamda=0.25, reset_params=True)
+            kwargs = {
+                'k': 5,
+                'eta': 0.0001,
+                'eta_type': 'bold_driver',
+                'init': 'random_small',
+                'regularize': True,
+                'nsteps': 150,
+                'lamda': 0.25,
+                'reset_params': True
+            }
+            if self.sparse:
+                f = recsys_sparse.Factors(um, **kwargs)
+            else:
+                f = recsys.Factors(um, **kwargs)
 
         elif self.dataset == 'imdb':
             #     k=15, nsteps=500, eta_type='bold_driver', regularize=True,
@@ -935,9 +961,9 @@ if __name__ == '__main__':
         # 'imdb',
     ]:
         ## r = ContentBasedRecommender(dataset=dataset)
-        r = RatingBasedRecommender(dataset=dataset, load_cached=False)
+        # r = RatingBasedRecommender(dataset=dataset, load_cached=False)
         # r = AssociationRuleRecommender(dataset=dataset, load_cached=False, sparse=True)
-        # r = MatrixFactorizationRecommender(dataset=dataset, load_cached=False, sparse=True)
+        r = MatrixFactorizationRecommender(dataset=dataset, load_cached=False, sparse=True)
         # r = InterpolationWeightRecommender(dataset=dataset, load_cached=False)
 
         r.get_recommendations()
