@@ -22,7 +22,7 @@ np.set_printoptions(linewidth=225)
 
 
 class UtilityMatrix:
-    def __init__(self, r, beta=1, hidden=None):
+    def __init__(self, r, beta=1, hidden=None, similarities=True):
         self.beta = beta
         self.r = r.astype(float)  # rating matrix (=utility matrix)
         self.r_coo = self.r.tocoo()
@@ -31,8 +31,9 @@ class UtilityMatrix:
         self.mu, self.b_i, self.b_u = self.entrymean(self.rt)
         self.coratings_r = self.get_coratings(self.r)
         self.coratings_rt = self.get_coratings(self.rt)
-        self.s_r = self.get_similarities(self.r, self.coratings_r)
-        self.s_rt = self.get_similarities(self.rt, self.coratings_rt)
+        if similarities:
+            self.s_r = self.get_similarities(self.r, self.coratings_r)
+            self.s_rt = self.get_similarities(self.rt, self.coratings_rt)
         self.sirt_cache = {}
 
     def get_training_data(self, hidden, training_share=0.2):
@@ -174,40 +175,55 @@ class UtilityMatrix:
                 s = self.s_rt
 
             # old version
-            r_u = m[u, :].toarray()[0]
-            s_i = s[i, :].toarray()[0]
-            r_u[r_u == 0] = np.nan
-            s_i[s_i <= 0] = np.nan
+            # 12.41, 12.25, 12.81
+            # r_u = m[u, :].toarray()[0]
+            # s_i = s[i, :].toarray()[0]
+            # r_u[r_u == 0] = np.nan
+            # s_i[s_i <= 0] = np.nan
+            # # if (u, i) == (0, 0):
+            # #     pdb.set_trace()
+            # # s_i[s_i < 0.0] = np.nan  # mask only to similar items
+            # s_i[i] = np.nan  # mask the item
+            # s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
+            # nn = np.isnan(s_i).sum()  # how many invalid items
+            # s_i_sorted = np.argsort(s_i)
+            # s_i_k = s_i_sorted[-k - nn:-nn]
 
-            # if (u, i) == (0, 0):
-            #     pdb.set_trace()
-            # s_i[s_i < 0.0] = np.nan  # mask only to similar items
-            s_i[i] = np.nan  # mask the item
-            s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
-            nn = np.isnan(s_i).sum()  # how many invalid items
-            s_i_sorted = np.argsort(s_i)
-            s_i_k = s_i_sorted[-k - nn:-nn]
-
-            # new but slow version
-            # vals = [(s_i[0, i], i) for i in r_u.nonzero()[1]]
-            # s_i_k = heapq.nlargest(k, vals)
-            # s_i_k = tuple(e[1] for e in s_i_k)
+            # new version
+            # ML(255): 11.54, 11.47, 12.12
+            # ML: 13:51
+            # r_u = m.getrow(u)
+            # s_i = s.getrow(i)
+            # nz = r_u.nonzero()
+            # if nz[1].any():
+            #     vals = zip(np.array(s_i[nz])[0], nz[1])
+            #     vals = [t for t in vals if t[0] > 0]
+            #     s_i_k = heapq.nlargest(k, vals)
+            #     s_i_k = tuple(e[1] for e in s_i_k)
+            # else:
+            #     s_i_k = ()
 
             # new and faster version
-            # 8:25 for Movielens k = 1, 2, 5
-            # nnz = set(r_u.nonzero()[1])
-            # s_i_sorted = np.argsort(s_i.toarray())
-            # top = []
-            #
-            # for el in s_i_sorted[0]:
-            #     if el in nnz:
-            #         top.append(el)
-            #     if len(top) == k:
-            #         break
-            # s_i_k = tuple(top)
+            # ML(255): 6.92, 6.31, 7.01, 6.04
+            # ML: 8:06
+            r_u = m.getrow(u)
+            s_i = s.getrow(i)
+            nnz = set(r_u.nonzero()[1])
+            s_i_filtered = s_i.toarray()
+            s_i_filtered[s_i_filtered < 0] = 0
+            s_i_sorted = np.argsort(s_i_filtered)
+            top = []
+            for el in s_i_sorted[0]:
+                if el in nnz:
+                    top.append(el)
+                if len(top) == k:
+                    break
+            s_i_k = tuple(top)
 
             # new new and slow version
-            # 8:10 for Movielens k = 1, 2, 5
+            # extremly slow!
+            # r_u = m.getrow(u)
+            # s_i = s.getrow(i)
             # nnz = set(r_u.nonzero()[1])
             # s_i_array = s_i.toarray()
             # top = []
@@ -261,25 +277,12 @@ class Recommender:
         for u, i, v in self.m.rt_not_nan_iterator():
             err = v - self.predict(u, i)
             sse += err ** 2
-        rmse_old = np.sqrt(sse / len(self.m.rt_not_nan_indices))
-
-        if self.rt_predicted is None:
-            self.rt_predicted = self.m.rt.tocoo()
-
-        for u, i in itertools.izip(
-                self.rt_predicted.row,
-                self.rt_predicted.col,
-        ):
-            self.rt_predicted[u, i] = self.predict(u, i)
-        sse = sum((self.rt_predicted - self.m.rt) ** 2)
         rmse = np.sqrt(sse / self.rt_nnz)
-        print('check for equality with rmse_old!')
-        pdb.set_trace()
         return rmse
 
     def test_error(self):
-        # sse_old = 0.0
-        # # errs = []
+        sse_old = 0.0
+        # errs = []
         # no_hidden = self.m.hidden_indices.shape[0]
         # for idx, (u, i) in enumerate(self.m.hidden_indices):
         #     print('\r    ', idx+1, '/', no_hidden, end='')
@@ -294,15 +297,25 @@ class Recommender:
         # print()
         #
         # rmse_old = np.sqrt(sse_old / self.m.hidden_indices.shape[0])
+        #
+        # predictions = np.zeros(self.m.hidden_vals.shape)
+        # no_hidden = self.m.hidden_vals.shape[0]
+        # for idx, (u, i) in enumerate(self.m.hidden_indices):
+        #     print('\r', idx+1, no_hidden, end='')
+        #     predictions[idx] = self.predict(u, i)
+        # print()
+        # sse = sum((predictions - self.m.hidden_vals) ** 2)
+        # rmse = np.sqrt(sse / no_hidden)
 
-        predictions = np.zeros(self.m.hidden_vals.shape)
+        ####
+
+        sses = 0
         no_hidden = self.m.hidden_vals.shape[0]
         for idx, (u, i) in enumerate(self.m.hidden_indices):
             print('\r', idx+1, no_hidden, end='')
-            predictions[idx] = self.predict(u, i)
+            sses += (self.predict(u, i) - self.m.hidden_vals[idx]) ** 2
         print()
-        sse = sum((predictions - self.m.hidden_vals) ** 2)
-        rmse = np.sqrt(sse / no_hidden)
+        rmse = np.sqrt(sses / no_hidden)
 
         # print((predictions - self.m.hidden_vals) ** 2)
         # pdb.set_trace()
@@ -478,8 +491,8 @@ class Factors(Recommender):
     def factorize(self):
         test_rmse = []
         for m in xrange(self.nsteps):
-            masked = np.ma.array(self.m.rt, mask=np.isnan(self.m.rt))
-            err = np.dot(self.p, self.q.T) - masked
+            # masked = np.ma.array(self.m.rt, mask=np.isnan(self.m.rt))
+            err = np.dot(self.p, self.q.T) - self.m.rt
             delta_p = np.ma.dot(err, self.q)
             delta_q = np.ma.dot(err.T, self.p)
 
@@ -959,19 +972,20 @@ def read_movie_lens_data():
 
 
 if __name__ == '__main__':
-    start_time = datetime.datetime.now()
+    # start_time = datetime.datetime.now()
     np.set_printoptions(precision=2)
     np.random.seed(0)
+    similarities = False
 
-    if 0:
-        # dataset = 'imdb'
-        dataset = 'movielens'
-        m = np.load('data/' + dataset + '/recommendation_data/' +
-                    'RatingBasedRecommender_um_sparse.obj.npy')
+    if 1:
+        # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+        m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
         m = m.item()
         m = m.astype(float)
-        um = UtilityMatrix(m)
-    else:
+        # pdb.set_trace()
+        # data = [m[u, :].nonzero()[0].shape for u in range(m.shape[0])]
+        um = UtilityMatrix(m, similarities=similarities)
+    elif 1:
         m = scipy.sparse.csr_matrix(np.array([  # simple test case
             [5, 1, 0, 2, 2, 4, 3, 2],
             [1, 5, 2, 5, 5, 1, 1, 4],
@@ -987,7 +1001,33 @@ if __name__ == '__main__':
             [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
             [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
         ])
-        um = UtilityMatrix(m, hidden=hidden)
+        um = UtilityMatrix(m, hidden=hidden, similarities=similarities)
+    elif 1:
+        import csv
+        csvfile = open('data/ml_small.csv', 'r')
+        reader = csv.reader(csvfile, delimiter='\t')
+        ratings = {}
+        movies = set()
+        for row in reader:
+            user = row[0]
+            movie = row[1]
+            rating = row[2]
+            if user not in ratings:
+                ratings[user] = [(movie, rating)]
+            else:
+                ratings[user].append((movie, rating))
+            movies.add(movie)
+
+        m = list(movies)
+        r = np.zeros([len(ratings), len(movies)])
+        # r.fill(np.nan)
+        i = 0
+        for user in ratings:
+            uratings = ratings[user]
+            for rating in uratings:
+                r[i, m.index(rating[0])] = rating[1]
+            i += 1
+        um = UtilityMatrix(scipy.sparse.csr_matrix(r), similarities=similarities)
 
         # m = np.array([  # simple test case 2
         #     [1, 5, 5, np.NAN, np.NAN, np.NAN],
@@ -1015,26 +1055,29 @@ if __name__ == '__main__':
     start_time = datetime.datetime.now()
     # gar = GlobalAverageRecommender(um); gar.print_test_error()
     # uiar = UserItemAverageRecommender(um); uiar.print_test_error()
-    start_time = datetime.datetime.now()
-    for k in [
-        1,
-        2,
-        5,
-        10,
-        15,
-        20,
-        25,
-        40,
-        50,
-        60,
-        80,
-        100
-    ]:
-        cfnn = CFNN(um, k=k); cfnn.print_test_error()
+    #
+    # for k in [
+    #     1,
+    #     2,
+    #     5,
+    #     10,
+    #     15,
+    #     20,
+    #     25,
+    #     40,
+    #     50,
+    #     60,
+    #     80,
+    #     100
+    # ]:
+    #     cfnn = CFNN(um, k=k); cfnn.print_test_error()
+
+    f = Factors(um, k=5, nsteps=500, eta_type='increasing', regularize=True, eta=0.00001, init='random')
 
     # wf = WeightedCFNNUnbiased(um, k=5, eta=0.0001, regularize=True,
     #                           eta_type='bold_driver', init='random')
     # wf = WeightedCFNNBiased(um, eta_type='bold_driver', k=5, eta=0.00001, init='random')
+
 
     end_time = datetime.datetime.now()
     print('Duration: {}'.format(end_time - start_time))

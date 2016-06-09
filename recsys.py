@@ -814,7 +814,7 @@ if __name__ == '__main__':
     np.set_printoptions(precision=2)
     np.random.seed(0)
 
-    if 1:
+    if 0:
         m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
         # m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
         m = m.item()
@@ -857,29 +857,29 @@ if __name__ == '__main__':
         # um = UtilityMatrix(m, hidden=hidden)
 
     # cfnn = CFNN(um, k=5); cfnn.print_test_error()
-    # f = Factors(um, k=5, nsteps=500, eta_type='increasing', regularize=True, eta=0.00001, init='random')
+    f = Factors(um, k=5, nsteps=500, eta_type='increasing', regularize=True, eta=0.00001, init='random')
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.000001, regularize=True, init='random')
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
 
     start_time = datetime.datetime.now()
-    gar = GlobalAverageRecommender(um); gar.print_test_error()
-    uiar = UserItemAverageRecommender(um); uiar.print_test_error()
-    for k in [
-        1,
-        2,
-        5,
-        10,
-        15,
-        20,
-        25,
-        40,
-        50,
-        60,
-        80,
-        100
-    ]:
-        cfnn = CFNN(um, k=k); cfnn.print_test_error()
+    # gar = GlobalAverageRecommender(um); gar.print_test_error()
+    # uiar = UserItemAverageRecommender(um); uiar.print_test_error()
+    # for k in [
+    #     1,
+    #     2,
+    #     5,
+    #     10,
+    #     15,
+    #     20,
+    #     25,
+    #     40,
+    #     50,
+    #     60,
+    #     80,
+    #     100
+    # ]:
+    #     cfnn = CFNN(um, k=k); cfnn.print_test_error()
 
     # wf = WeightedCFNNUnbiased(um, k=5, eta=0.0001, regularize=True,
     #                           eta_type='bold_driver', init='random')
