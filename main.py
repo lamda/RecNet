@@ -956,14 +956,14 @@ if __name__ == '__main__':
     start_time = datetime.now()
 
     for dataset in [
-        'movielens',
+        # 'movielens',
         # 'bookcrossing',
-        # 'imdb',
+        'imdb',
     ]:
         ## r = ContentBasedRecommender(dataset=dataset)
-        # r = RatingBasedRecommender(dataset=dataset, load_cached=False)
+        r = RatingBasedRecommender(dataset=dataset, load_cached=False)
         # r = AssociationRuleRecommender(dataset=dataset, load_cached=False, sparse=True)
-        r = MatrixFactorizationRecommender(dataset=dataset, load_cached=False, sparse=True)
+        # r = MatrixFactorizationRecommender(dataset=dataset, load_cached=False, sparse=True)
         # r = InterpolationWeightRecommender(dataset=dataset, load_cached=False)
 
         r.get_recommendations()

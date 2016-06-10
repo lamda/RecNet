@@ -417,7 +417,7 @@ class CFNN(Recommender):
 class Factors(Recommender):
     def __init__(self, m, k, eta_type, nsteps=500, eta=0.000004,
                  regularize=False, newton=False, tol=0.5*1e-5, lamda=0.05,
-                 init='random', reset_params='False'):
+                 init='random', reset_params=False):
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
@@ -431,7 +431,7 @@ class Factors(Recommender):
 
         if init == 'svd':
             # init by Singular Value Decomposition
-            m = self.m.rt
+            m = self.m.rt.toarray()
             m[np.where(np.isnan(m))] = 0
             ps, ss, vs = np.linalg.svd(m)
             self.p = ps[:, :self.k]
@@ -455,7 +455,8 @@ class Factors(Recommender):
         print('init =', init)
         print('k =', k)
         print('lamda =', self.lamda)
-        print('eta = ', self.eta)
+        self.eta_init = self.eta
+        print('eta = ', self.eta_init)
         print('eta_type = ', self.eta_type)
 
         self.factorize()
@@ -464,7 +465,7 @@ class Factors(Recommender):
         print('init =', init)
         print('k =', k)
         print('lamda =', self.lamda)
-        print('eta = ', self.eta)
+        print('eta = ', self.eta_init)
         print('eta_type = ', self.eta_type)
 
         # self.plot_rmse('%.4f' % diff, suffix='init')
@@ -490,9 +491,10 @@ class Factors(Recommender):
 
     def factorize(self):
         test_rmse = []
+        mrt = self.m.rt.toarray()
+        masked = np.ma.array(mrt, mask=np.isnan(mrt))
         for m in xrange(self.nsteps):
-            # masked = np.ma.array(self.m.rt, mask=np.isnan(self.m.rt))
-            err = np.dot(self.p, self.q.T) - self.m.rt
+            err = np.dot(self.p, self.q.T) - masked
             delta_p = np.ma.dot(err, self.q)
             delta_q = np.ma.dot(err.T, self.p)
 
@@ -504,9 +506,9 @@ class Factors(Recommender):
             self.q -= 2 * self.eta * delta_q
 
             self.rmse.append(self.training_error())
-            # print(m, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
-            print(m, 'eta = %.8f, training_rmse = %.8f, test_rmse = %.8f' %
-                  (self.eta, self.rmse[-1], self.test_error()))
+            print(m, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
+            # print(m, 'eta = %.8f, training_rmse = %.8f, test_rmse = %.8f' %
+            #       (self.eta, self.rmse[-1], self.test_error()))
             if len(self.rmse) > 1:
                 if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
                     break
@@ -974,16 +976,17 @@ def read_movie_lens_data():
 if __name__ == '__main__':
     # start_time = datetime.datetime.now()
     np.set_printoptions(precision=2)
-    np.random.seed(0)
-    similarities = False
+    # np.random.seed(0)
+    similarities = True
 
     if 1:
-        # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
-        m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+        m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+        # m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
         m = m.item()
         m = m.astype(float)
         # pdb.set_trace()
-        # data = [m[u, :].nonzero()[0].shape for u in range(m.shape[0])]
+        # pdb.set_trace()
+        # data = [m[u, :].nonzero()[0].shape[0] for u in range(m.shape[0])]
         um = UtilityMatrix(m, similarities=similarities)
     elif 1:
         m = scipy.sparse.csr_matrix(np.array([  # simple test case
@@ -1053,26 +1056,34 @@ if __name__ == '__main__':
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
 
     start_time = datetime.datetime.now()
-    # gar = GlobalAverageRecommender(um); gar.print_test_error()
-    # uiar = UserItemAverageRecommender(um); uiar.print_test_error()
-    #
-    # for k in [
-    #     1,
-    #     2,
-    #     5,
-    #     10,
-    #     15,
-    #     20,
-    #     25,
-    #     40,
-    #     50,
-    #     60,
-    #     80,
-    #     100
-    # ]:
-    #     cfnn = CFNN(um, k=k); cfnn.print_test_error()
+    gar = GlobalAverageRecommender(um); gar.print_test_error()
+    uiar = UserItemAverageRecommender(um); uiar.print_test_error()
 
-    f = Factors(um, k=5, nsteps=500, eta_type='increasing', regularize=True, eta=0.00001, init='random')
+    for k in [
+        1,
+        2,
+        5,
+        10,
+        15,
+        20,
+        25,
+        40,
+        50,
+        60,
+        # 80,
+        # 100
+    ]:
+        cfnn = CFNN(um, k=k); cfnn.print_test_error()
+
+    # f = Factors(
+    #     um,
+    #     k=25,
+    #     nsteps=1000,
+    #     eta_type='bold_driver',
+    #     eta=0.0000001,
+    #     init='random',
+    #     regularize=True,
+    # )
 
     # wf = WeightedCFNNUnbiased(um, k=5, eta=0.0001, regularize=True,
     #                           eta_type='bold_driver', init='random')

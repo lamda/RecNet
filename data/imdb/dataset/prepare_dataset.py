@@ -145,21 +145,31 @@ def retrieve_and_condense():
     # df_titles.to_pickle('df_titles_all.obj')
     # df_ratings.to_pickle('df_ratings_all.obj')
 
+    print(1)
     df_titles = pd.read_pickle('df_titles_all.obj')
+    print(2)
     df_ratings = pd.read_pickle('df_ratings_all.obj')
 
     print('compiling dictionary...')
     ttid2year_last = {row['movie_id']: row['years'][-4:]
                       for ridx, row in df_titles.iterrows()
                       if not isinstance(row['years'], float)}
-    # first_year = '2005'  # 27,711
-    first_year = '2010'  # 13,460
+
+    # user_ratings, title_ratings = 5, 20
+    # first_year, last_year = '2010', '2015'  # 16664 t, 5929727 r, 44807 u
+    # first_year, last_year = '2010', '2014'  # 16369 t, 5817601 r, 44622 u
+    # first_year, last_year = '2012', '2014'  #  9950 t, 3425838 r, 41143 u
+    # first_year, last_year = '2013', '2014'  #  6690 t, 2254873 r, 37216 u
+    # first_year, last_year = '2014', '2014'  #  3210 t,  939456 r, 27482 u
+
+    user_ratings, title_ratings = 20, 20
+    first_year, last_year = '2012', '2014'  # 9751 t, 3282329 r, 29198 u
+    # first_year, last_year = '2013', '2014'  # 6504 t, 2101235 r, 24378 u
+    print(first_year, last_year)
     ttid2year_last = {k: v for k, v in ttid2year_last.iteritems()
-                      if v > first_year}
+                      if first_year <= v <= last_year}
 
     print('condensing data')
-    user_ratings = 5
-    title_ratings = 20
     valid_ids = set(df_titles['movie_id']) & set(ttid2year_last.keys())
     df_ratings = df_ratings[df_ratings['movie_id'].isin(valid_ids)]
     old_shape = (0, 0)
@@ -178,7 +188,7 @@ def retrieve_and_condense():
         df_titles = df_titles[df_titles['movie_id'].isin(titles_to_keep)]
 
     # suffix = str(user_ratings) + '_' + str(title_ratings)
-    suffix = first_year
+    suffix = first_year + '_' + last_year
     df_ratings.to_pickle('df_ratings_condensed_' + suffix + '.obj')
     df_titles.to_pickle('df_titles_condensed_' + suffix + '.obj')
 
@@ -188,7 +198,7 @@ def retrieve_and_condense():
 
 
 def populate_database_titles():
-    df = pd.read_pickle('df_titles_condensed_2010.obj')
+    df = pd.read_pickle('df_titles_condensed_2013_2014.obj')
     df.index = range(0, df.shape[0])
     db_file = '../database_new.db'
     conn = sqlite3.connect(db_file)
@@ -215,7 +225,7 @@ def populate_database_titles():
 
 
 def populate_database_genres():
-    df = pd.read_pickle('df_titles_condensed_2010.obj')
+    df = pd.read_pickle('df_titles_condensed_2013_2014.obj')
     df.index = range(0, df.shape[0])
     db_file = '../database_new.db'
     conn = sqlite3.connect(db_file)
@@ -253,7 +263,7 @@ def populate_database_genres():
 
 
 def export_ratings():
-    df = pd.read_pickle('df_ratings_condensed_2010.obj')
+    df = pd.read_pickle('df_ratings_condensed_2013_2014.obj')
     df.index = range(0, df.shape[0])
     with open('ratings.dat', 'w') as outfile:
         for ridx, row in df.iterrows():

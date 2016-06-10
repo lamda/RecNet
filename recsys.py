@@ -17,7 +17,7 @@ np.set_printoptions(linewidth=225)
 
 
 class UtilityMatrix:
-    def __init__(self, r, beta=1, hidden=None):
+    def __init__(self, r, beta=1, hidden=None, similarities=True):
         self.beta = beta
         self.r = r  # rating matrix (=utility matrix)
         self.rt, self.hidden = self.get_training_data(hidden)
@@ -28,8 +28,9 @@ class UtilityMatrix:
         self.coratings_r = self.get_coratings(self.r)
         self.coratings_rt = self.get_coratings(self.rt)
         print(2)
-        self.s_r = self.get_similarities(self.r, self.coratings_r)
-        self.s_rt = self.get_similarities(self.rt, self.coratings_rt)
+        if similarities:
+            self.s_r = self.get_similarities(self.r, self.coratings_r)
+            self.s_rt = self.get_similarities(self.rt, self.coratings_rt)
         self.sirt_cache = {}
         self.rt_not_nan_indices = self.get_not_nan_indices(self.rt)
         self.rt_nan_indices = self.get_nan_indices(self.rt)
@@ -334,6 +335,7 @@ class Factors(Recommender):
             err = np.dot(self.p, self.q.T) - masked
             delta_p = np.ma.dot(err, self.q)
             delta_q = np.ma.dot(err.T, self.p)
+            pdb.set_trace()
 
             if self.regularize:
                 delta_p += self.lamda * self.p
@@ -813,15 +815,16 @@ def read_movie_lens_data():
 if __name__ == '__main__':
     np.set_printoptions(precision=2)
     np.random.seed(0)
+    similarities = False
 
     if 0:
-        m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
-        # m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+        # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+        m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
         m = m.item()
         m = m.astype(float).toarray()
         m[m == 0] = np.nan
-        um = UtilityMatrix(m)
-    else:
+        um = UtilityMatrix(m, similarities=similarities)
+    elif 1:
         m = np.array([  # simple test case
             [5, 1, np.NAN, 2, 2, 4, 3, 2],
             [1, 5, 2, 5, 5, 1, 1, 4],
@@ -837,7 +840,7 @@ if __name__ == '__main__':
             [6, 2, 0, 2, 2, 5, 3, 0, 1, 1],
             [1, 2, 0, 4, 5, 3, 2, 3, 0, 4]
         ])
-        um = UtilityMatrix(m, hidden=hidden)
+        um = UtilityMatrix(m, hidden=hidden, similarities=similarities)
 
         # m = np.array([  # simple test case 2
         #     [1, 5, 5, np.NAN, np.NAN, np.NAN],
@@ -857,7 +860,7 @@ if __name__ == '__main__':
         # um = UtilityMatrix(m, hidden=hidden)
 
     # cfnn = CFNN(um, k=5); cfnn.print_test_error()
-    f = Factors(um, k=5, nsteps=500, eta_type='increasing', regularize=True, eta=0.00001, init='random')
+    # f = Factors(um, k=5, nsteps=500, eta_type='increasing', regularize=True, eta=0.00001, init='random')
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.000001, regularize=True, init='random')
     # w = WeightedCFNN(um, eta_type='increasing', k=5, eta=0.001, regularize=True, init_sim=True)
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
@@ -880,7 +883,8 @@ if __name__ == '__main__':
     #     100
     # ]:
     #     cfnn = CFNN(um, k=k); cfnn.print_test_error()
-
+    f = Factors(um, k=15, nsteps=1000, eta_type='bold_driver', regularize=True,
+                eta=0.00001, init='random')
     # wf = WeightedCFNNUnbiased(um, k=5, eta=0.0001, regularize=True,
     #                           eta_type='bold_driver', init='random')
     # wf = WeightedCFNNBiased(um, eta_type='bold_driver', k=5, eta=0.00001, init='random')
