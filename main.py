@@ -30,7 +30,7 @@ DEBUG = False
 DEBUG_SIZE = 255
 # DEBUG_SIZE = 750
 DATA_BASE_FOLDER = 'data'
-NUMBER_OF_RECOMMENDATIONS = [1, 5, 10, 15, 20]
+NUMBER_OF_RECOMMENDATIONS = [1, 2, 3, 4, 5, 10, 15, 20]
 # NUMBER_OF_RECOMMENDATIONS = [10]
 FRACTION_OF_DIVERSIFIED_RECOMMENDATIONS = 0.4  # should be 0.4
 NUMBER_OF_POTENTIAL_RECOMMENDATIONS = 50  # should be 50
@@ -262,7 +262,7 @@ class Recommender(object):
     def save_graph(self, recs, label, n):
         file_name = os.path.join(
             self.graph_folder,
-            self.label + '_' + unicode(n) + label
+            self.label + '_' + unicode(n) + label + GRAPH_SUFFIX
         )
         with io.open(file_name + '.txt', 'w', encoding='utf-8') as outfile:
             for ridx, rec in enumerate(recs):
@@ -549,7 +549,7 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         if self.sparse:
             um = recsys_sparse.UtilityMatrix(m, similarities=False)
         else:
-            um = recsys_sparse.UtilityMatrix(m)
+            um = recsys.UtilityMatrix(m)
         # f = recsys.Factors(um, k, regularize=True, nsteps=nsteps, eta=eta)
         if self.dataset == 'movielens':
             # for MovieLens:
@@ -612,9 +612,10 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
 
 
 class InterpolationWeightRecommender(RatingBasedRecommender):
-    def __init__(self, dataset, load_cached=False):
-        super(InterpolationWeightRecommender, self).__init__(dataset, 'rbiw',
-                                                             load_cached)
+    def __init__(self, dataset, load_cached=False, sparse=False):
+        super(InterpolationWeightRecommender, self).__init__(
+            dataset, 'rbiw', load_cached, sparse
+        )
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
@@ -652,30 +653,31 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         if self.load_cached:
             sim_mat = self.load_recommendation_data('sim_mat')
             return sim_mat
-        um = self.get_utility_matrix()
-        w, k, beta = self.get_interpolation_weights(um)
+        w, k, beta, m = self.get_interpolation_weights()
 
         # df = self.get_coratings(mid=0, w=w, k=10, coratings_top_10=coratings)
         # print(df.sort_values('similarity'))
         # print(coratings[0][1140])
 
         # compute coratings
-        from recsys import UtilityMatrix
-        m_nan = np.copy(um.astype(float))
-        m_nan[m_nan == 0] = np.nan
-        umrs = UtilityMatrix(m_nan, beta=beta)
-        coratings = {i: collections.defaultdict(int) for i in range(um.shape[1])}
-        not_nan_indices = umrs.get_not_nan_indices(umrs.r)
-        idx_count = len(not_nan_indices)
-        for idx, (u, i) in enumerate(not_nan_indices):
-            if ((idx+1) % 10000) == 0:
-                print(idx+1, '/', idx_count, end='\r')
-            s_u_i = umrs.similar_items(u, i, k, use_all=True)
-            for ci in s_u_i:
-                coratings[i][ci] += 1
-        self.save_recommendation_data(coratings, 'coratings')
-        # self.load_recommendataion_data('coratings')
+        # from recsys_sparse import UtilityMatrix
+        # m_nan = np.copy(um.astype(float))
+        # m_nan[m_nan == 0] = np.nan
+        # umrs = UtilityMatrix(m_nan, beta=beta)
+        # coratings = {i: collections.defaultdict(int) for i in range(um.shape[1])}
+        # not_nan_indices = umrs.get_not_nan_indices(umrs.r)
+        # idx_count = len(not_nan_indices)
+        # for idx, (u, i) in enumerate(not_nan_indices):
+        #     if ((idx+1) % 10000) == 0:
+        #         print(idx+1, '/', idx_count, end='\r')
+        #     s_u_i = umrs.similar_items(u, i, k, use_all=True)
+        #     for ci in s_u_i:
+        #         coratings[i][ci] += 1
+        # self.save_recommendation_data(coratings, 'coratings')
+        # # self.load_recommendataion_data('coratings')
+        coratings = m.coratings_r
 
+        threshold = 1
         if self.dataset == 'movielens':
             threshold = 1
         elif self.dataset == 'bookcrossing':
@@ -683,26 +685,35 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         elif self.dataset == 'movielens':
             threshold = 1
 
-        sims = np.zeros((um.shape[1], um.shape[1]))
-        for x in range(um.shape[1]):
-            for y in coratings[x]:
-                if coratings[x][y] < threshold:  # confidence threshold
-                    continue
+        sims = np.zeros((m.coratings_r.shape[1], m.coratings_r.shape[1]))
+        nnz = m.coratings_r.nnz
+
+        cr_coo = m.coratings_r.tocoo()
+        for idx, (x, y, v) in enumerate(itertools.izip(cr_coo.row, cr_coo.col, cr_coo.data)):
+            print('\r', idx, '/', nnz, end='')
+            if v > threshold:  # confidence threshold
                 sims[x, y] = w[x, y]
         print('threshold =', threshold, '\n')
         sim_mat = SimilarityMatrix(sims)
         self.save_recommendation_data(sim_mat, 'sim_mat')
         return sim_mat
 
-    def get_interpolation_weights(self, m):
+    def get_interpolation_weights(self):
         if self.load_cached:
-            w, k, beta = self.load_recommendation_data('iw_data')
-            return w, k, beta
+            w, k, beta, um = self.load_recommendation_data('iw_data')
+            return w, k, beta, um
+
         # typical values for n lie in the range of 20-50 (Bell & Koren 2007)
+        m = self.get_utility_matrix()
         m = m.astype(float)
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
-        beta = None  # for now, using beta=1 seems to work pretty well for both
+        beta = 1  # for now, using beta=1 seems to work pretty well for both
+
+        if self.sparse:
+            um = recsys_sparse.UtilityMatrix(m, beta=beta)
+        else:
+            um = recsys.UtilityMatrix(m, beta=beta)
 
         if self.dataset == 'movielens':
             # for MovieLens:
@@ -712,22 +723,38 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             #                                eta=0.000001, regularize=True,
             #                                init='sim', nsteps=50)
 
-            beta = 1
-            um = recsys.UtilityMatrix(m_nan, beta=beta)
-            wf = recsys.WeightedCFNNBiased(um, eta_type='bold_driver', k=15,
-                                           eta=0.00001, regularize=True,
-                                           init='sim', nsteps=50)
+            kwargs = {
+                'eta_type': 'bold_driver',
+                'k': 15,
+                'eta': 0.00001,
+                'regularize': True,
+                'init': 'sim',
+                'nsteps': 50
+            }
+
+            if self.sparse:
+                wf = recsys_sparse.WeightedCFNNBiased(um, **kwargs)
+            else:
+                wf = recsys.WeightedCFNNBiased(um, **kwargs)
 
         elif self.dataset == 'bookcrossing':
             # for BookCrossing:
             #    beta = 1
             #    eta_type='bold_driver', k=20, eta=0.00001, regularize=True,
             #    init='zeros'
-            beta = 1
-            um = recsys.UtilityMatrix(m_nan, beta=beta)
-            wf = recsys.WeightedCFNNBiased(um, k=20, eta_type='bold_driver',
-                                           eta=0.00001, regularize=True,
-                                           init='zeros', nsteps=60)
+            kwargs = {
+                'eta_type': 'bold_driver',
+                'k': 20,
+                'eta': 0.00001,
+                'regularize': True,
+                'init': 'zeros',
+                'nsteps': 60
+            }
+
+            if self.sparse:
+                wf = recsys_sparse.WeightedCFNNBiased(um, **kwargs)
+            else:
+                wf = recsys.WeightedCFNNBiased(um, **kwargs)
 
         elif self.dataset == 'imdb':
             # for IMDb:
@@ -737,16 +764,24 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             #                                eta=0.000001, regularize=True,
             #                                init='sim', nsteps=50)
 
-            beta = 1
-            um = recsys.UtilityMatrix(m_nan, beta=beta)
-            wf = recsys.WeightedCFNNBiased(um, eta_type='bold_driver', k=15,
-                                           eta=0.00001, regularize=True,
-                                           init='sim', nsteps=50)
+            kwargs = {
+                'eta_type': 'bold_driver',
+                'k': 25,
+                'eta': 0.0001,
+                'regularize': True,
+                'init': 'sim',
+                'nsteps': 50
+            }
 
+            if self.sparse:
+                wf = recsys_sparse.WeightedCFNNBiased(um, **kwargs)
+            else:
+                wf = recsys.WeightedCFNNBiased(um, **kwargs)
 
         print('beta = ', beta)
-        self.save_recommendation_data([wf.w, wf.k, beta], 'iw_data')
-        return wf.w, wf.k, beta
+        print('sparse = ', self.sparse)
+        self.save_recommendation_data([wf.w, wf.k, beta, wf.m], 'iw_data')
+        return wf.w, wf.k, beta, wf.m
 
 
 class AssociationRuleRecommender(RatingBasedRecommender):
@@ -955,19 +990,24 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    for dataset in [
-        # 'movielens',
-        # 'bookcrossing',
-        'imdb',
-    ]:
-        ## r = ContentBasedRecommender(dataset=dataset)
-        r = RatingBasedRecommender(dataset=dataset, load_cached=False)
-        # r = AssociationRuleRecommender(dataset=dataset, load_cached=False, sparse=True)
-        # r = MatrixFactorizationRecommender(dataset=dataset, load_cached=False, sparse=True)
-        # r = InterpolationWeightRecommender(dataset=dataset, load_cached=False)
+    GRAPH_SUFFIX = ''
+    SPARSE = True
+    DATASET = 'imdb'
+    print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
+    print('SPARSE =', SPARSE)
+    print('DATASET =', DATASET)
 
-        r.get_recommendations()
+    ## r = ContentBasedRecommender(dataset=DATASET)
+    # r = RatingBasedRecommender(dataset=DATASET, load_cached=False)
+    # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
+    r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
+    # r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
 
+    r.get_recommendations()
+
+    print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
+    print('SPARSE =', SPARSE)
+    print('DATASET =', DATASET)
     end_time = datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 

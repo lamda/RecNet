@@ -335,7 +335,6 @@ class Factors(Recommender):
             err = np.dot(self.p, self.q.T) - masked
             delta_p = np.ma.dot(err, self.q)
             delta_q = np.ma.dot(err.T, self.p)
-            pdb.set_trace()
 
             if self.regularize:
                 delta_p += self.lamda * self.p
@@ -747,10 +746,12 @@ class WeightedCFNNBiased(CFNN):
         m.b = self.m.mu + B_u + B_i
         m.rtb = self.m.rt - m.b
         for step in xrange(self.nsteps):
-            print(step, end='\r')
+            # print(step, end='\r')
+            print(step)
             delta_w_i_j = np.zeros((icount, icount))
-            for i in xrange(icount):
-                for u in xrange(ucount):
+            for u in xrange(ucount):
+                print('\r    ', u, '/', ucount, end='')
+                for i in xrange(icount):
                     if (u, i) in rt_nan_indices:
                         continue
                     s_u_i = m.similar_items(u, i, self.k)

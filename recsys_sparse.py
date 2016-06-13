@@ -242,11 +242,17 @@ class UtilityMatrix:
             self.sirt_cache[(u, i, k)] = tuple(s_i_k)
             return self.sirt_cache[(u, i, k)]
 
-    def rt_not_nan_iterator(self):
-        for u, i, v in itertools.izip(
-                self.rt_coo.row, self.r_coo.col, self.r_coo.data
-        ):
-            yield (u, i, v)
+    def rt_not_nan_iterator(self, idx=False):
+        if idx:
+            for idx, (u, i, v) in enumerate(itertools.izip(
+                    self.rt_coo.row, self.r_coo.col, self.r_coo.data
+            )):
+                yield idx, (u, i, v)
+        else:
+            for u, i, v in itertools.izip(
+                    self.rt_coo.row, self.r_coo.col, self.r_coo.data
+            ):
+                yield (u, i, v)
 
     def r_not_nan_iterator(self):
         for u, i, v in itertools.izip(
@@ -843,7 +849,8 @@ class WeightedCFNNBiased(CFNN):
         self.lamda = lamda
         self.normalize = False
         if init == 'sim':
-            self.w = np.copy(self.m.s_rt)
+            # self.w = np.copy(self.m.s_rt)
+            self.w = self.m.s_rt.toarray()
         elif init == 'random':
             self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))
         elif init == 'zeros':
@@ -899,7 +906,7 @@ class WeightedCFNNBiased(CFNN):
         return b_xi + r
 
     def interpolate_weights(self):
-        rt_nan_indices = set(self.m.rt_nan_indices)
+        # rt_nan_indices = set(self.m.rt_nan_indices)
         ucount = self.m.rt.shape[0]
         icount = self.m.rt.shape[1]
         B_u = np.tile(self.m.b_u, (icount, 1)).T
@@ -907,24 +914,30 @@ class WeightedCFNNBiased(CFNN):
         m = self.m
         m.b = self.m.mu + B_u + B_i
         m.rtb = self.m.rt - m.b
+        nnz = self.m.rt.nnz
         for step in xrange(self.nsteps):
-            print(step, end='\r')
+            # print(step, end='\r')
+            print(step)
             delta_w_i_j = np.zeros((icount, icount))
-            for i in xrange(icount):
-                for u in xrange(ucount):
-                    if (u, i) in rt_nan_indices:
-                        continue
-                    s_u_i = m.similar_items(u, i, self.k)
-                    error = m.b[u, i] - m.rt[u, i] +\
-                        sum(self.w[i, k] * m.rtb[u, k] for k in s_u_i)
-                    for j in s_u_i:
-                        delta_w_i_j[i, j] += error * m.rtb[u, j]
-                        if self.regularize:
-                            delta_w_i_j[i, j] += self.lamda * self.w[i, j]
+            # for i in xrange(icount):
+            #     for u in xrange(ucount):
+            #         if (u, i) in rt_nan_indices:
+            #             continue
+            for idx, (u, i, v) in self.m.rt_not_nan_iterator(idx=True):
+                print('\r    ', idx, '/', nnz, end='')
+                s_u_i = m.similar_items(u, i, self.k)
+                error = m.b[u, i] - m.rt[u, i] +\
+                    sum(self.w[i, k] * m.rtb[u, k] for k in s_u_i)
+                for j in s_u_i:
+                    delta_w_i_j[i, j] += error * m.rtb[u, j]
+                    if self.regularize:
+                        delta_w_i_j[i, j] += self.lamda * self.w[i, j]
             self.w -= 2 * self.eta * delta_w_i_j
             self.rmse.append(self.training_error())
-            print(step, 'eta = %.8f, training_rmse = %.8f, test_rmse = %.8f' %
-                  (self.eta, self.rmse[-1], self.test_error()))
+            # print(step, 'eta = %.8f, training_rmse = %.8f, test_rmse = %.8f' %
+            #       (self.eta, self.rmse[-1], self.test_error()))
+            print(step, 'eta = %.8f, training_rmse = %.8f' %
+                  (self.eta, self.rmse[-1]))
             if len(self.rmse) > 1:
                 if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
                     break
@@ -978,10 +991,15 @@ if __name__ == '__main__':
     np.set_printoptions(precision=2)
     # np.random.seed(0)
     similarities = True
+    dataset = ''
 
-    if 1:
-        m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
-        # m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+    if 0:
+        # dataset = 'movielens'
+        dataset = 'imdb'
+        m = np.load(
+            'data/' + dataset +
+            '/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy'
+        )
         m = m.item()
         m = m.astype(float)
         # pdb.set_trace()
@@ -1056,24 +1074,25 @@ if __name__ == '__main__':
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
 
     start_time = datetime.datetime.now()
-    gar = GlobalAverageRecommender(um); gar.print_test_error()
-    uiar = UserItemAverageRecommender(um); uiar.print_test_error()
-
-    for k in [
-        1,
-        2,
-        5,
-        10,
-        15,
-        20,
-        25,
-        40,
-        50,
-        60,
-        # 80,
-        # 100
-    ]:
-        cfnn = CFNN(um, k=k); cfnn.print_test_error()
+    print(dataset)
+    # gar = GlobalAverageRecommender(um); gar.print_test_error()
+    # uiar = UserItemAverageRecommender(um); uiar.print_test_error()
+    #
+    # for k in [
+    #     1,
+    #     2,
+    #     5,
+    #     10,
+    #     15,
+    #     20,
+    #     25,
+    #     40,
+    #     50,
+    #     60,
+    #     80,
+    #     100
+    # ]:
+    #     cfnn = CFNN(um, k=k); cfnn.print_test_error()
 
     # f = Factors(
     #     um,
@@ -1087,9 +1106,15 @@ if __name__ == '__main__':
 
     # wf = WeightedCFNNUnbiased(um, k=5, eta=0.0001, regularize=True,
     #                           eta_type='bold_driver', init='random')
-    # wf = WeightedCFNNBiased(um, eta_type='bold_driver', k=5, eta=0.00001, init='random')
+    wf = WeightedCFNNBiased(
+        um,
+        k=25,
+        eta_type='bold_driver',
+        eta=0.00001,
+        init='sim'
+    )
 
-
+    print(dataset)
     end_time = datetime.datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 
