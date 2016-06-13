@@ -763,8 +763,10 @@ class WeightedCFNNBiased(CFNN):
                             delta_w_i_j[i, j] += self.lamda * self.w[i, j]
             self.w -= 2 * self.eta * delta_w_i_j
             self.rmse.append(self.training_error())
-            print(step, 'eta = %.8f, training_rmse = %.8f, test_rmse = %.8f' %
-                  (self.eta, self.rmse[-1], self.test_error()))
+            # print(step, 'eta = %.8f, training_rmse = %.8f, test_rmse = %.8f' %
+            #    (self.eta, self.rmse[-1], self.test_error()))
+            print(step, 'eta = %.8f, training_rmse = %.8f' %
+                  (self.eta, self.rmse[-1]))
             if len(self.rmse) > 1:
                 if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
                     break

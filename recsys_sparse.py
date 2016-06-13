@@ -23,15 +23,19 @@ np.set_printoptions(linewidth=225)
 
 class UtilityMatrix:
     def __init__(self, r, beta=1, hidden=None, similarities=True):
+        print('UtilityMatrix.__init__')
         self.beta = beta
         self.r = r.astype(float)  # rating matrix (=utility matrix)
         self.r_coo = self.r.tocoo()
+        print('getting training data...')
         self.rt, self.rt_coo, self.hidden_indices, self.hidden_vals =\
             self.get_training_data(hidden)
         self.mu, self.b_i, self.b_u = self.entrymean(self.rt)
+        print('getting coratings...')
         self.coratings_r = self.get_coratings(self.r)
         self.coratings_rt = self.get_coratings(self.rt)
         if similarities:
+            print('getting similarities...')
             self.s_r = self.get_similarities(self.r, self.coratings_r)
             self.s_rt = self.get_similarities(self.rt, self.coratings_rt)
         self.sirt_cache = {}
@@ -48,9 +52,10 @@ class UtilityMatrix:
         r_dok = self.r_coo.todok()
         vals = np.zeros(hidden.shape[1])
         for idx in range(hidden.shape[1]):
+            print('\r    ', idx, '/', hidden.shape[1], end='')
             vals[idx] = r_dok[hidden[0, idx], hidden[1, idx]]
             del r_dok[hidden[0, idx], hidden[1, idx]]
-
+        print()
         r_coo = r_dok.tocoo()
         return r_coo.tocsr(), r_coo, hidden.T, vals
 
@@ -279,8 +284,11 @@ class Recommender:
         raise NotImplementedError
 
     def training_error(self):
+        print('getting training error...')
         sse = 0.0
-        for u, i, v in self.m.rt_not_nan_iterator():
+        nnz = self.m.rt.nnz
+        for idx, u, i, v in self.m.rt_not_nan_iterator(idx=True):
+            print('\r    ', idx, '/', nnz, end='')
             err = v - self.predict(u, i)
             sse += err ** 2
         rmse = np.sqrt(sse / self.rt_nnz)
@@ -424,6 +432,7 @@ class Factors(Recommender):
     def __init__(self, m, k, eta_type, nsteps=500, eta=0.000004,
                  regularize=False, newton=False, tol=0.5*1e-5, lamda=0.05,
                  init='random', reset_params=False):
+
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
@@ -434,6 +443,7 @@ class Factors(Recommender):
         self.tol = tol
         self.lamda = lamda
         self.reset_params = reset_params
+        print(1)
 
         if init == 'svd':
             # init by Singular Value Decomposition
@@ -882,19 +892,12 @@ class WeightedCFNNBiased(CFNN):
 
     def predict(self, u, i, dbg=False):
         # predict an item-based CF rating based on the training data
-        b_xi = self.m.mu + self.m.b_u[u] + self.m.b_i[i]
-        if np.isnan(b_xi):
-            if np.isnan(self.m.b_u[u]) and np.isnan(self.m.b_i[i]):
-                return self.m.mu
-            elif np.isnan(self.m.b_u[u]):
-                return self.m.mu + self.m.b_i[i]
-            else:
-                return self.m.mu + self.m.b_u[u]
-
+        base = self.m.mu + self.m.b_u[u]
+        b_xi = base + self.m.b_i[i]
         n_u_i = self.m.similar_items(u, i, self.k)
         r = 0
         for j in n_u_i:
-            diff = self.m.r[u, j] - (self.m.mu + self.m.b_u[u] + self.m.b_i[j])
+            diff = self.m.r[u, j] - (base + self.m.b_i[j])
             r += self.w[i, j] * diff
         if self.normalize:
             if r != 0:
@@ -924,7 +927,7 @@ class WeightedCFNNBiased(CFNN):
             #         if (u, i) in rt_nan_indices:
             #             continue
             for idx, (u, i, v) in self.m.rt_not_nan_iterator(idx=True):
-                print('\r    ', idx, '/', nnz, end='')
+                # print('\r    ', idx, '/', nnz, end='')
                 s_u_i = m.similar_items(u, i, self.k)
                 error = m.b[u, i] - m.rt[u, i] +\
                     sum(self.w[i, k] * m.rtb[u, k] for k in s_u_i)
