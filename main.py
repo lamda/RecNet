@@ -588,10 +588,10 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
             # f = recsys.Factors(um, k=5, eta=0.00001, eta_type='bold_driver',
             #                    init='random', regularize=True, nsteps=1000)
             kwargs = {
-                'k': 25,
+                'k': 20,
                 'eta': 0.000001,
                 'eta_type': 'bold_driver',
-                'init': 'random',
+                'init': 'random_small',
                 'regularize': True,
                 'nsteps': 1000
             }
@@ -759,10 +759,10 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
             kwargs = {
                 'eta_type': 'bold_driver',
-                'k': 25,
+                'k': 5,
                 'eta': 0.0001,
                 'regularize': True,
-                'init': 'random',
+                'init': 'zeros',
                 'nsteps': 70
             }
 
@@ -984,8 +984,8 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    GRAPH_SUFFIX = '_r_25_2'
-    SPARSE = False
+    GRAPH_SUFFIX = '_z_5'
+    SPARSE = True
     DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('SPARSE =', SPARSE)
@@ -994,8 +994,8 @@ if __name__ == '__main__':
     ## r = ContentBasedRecommender(dataset=DATASET)
     # r = RatingBasedRecommender(dataset=DATASET, load_cached=False)
     # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
-    r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
-    # r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
+    # r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
+    r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
 
     r.get_recommendations()
 
