@@ -375,10 +375,10 @@ class Factors(Recommender):
                 test_rmse.append(self.test_error())
                 print('    TEST RMSE:')
                 for idx, err in enumerate(test_rmse):
-                    print('        %d | %.8f' % (idx * 100, err))
+                    print('        %d | %.8f' % (idx * 10, err))
         print('    TEST RMSE:')
         for idx, err in enumerate(test_rmse):
-            print('        %d | %.8f' % (idx * 100, err))
+            print('        %d | %.8f' % (idx * 10, err))
 
     def factorize_biased(self):
         self.predict = self.predict_biased
