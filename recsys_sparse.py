@@ -284,13 +284,13 @@ class Recommender:
         raise NotImplementedError
 
     def training_error(self):
-        print('getting training error...')
         sse = 0.0
         nnz = self.m.rt.nnz
-        for idx, u, i, v in self.m.rt_not_nan_iterator(idx=True):
-            print('\r    ', idx, '/', nnz, end='')
+        for idx, (u, i, v) in self.m.rt_not_nan_iterator(idx=True):
+            # print('\r', idx, '/', nnz, end='')
             err = v - self.predict(u, i)
             sse += err ** 2
+        print()
         rmse = np.sqrt(sse / self.rt_nnz)
         return rmse
 
@@ -875,6 +875,7 @@ class WeightedCFNNBiased(CFNN):
         print('lamda =', self.lamda)
         print('eta =', self.eta)
         print('eta_type =', self.eta_type)
+        print('nsteps = ', nsteps)
 
         self.interpolate_weights()
 
@@ -883,6 +884,7 @@ class WeightedCFNNBiased(CFNN):
         print('lamda =', self.lamda)
         print('eta = ', self.eta)
         print('eta_type =', self.eta_type)
+        print('nsteps = ', nsteps)
 
         # diff = np.linalg.norm(w_init - self.w)
 
@@ -892,12 +894,10 @@ class WeightedCFNNBiased(CFNN):
 
     def predict(self, u, i, dbg=False):
         # predict an item-based CF rating based on the training data
-        base = self.m.mu + self.m.b_u[u]
-        b_xi = base + self.m.b_i[i]
         n_u_i = self.m.similar_items(u, i, self.k)
         r = 0
         for j in n_u_i:
-            diff = self.m.r[u, j] - (base + self.m.b_i[j])
+            diff = self.m.r[u, j] - self.r_t_predicted[u, j]
             r += self.w[i, j] * diff
         if self.normalize:
             if r != 0:
@@ -906,9 +906,10 @@ class WeightedCFNNBiased(CFNN):
                         np.isnan(r/sum(self.w[i, j] for j in n_u_i)):
                     pdb.set_trace()
                 r /= s
-        return b_xi + r
+        return self.r_t_predicted[u, i] + r
 
     def interpolate_weights(self):
+        test_rmse = []
         # rt_nan_indices = set(self.m.rt_nan_indices)
         ucount = self.m.rt.shape[0]
         icount = self.m.rt.shape[1]
@@ -958,6 +959,12 @@ class WeightedCFNNBiased(CFNN):
                         pass
                     else:  # 'increasing' or 'bold_driver'
                         self.eta *= 1.1
+
+            if (step % 10) == 0:
+                test_rmse.append(self.test_error())
+                print('    TEST RMSE:')
+                for idx, err in enumerate(test_rmse):
+                    print('        %d | %.8f' % (idx * 10, err))
 
 
 def read_movie_lens_data():

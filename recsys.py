@@ -295,8 +295,10 @@ class Factors(Recommender):
         print('init =', init)
         print('k =', k)
         print('lamda =', self.lamda)
-        print('eta = ', self.eta)
+        self.eta_init = self.eta
+        print('eta = ', self.eta_init)
         print('eta_type = ', self.eta_type)
+        print('nsteps = ', nsteps)
 
         self.factorize()
         # self.factorize_biased()
@@ -304,8 +306,9 @@ class Factors(Recommender):
         print('init =', init)
         print('k =', k)
         print('lamda =', self.lamda)
-        print('eta = ', self.eta)
+        print('eta = ', self.eta_init)
         print('eta_type = ', self.eta_type)
+        print('nsteps = ', nsteps)
 
         # self.plot_rmse('%.4f' % diff, suffix='init')
         print('test error: %.4f' % self.test_error())
@@ -345,8 +348,10 @@ class Factors(Recommender):
 
             self.rmse.append(self.training_error())
             # print(m, 'eta = %.8f, rmse = %.8f' % (self.eta, self.rmse[-1]))
-            print(m, 'eta = %.8f, training_rmse = %.8f, test_rmse = %.8f' %
-                  (self.eta, self.rmse[-1], self.test_error()))
+            # print(m, 'eta = %.8f, training_rmse = %.8f, test_rmse = %.8f' %
+            #       (self.eta, self.rmse[-1], self.test_error()))
+            print(m, 'eta = %.8f, training_rmse = %.8f' %
+                  (self.eta, self.rmse[-1]))
             if len(self.rmse) > 1:
                 if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
                     break
@@ -366,7 +371,7 @@ class Factors(Recommender):
                         pass
                     else:  # 'increasing' or 'bold_driver'
                         self.eta *= 1.1
-            if (m % 100) == 0:
+            if (m % 20) == 0:
                 test_rmse.append(self.test_error())
                 print('    TEST RMSE:')
                 for idx, err in enumerate(test_rmse):
