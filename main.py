@@ -759,7 +759,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
             kwargs = {
                 'eta_type': 'bold_driver',
-                'k': 5,
+                'k': 6,
                 'eta': 0.0001,
                 'regularize': True,
                 'init': 'zeros',
@@ -984,7 +984,7 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    GRAPH_SUFFIX = '_z_5'
+    GRAPH_SUFFIX = '_z_6'
     SPARSE = True
     DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
