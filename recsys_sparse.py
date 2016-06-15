@@ -769,8 +769,11 @@ class WeightedCFNNUnbiased(CFNN):
         self.regularize = regularize
         self.lamda = lamda
         if init == 'sim':
-            self.w = np.copy(self.m.s_rt)
+            # self.w = np.copy(self.m.s_rt)
+            self.w = self.m.s_rt.toarray()
         elif init == 'random':
+            self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))
+        elif init == 'random_small':
             self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))/100
         elif init == 'zeros':
             self.w = np.zeros((self.m.rt.shape[1], self.m.rt.shape[1]))
@@ -799,24 +802,27 @@ class WeightedCFNNUnbiased(CFNN):
         return r
 
     def interpolate_weights(self):
-        icount = self.m.rt.shape[1]
-        rt_nan_indices = set(self.m.rt_nan_indices)
+        test_rmse = []
+        # rt_nan_indices = set(self.m.rt_nan_indices)
         ucount = self.m.rt.shape[0]
+        icount = self.m.rt.shape[1]
         m = self.m
         for step in xrange(self.nsteps):
-            print(step, end='\r')
+            # print(step, end='\r')
+            print(step)
             delta_w_i_j = np.zeros((icount, icount))
-            for i in xrange(icount):
-                for u in xrange(ucount):
-                    if (u, i) in rt_nan_indices:
-                        continue
-                    s_u_i = m.similar_items(u, i, self.k)
-                    error = sum(self.w[i, k] * m.rt[u, k] for k in s_u_i) -\
-                            m.rt[u, i]
-                    for j in s_u_i:
-                        delta_w_i_j[i, j] += error * m.rt[u, j]
-                        if self.regularize:
-                            delta_w_i_j[i, j] += self.lamda * self.w[i, j]
+            # for i in xrange(icount):
+            #     for u in xrange(ucount):
+            #         if (u, i) in rt_nan_indices:
+            #             continue
+            for idx, (u, i, v) in self.m.rt_not_nan_iterator(idx=True):
+                s_u_i = m.similar_items(u, i, self.k)
+                error = sum(self.w[i, k] * m.rt[u, k] for k in s_u_i) -\
+                        m.rt[u, i]
+                for j in s_u_i:
+                    delta_w_i_j[i, j] += error * m.rt[u, j]
+                    if self.regularize:
+                        delta_w_i_j[i, j] += self.lamda * self.w[i, j]
 
             # # update weights
             self.w -= 2 * self.eta * delta_w_i_j
@@ -825,8 +831,8 @@ class WeightedCFNNUnbiased(CFNN):
             self.w[self.w < 0] = 0
 
             self.rmse.append(self.training_error())
-            print(step, 'eta = %.8f, training_rmse = %.8f, test_rmse = %.8f' %
-                  (self.eta, self.rmse[-1], self.test_error()))
+            print(step, 'eta = %.8f, training_rmse = %.8f' %
+                  (self.eta, self.rmse[-1]))
             if len(self.rmse) > 1:
                 if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
                     break
@@ -844,6 +850,13 @@ class WeightedCFNNUnbiased(CFNN):
                         pass
                     else:  # 'increasing' or 'bold_driver'
                         self.eta *= 1.05
+            self.eta *= 1.1
+
+            if (step % 10) == 0:
+                test_rmse.append(self.test_error())
+                print('    TEST RMSE:')
+                for idx, err in enumerate(test_rmse):
+                    print('        %d | %.8f' % (idx * 10, err))
 
 
 class WeightedCFNNBiased(CFNN):
@@ -1118,12 +1131,13 @@ if __name__ == '__main__':
 
     # wf = WeightedCFNNUnbiased(um, k=5, eta=0.0001, regularize=True,
     #                           eta_type='bold_driver', init='random')
-    wf = WeightedCFNNBiased(
+    wf = WeightedCFNNUnbiased(
         um,
         k=25,
         eta_type='bold_driver',
         eta=0.00001,
-        init='sim'
+        init='sim',
+        regularize=True
     )
 
     print(dataset)

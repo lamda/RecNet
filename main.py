@@ -415,7 +415,7 @@ class RatingBasedRecommender(Recommender):
                     ratings.append((movie_id, int(user_id), int(rating)))
 
         present_ids = set(self.df['dataset_id'])
-        ratings = [t for t in ratings if t[0] in present_ids]
+        ratings = [t for t in ratings if str(t[0]) in present_ids]
 
         users = sorted(set([a[1] for a in ratings]))
         user2matrix = {user: i for user, i in zip(users, range(len(users)))}
@@ -766,7 +766,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
             kwargs = {
                 'eta_type': 'bold_driver',
-                'k': 10,
+                'k': 5,
                 'eta': 0.0001,
                 'regularize': True,
                 'init': 'random_small',
@@ -774,7 +774,8 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             }
 
             if self.sparse:
-                wf = recsys_sparse.WeightedCFNNBiased(um, **kwargs)
+                # wf = recsys_sparse.WeightedCFNNBiased(um, **kwargs)
+                wf = recsys_sparse.WeightedCFNNUnbiased(um, **kwargs)
             else:
                 wf = recsys.WeightedCFNNBiased(um, **kwargs)
 
@@ -991,19 +992,18 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    GRAPH_SUFFIX = ''
+    GRAPH_SUFFIX = '_ub_r_s_5'
     SPARSE = True
-    DATASET = 'bookcrossing'
-    # DATASET = 'movielens'
+    DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('SPARSE =', SPARSE)
     print('DATASET =', DATASET)
 
     ## r = ContentBasedRecommender(dataset=DATASET)
-    r = RatingBasedRecommender(dataset=DATASET, load_cached=False)
+    # r = RatingBasedRecommender(dataset=DATASET, load_cached=False)
     # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
     # r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
-    # r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
+    r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
 
     r.get_recommendations()
 
