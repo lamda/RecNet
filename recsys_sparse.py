@@ -863,6 +863,8 @@ class WeightedCFNNBiased(CFNN):
             self.w = self.m.s_rt.toarray()
         elif init == 'random':
             self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))
+        elif init == 'random_small':
+            self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1])) / 100
         elif init == 'zeros':
             self.w = np.zeros((self.m.rt.shape[1], self.m.rt.shape[1]))
         else:

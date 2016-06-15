@@ -409,7 +409,13 @@ class RatingBasedRecommender(Recommender):
         with open(path_ratings) as infile:
             for line in infile:
                 user_id, movie_id, rating = line.strip().split('::')[:3]
-                ratings.append((int(movie_id), int(user_id), int(rating)))
+                if DATASET in ['movielens', 'imdb']:
+                    ratings.append((int(movie_id), int(user_id), int(rating)))
+                else:
+                    ratings.append((movie_id, int(user_id), int(rating)))
+
+        present_ids = set(self.df['dataset_id'])
+        ratings = [t for t in ratings if t[0] in present_ids]
 
         users = sorted(set([a[1] for a in ratings]))
         user2matrix = {user: i for user, i in zip(users, range(len(users)))}
@@ -422,6 +428,7 @@ class RatingBasedRecommender(Recommender):
         row_ind = [r[0] for r in ratings]
         col_ind = [r[1] for r in ratings]
         data = [r[2] for r in ratings]
+
         utility = scipy.sparse.csr_matrix((data, (row_ind, col_ind)), dtype='int32')
         self.save_recommendation_data(utility, 'um_sparse')
         um = utility.toarray()
@@ -588,7 +595,7 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
             # f = recsys.Factors(um, k=5, eta=0.00001, eta_type='bold_driver',
             #                    init='random', regularize=True, nsteps=1000)
             kwargs = {
-                'k': 20,
+                'k': 10,
                 'eta': 0.000001,
                 'eta_type': 'bold_driver',
                 'init': 'random_small',
@@ -759,11 +766,11 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
             kwargs = {
                 'eta_type': 'bold_driver',
-                'k': 6,
+                'k': 10,
                 'eta': 0.0001,
                 'regularize': True,
-                'init': 'zeros',
-                'nsteps': 70
+                'init': 'random_small',
+                'nsteps': 101
             }
 
             if self.sparse:
@@ -984,18 +991,19 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    GRAPH_SUFFIX = '_z_6'
+    GRAPH_SUFFIX = ''
     SPARSE = True
-    DATASET = 'imdb'
+    DATASET = 'bookcrossing'
+    # DATASET = 'movielens'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('SPARSE =', SPARSE)
     print('DATASET =', DATASET)
 
     ## r = ContentBasedRecommender(dataset=DATASET)
-    # r = RatingBasedRecommender(dataset=DATASET, load_cached=False)
+    r = RatingBasedRecommender(dataset=DATASET, load_cached=False)
     # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
     # r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
-    r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
+    # r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
 
     r.get_recommendations()
 

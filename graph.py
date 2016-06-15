@@ -290,13 +290,43 @@ class Graph(object):
         return ecc
 
 
+def extract_recommendations():
+    for dataset in [
+        'movielens',
+        'bookcrossing',
+    ]:
+        folder = os.path.join('data', dataset, 'graphs')
+        for rec_type in [
+            'rbmf',
+            'rbiw'
+        ]:
+            for suffix in [
+                '',
+                '_resolved',
+            ]:
+                fpath_in = os.path.join(folder, rec_type + '_5' +
+                                        suffix + '.txt')
+                with io.open(fpath_in, encoding='utf-8') as infile:
+                    data = infile.readlines()
+                for N in range(1, 5):
+                    fpath = os.path.join(folder, rec_type + '_' + str(N) +
+                                         suffix + '.txt')
+                    with io.open(fpath, 'w', encoding='utf-8') as outfile:
+                        for idx, line in enumerate(data):
+                            if (idx % 5) < N:
+                                outfile.write(line)
+
 if __name__ == '__main__':
     np.set_printoptions(precision=3)
     np.set_printoptions(suppress=True)
 
+    extract_recommendations()
+    sys.exit()
+
     datasets = [
         'movielens',
         'bookcrossing',
+        'imdb',
     ]
     rec_types = [
         # 'cb',
@@ -313,6 +343,9 @@ if __name__ == '__main__':
     ]
     Ns = [
         1,
+        2,
+        3,
+        4,
         5,
         10,
         15,
