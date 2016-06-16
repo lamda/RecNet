@@ -108,11 +108,12 @@ class Graph(object):
         data = self.basic_stats()
         stats['graph_size'], stats['recommenders'], stats[
             'outdegree_av'] = data
-        stats['cc'] = self.clustering_coefficient()
-        stats['cp_size'], stats['cp_count'] = self.largest_component()
+        # stats['cc'] = self.clustering_coefficient()
+        # stats['cp_size'], stats['cp_count'] = self.largest_component()
         stats['bow_tie'] = self.bow_tie()
         stats['bow_tie_changes'] = self.compute_bowtie_changes()
-        stats['lc_ecc'] = self.eccentricity()
+        if self.N in [5, 20]:
+            stats['ecc_max'], stats['ecc_median'] = self.eccentricity()
 
         print('saving...')
         with open(self.stats_file_path, 'wb') as outfile:
@@ -244,8 +245,8 @@ class Graph(object):
         comp2num = {l: i for l, i in zip(labels, range(len(labels)))}
         if self.N == 1:
             return None
-        elif self.N == 5:
-            prev_N = 1
+        elif 1 < self.N <= 5:
+            prev_N = self.N - 1
         else:
             prev_N = self.N - 5
         prev_gt_file_path = self.gt_file_path.split('_')[0] +\
@@ -273,7 +274,8 @@ class Graph(object):
         lcp.clear_filters()
 
         print('eccentricity() for lcp of', lcp.num_vertices(), 'vertices')
-        ecc = collections.defaultdict(int)
+        ecc_max = collections.defaultdict(int)
+        ecc_median = collections.defaultdict(int)
         vertices = [int(v) for v in lcp.vertices()]
         if use_sample:
             sample_size = int(0.15 * lcp.num_vertices())
@@ -284,10 +286,11 @@ class Graph(object):
         for idx, node in enumerate(vertices):
             print(idx + 1, '/', len(vertices), end='\r')
             dist = gt.shortest_distance(lcp, source=node).a
-            ecc[max(dist)] += 1
-        ecc = [ecc[i] for i in range(max(ecc.keys()) + 2)]
-        # lc_ecc = [100 * v / sum(ecc) for v in ecc]
-        return ecc
+            ecc_max[max(dist)] += 1
+            ecc_median[int(np.median(dist))] += 1
+        ecc_max = [ecc_max[i] for i in range(max(ecc_max.keys()) + 2)]
+        ecc_median = [ecc_median[i] for i in range(max(ecc_median.keys()) + 2)]
+        return ecc_max, ecc_median
 
 
 def extract_recommendations():
@@ -320,13 +323,12 @@ if __name__ == '__main__':
     np.set_printoptions(precision=3)
     np.set_printoptions(suppress=True)
 
-    extract_recommendations()
-    sys.exit()
+    # extract_recommendations()
 
     datasets = [
-        'movielens',
+        # 'movielens',
         'bookcrossing',
-        'imdb',
+        # 'imdb',
     ]
     rec_types = [
         # 'cb',
@@ -360,5 +362,5 @@ if __name__ == '__main__':
                     g = Graph(dataset=dataset, fname=fname, N=N,
                               use_sample=False, refresh=False)
                     g.load_graph()
-                    # g.compute_stats()
-                    g.update_stats()
+                    g.compute_stats()
+                    # g.update_stats()

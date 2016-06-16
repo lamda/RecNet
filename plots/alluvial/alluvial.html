@@ -199,7 +199,8 @@ nodes.append('svg:text')
                 return 245;
             },
             x: function(d) {
-                return x(0) - w / 7.5 * gapratio;
+                //return x(0) - w / 7.5 * gapratio;
+                return x(0) - w / 11.5 * gapratio;
             },
             "font-family": "Helvetica",
             "font-size": "17px",
@@ -214,24 +215,31 @@ nodes.append('svg:text')
                 if (d.id == 1)
                     return "N = 1";
                 if (d.id == 8)
-                    return "N = 5";
+                    return "N = 2";
                 if (d.id == 15)
-                    return "N = 10";
+                    return "N = 3";
                 if (d.id == 22)
-                    return "N = 15";   
+                    return "N = 4";   
                 if (d.id == 29)
-                    return "N = 20";
+                    return "N = 5";
+                if (d.id == 36)
+                    return "N = 10";                    
+                if (d.id == 43)
+                    return "N = 15";                    
+                if (d.id == 50)
+                    return "N = 20";                    
                 }
             else
                 return '';})        
         
+/*
 nodes.append('svg:text')
         .attr({
             y: function(d, i) {
                 return y(d.nodeValue/2 + d.offsetValue) + i * padding + 5;
             },
             x: function(d) {
-                return x(0) - w / 7.5 * gapratio;
+                return x(0) - w / 11.5 * gapratio;
             },
             "font-family": "Helvetica",
             //"font-size": "17px",
@@ -251,7 +259,7 @@ nodes.append('svg:text')
                 return d.nodeLabel;
             else
                 return '';})
-
+*/
 
 </script>
 </body>

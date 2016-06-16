@@ -861,7 +861,7 @@ class WeightedCFNNUnbiased(CFNN):
 
 class WeightedCFNNBiased(CFNN):
     def __init__(self, m, k, eta_type, init, nsteps=500, eta=0.00075,
-                 tol=1e-5, lamda=0.05, regularize=False):
+                 tol=1e-5, lamda=0.05, regularize=False, reset_params=True):
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
@@ -871,6 +871,7 @@ class WeightedCFNNBiased(CFNN):
         self.regularize = regularize
         self.lamda = lamda
         self.normalize = False
+        self.reset_params = reset_params
         if init == 'sim':
             # self.w = np.copy(self.m.s_rt)
             self.w = self.m.s_rt.toarray()
@@ -962,9 +963,11 @@ class WeightedCFNNBiased(CFNN):
                     break
                 if self.rmse[-1] > self.rmse[-2]:
                     print('RMSE getting larger')
-                    self.w += 2 * self.eta * delta_w_i_j  # reset parameters
-                    self.eta *= 0.5
+                    if self.reset_params:
+                        self.w += 2 * self.eta * delta_w_i_j  # reset parameters
+                        self.eta *= 0.5
                     del self.rmse[-1]
+
                     if self.eta_type == 'constant':
                         break
                     elif self.eta_type == 'increasing':

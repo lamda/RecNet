@@ -748,7 +748,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                 'eta': 0.00001,
                 'regularize': True,
                 'init': 'zeros',
-                'nsteps': 60
+                'nsteps': 60,
             }
 
             if self.sparse:
@@ -767,11 +767,12 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             kwargs = {
                 'eta_type': 'bold_driver',
                 'k': 5,
-                'eta': 0.0001,
+                'eta': 0.000075,
                 'regularize': True,
-                'init': 'sim',
+                'init': 'random_small',
                 'nsteps': 101,
-                'lamda': 0.1
+                'reset_params': False,
+                'lamda': 0.25,
             }
 
             if self.sparse:
@@ -992,7 +993,7 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    GRAPH_SUFFIX = '_s_5_2'
+    GRAPH_SUFFIX = '_r_5_5'
     SPARSE = True
     DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
