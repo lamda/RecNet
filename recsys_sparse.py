@@ -1131,7 +1131,7 @@ if __name__ == '__main__':
 
     # wf = WeightedCFNNUnbiased(um, k=5, eta=0.0001, regularize=True,
     #                           eta_type='bold_driver', init='random')
-    wf = WeightedCFNNUnbiased(
+    wf = WeightedCFNNBiased(
         um,
         k=25,
         eta_type='bold_driver',

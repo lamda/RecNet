@@ -769,13 +769,13 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                 'k': 5,
                 'eta': 0.0001,
                 'regularize': True,
-                'init': 'random_small',
-                'nsteps': 101
+                'init': 'sim',
+                'nsteps': 101,
+                'lamda': 0.1
             }
 
             if self.sparse:
-                # wf = recsys_sparse.WeightedCFNNBiased(um, **kwargs)
-                wf = recsys_sparse.WeightedCFNNUnbiased(um, **kwargs)
+                wf = recsys_sparse.WeightedCFNNBiased(um, **kwargs)
             else:
                 wf = recsys.WeightedCFNNBiased(um, **kwargs)
 
@@ -992,7 +992,7 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    GRAPH_SUFFIX = '_ub_r_s_5'
+    GRAPH_SUFFIX = '_s_5_2'
     SPARSE = True
     DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
