@@ -709,6 +709,8 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         m_nan = np.copy(m)
         m_nan[m_nan == 0] = np.nan
         beta = 1  # for now, using beta=1 seems to work pretty well for both
+        if self.dataset == 'imdb':
+            beta = 10
 
         if self.sparse:
             um = recsys_sparse.UtilityMatrix(m, beta=beta)
@@ -767,12 +769,12 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             kwargs = {
                 'eta_type': 'bold_driver',
                 'k': 5,
-                'eta': 0.000075,
+                'eta': 0.0001,
                 'regularize': True,
                 'init': 'random_small',
                 'nsteps': 101,
                 'reset_params': False,
-                'lamda': 0.25,
+                'lamda': 0.15
             }
 
             if self.sparse:
@@ -993,7 +995,7 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    GRAPH_SUFFIX = '_r_5_5'
+    GRAPH_SUFFIX = '_r_v_s_5_ll'
     SPARSE = True
     DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)

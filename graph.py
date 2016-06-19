@@ -11,6 +11,8 @@ import numpy as np
 import os
 import pdb
 import random
+import re
+import shutil
 
 
 class Graph(object):
@@ -319,11 +321,33 @@ def extract_recommendations():
                             if (idx % 5) < N:
                                 outfile.write(line)
 
+
+def rename_selected():
+    dataset = 'imdb'
+    old_dir = os.path.join('data', dataset, 'graphs_selected')
+    new_dir = os.path.join('data', dataset, 'graphs')
+    files = os.listdir(old_dir)
+    try:
+        os.makedirs(new_dir)
+    except OSError:
+        pass
+    for f in files:
+        print(f)
+        match = re.search(r'([a-z]+_\d+)(_[a-z]|_[0-9]+)*(_resolved)?(\.txt)', f)
+        if match is None:
+            pdb.set_trace()
+        groups = [g for g in match.group(1, 3, 4) if g]
+        f_new = ''.join(groups)
+        shutil.copyfile(os.path.join(old_dir, f), os.path.join(new_dir, f_new))
+
+
 if __name__ == '__main__':
     np.set_printoptions(precision=3)
     np.set_printoptions(suppress=True)
 
     # extract_recommendations()
+    rename_selected()
+    sys.exit()
 
     datasets = [
         # 'movielens',

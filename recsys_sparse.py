@@ -878,7 +878,7 @@ class WeightedCFNNBiased(CFNN):
         elif init == 'random':
             self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))
         elif init == 'random_small':
-            self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1])) / 100
+            self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1])) / 1000
         elif init == 'zeros':
             self.w = np.zeros((self.m.rt.shape[1], self.m.rt.shape[1]))
         else:
@@ -954,10 +954,10 @@ class WeightedCFNNBiased(CFNN):
                         delta_w_i_j[i, j] += self.lamda * self.w[i, j]
             self.w -= 2 * self.eta * delta_w_i_j
             self.rmse.append(self.training_error())
-            # print(step, 'eta = %.8f, training_rmse = %.8f, test_rmse = %.8f' %
-            #       (self.eta, self.rmse[-1], self.test_error()))
-            print(step, 'eta = %.8f, training_rmse = %.8f' %
-                  (self.eta, self.rmse[-1]))
+            print(step, 'eta = %.8f, training_rmse = %.8f, test_rmse = %.8f' %
+                  (self.eta, self.rmse[-1], self.test_error()))
+            # print(step, 'eta = %.8f, training_rmse = %.8f' %
+            #       (self.eta, self.rmse[-1]))
             if len(self.rmse) > 1:
                 if abs(self.rmse[-1] - self.rmse[-2]) < self.tol:
                     break
@@ -978,11 +978,11 @@ class WeightedCFNNBiased(CFNN):
                     else:  # 'increasing' or 'bold_driver'
                         self.eta *= 1.1
 
-            if (step % 10) == 0:
-                test_rmse.append(self.test_error())
-                print('    TEST RMSE:')
-                for idx, err in enumerate(test_rmse):
-                    print('        %d | %.8f' % (idx * 10, err))
+            # if (step % 10) == 0:
+            #     test_rmse.append(self.test_error())
+            #     print('    TEST RMSE:')
+            #     for idx, err in enumerate(test_rmse):
+            #         print('        %d | %.8f' % (idx * 10, err))
 
 
 def read_movie_lens_data():
