@@ -326,7 +326,7 @@ def rename_selected():
     dataset = 'imdb'
     old_dir = os.path.join('data', dataset, 'graphs_selected')
     new_dir = os.path.join('data', dataset, 'graphs')
-    files = os.listdir(old_dir)
+    files = [f for f in os.listdir(old_dir) if f.endswith('.txt')]
     try:
         os.makedirs(new_dir)
     except OSError:
@@ -346,18 +346,19 @@ if __name__ == '__main__':
     np.set_printoptions(suppress=True)
 
     # extract_recommendations()
-    # rename_selected()
+    rename_selected()
+    # sys.exit()
 
     datasets = [
-        'movielens',
-        'bookcrossing',
+        # 'movielens',
+        # 'bookcrossing',
         'imdb',
     ]
     rec_types = [
         # 'cb',
-        'rbar',
-        'rb',
-        'rbiw',
+        # 'rbar',
+        # 'rb',
+        # 'rbiw',
         'rbmf',
     ]
     div_types = [

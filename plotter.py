@@ -126,6 +126,7 @@ class Plotter(object):
         plt.close()
 
     def plot_ecc(self):
+        print(self.label)
         for ecc_type in [
             'ecc_max',
             'ecc_median',
@@ -148,28 +149,30 @@ class Plotter(object):
             #       'plots/legend_ecc_full.pdf plots/legend_ecc.pdf'
             # os.system(cmd)
             # print(cmd)
-
             for gidx, graph_type in enumerate(self.graph_order):
                 fig, ax = plt.subplots(1, figsize=(6.25, 2.5))
-                vals = [self.graph_data[graph_name][ecc_type]
-                        for graph_name in self.graphs[graph_type]]
-                print(graph_type)
+                vals = [
+                    self.graph_data[graph_name][ecc_type]
+                    for graph_name in
+                    [self.graphs[graph_type][4], self.graphs[graph_type][7]]
+                ]
+                print('   ', graph_type)
                 for vidx, val, in enumerate(vals):
                     val = [100 * v / sum(val) for v in val]
-                    print(len(val) - 1)
+                    print('       ', len(val) - 1)
                     # av = 0
                     # for vidx2, v in enumerate(val):
                     #     print('%.2f, ' % v, end='')
                     #     av += vidx2 * v
                     # print('average = %.2f' % (av/100))
-                    print()
+                    # print()
                     bars = ax.bar(range(len(val)), val, color=self.colors[gidx], lw=2)
                     # Beautification
                     for bidx, bar in enumerate(bars):
                         bar.set_fill(False)
                         bar.set_hatch(self.hatches[vidx])
                         bar.set_edgecolor(self.colors[gidx])
-                ax.set_xlim(0, 40)
+                ax.set_xlim(0, 85)
                 ax.set_ylim(0, 100)
                 ax.set_xlabel('Eccentricity')
                 ax.set_ylabel('% of Nodes')
@@ -362,7 +365,7 @@ if __name__ == '__main__':
         # 'cp_count',
         # 'cp_size',
         # 'cc',
-        # 'ecc',
+        'ecc',
         # 'bow_tie',
         # 'bow_tie_alluvial',
     ]
