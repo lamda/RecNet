@@ -995,7 +995,7 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    GRAPH_SUFFIX = '_r_v_s_5_ll'
+    GRAPH_SUFFIX = ''
     SPARSE = True
     DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
@@ -1004,9 +1004,9 @@ if __name__ == '__main__':
 
     ## r = ContentBasedRecommender(dataset=DATASET)
     # r = RatingBasedRecommender(dataset=DATASET, load_cached=False)
-    # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
+    r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
     # r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
-    r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
+    # r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=SPARSE)
 
     r.get_recommendations()
 

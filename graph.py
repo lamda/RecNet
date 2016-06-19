@@ -346,13 +346,12 @@ if __name__ == '__main__':
     np.set_printoptions(suppress=True)
 
     # extract_recommendations()
-    rename_selected()
-    sys.exit()
+    # rename_selected()
 
     datasets = [
-        # 'movielens',
+        'movielens',
         'bookcrossing',
-        # 'imdb',
+        'imdb',
     ]
     rec_types = [
         # 'cb',

@@ -20,7 +20,7 @@ if __name__ == '__main__':
         cmd = '"C:\\Program Files\\wkhtmltopdf\\bin\wkhtmltopdf.exe" ' +\
               f[0] + ' ' + f[1]
         os.system(cmd)
-    
+
     print('cropping pdf...')
     for f in files:
         cmd = 'pdfcrop --margins 15 ' + f[1] + ' ' + f[2]
@@ -28,6 +28,9 @@ if __name__ == '__main__':
         
     print('copying pdfs...')
     for f in files:
-        shutil.copy(f[2], 'D:\\PhD\\Dropbox\\paper_recnet\\figures')
+        shutil.copy(
+            f[2],
+            'D:\\Dropbox\\Papers\\paper_recnet\\2016-07-XX (Revision)\\figures'
+        )
         
     print('done')

@@ -332,6 +332,20 @@ class Plotter(object):
             with io.open(hfname, 'w', encoding='utf-8') as outfile:
                 outfile.write(template[0] + '"' + fname + '"' + template[1])
 
+    def plot_alluvial_legend(self):
+        # plot the legend in a separate plot
+        fig = plt.figure()
+        figlegend = plt.figure(figsize=(3, 2))
+        ax = fig.add_subplot(111)
+        objects = [matplotlib.patches.Patch(color=c) for c in self.colors_set2]
+        labels = ['IN', 'SCC', 'OUT', 'TL_IN', 'TL_OUT', 'TUBE', 'OTHER']
+
+        figlegend.legend(objects, labels, ncol=7, frameon=False)
+        figlegend.savefig('plots/alluvial/alluvial_legend_full.pdf',
+                          bbox_inches='tight')
+        cmd = 'pdfcrop --margins 5 ' +\
+              'plots/alluvial/alluvial_legend_full.pdf plots/alluvial/alluvial_legend.pdf'
+        os.system(cmd)
 
 if __name__ == '__main__':
     n_vals = [
@@ -350,10 +364,12 @@ if __name__ == '__main__':
         # 'cc',
         # 'ecc',
         # 'bow_tie',
-        'bow_tie_alluvial',
+        # 'bow_tie_alluvial',
     ]
     for sf in [
         'movielens',
         'bookcrossing',
+        'imdb',
     ]:
         p = Plotter(sf, to_plot=to_plot)
+        # p.plot_alluvial_legend()
