@@ -823,11 +823,16 @@ def read_movie_lens_data():
 if __name__ == '__main__':
     np.set_printoptions(precision=2)
     np.random.seed(0)
-    similarities = False
+    similarities = True
 
-    if 0:
-        # m = np.load('data/imdb/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
-        m = np.load('data/movielens/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy')
+    if 1:
+        # dataset = 'movielens'
+        # dataset = 'bookcrossing'
+        dataset = 'imdb'
+        m = np.load(
+            'data/' + dataset +
+            '/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy'
+        )
         m = m.item()
         m = m.astype(float).toarray()
         m[m == 0] = np.nan
@@ -874,25 +879,25 @@ if __name__ == '__main__':
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
 
     start_time = datetime.datetime.now()
-    # gar = GlobalAverageRecommender(um); gar.print_test_error()
-    # uiar = UserItemAverageRecommender(um); uiar.print_test_error()
-    # for k in [
-    #     1,
-    #     2,
-    #     5,
-    #     10,
-    #     15,
-    #     20,
-    #     25,
-    #     40,
-    #     50,
-    #     60,
-    #     80,
-    #     100
-    # ]:
-    #     cfnn = CFNN(um, k=k); cfnn.print_test_error()
-    f = Factors(um, k=15, nsteps=1000, eta_type='bold_driver', regularize=True,
-                eta=0.00001, init='random')
+    gar = GlobalAverageRecommender(um); gar.print_test_error()
+    uiar = UserItemAverageRecommender(um); uiar.print_test_error()
+    for k in [
+        1,
+        2,
+        5,
+        10,
+        15,
+        20,
+        25,
+        40,
+        50,
+        # 60,
+        # 80,
+        # 100
+    ]:
+        cfnn = CFNN(um, k=k); cfnn.print_test_error()
+    # f = Factors(um, k=15, nsteps=1000, eta_type='bold_driver', regularize=True,
+    #             eta=0.00001, init='random')
     # wf = WeightedCFNNUnbiased(um, k=5, eta=0.0001, regularize=True,
     #                           eta_type='bold_driver', init='random')
     # wf = WeightedCFNNBiased(um, eta_type='bold_driver', k=5, eta=0.00001, init='random')
