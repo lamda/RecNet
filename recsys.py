@@ -224,32 +224,37 @@ class CFNN(Recommender):
 
         n_u_i = self.m.similar_items(u, i, self.k)
         r = 0
+        # print('---------------------------------------')
         for j in n_u_i:
-            if self.w[i, j] < 0:  # resolve problems with near-zero weight sums
+            if self.w[i, j] < 0 or np.isnan(self.w[i, j]):  # resolve problems with near-zero weight sums
                 continue
             diff = self.m.r[u, j] - (self.m.mu + self.m.b_u[u] + self.m.b_i[j])
+            # print(j, self.w[i, j], diff)
             r += self.w[i, j] * diff
 
         # if (u, i) == (0, 0):
         #     print(' ', r)
         #     pdb.set_trace()
 
-        if dbg:
-            print('r =', r)
-            print('r (normalized) =', r / sum(self.w[i, j] for j in n_u_i))
-            s = sum(self.w[i, j] for j in n_u_i)
-            print('s =', s)
-            pdb.set_trace()
+        # if dbg:
+        #     # print('r =', r)
+        #     # print('r (normalized) =', r / sum(self.w[i, j] for j in n_u_i))
+        #     s = sum(self.w[i, j] for j in n_u_i)
+        #     print('s =', s)
+        #     pdb.set_trace()
 
         if self.normalize:
             if r != 0:
                 s = sum(self.w[i, j] for j in n_u_i
                         # resolve problems with near-zero weight sums
-                        if self.w[i, j] > 0
+                        # if self.w[i, j] > 0
+                        if self.w[i, j] < 0 and ~np.isnan(self.w[i, j])
                         )
-                if not np.isfinite(r/sum(self.w[i, j] for j in n_u_i)) or\
-                        np.isnan(r/sum(self.w[i, j] for j in n_u_i)):
-                    pdb.set_trace()
+                # if not np.isfinite(r/sum(self.w[i, j] for j in n_u_i)) or\
+                #         np.isnan(r/sum(self.w[i, j] for j in n_u_i)):
+                #     print(r)
+                #     print(sum(self.w[i, j] for j in n_u_i))
+                #     pdb.set_trace()
                 r /= s
         return b_xi + r
 

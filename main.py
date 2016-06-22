@@ -200,18 +200,23 @@ class TopNDivExpRelRecommendationStrategy(RecommendationStrategy):
 
 
 class TopNPersonalizedRecommendationStrategy(RecommendationStrategy):
-    def __init__(self, similarity_matrix, example_users, user_rated, user_predictions):
+    def __init__(self, similarity_matrix, example_users, user_rated,
+                 user_predictions):
         super(TopNPersonalizedRecommendationStrategy, self).__init__(
             similarity_matrix
         )
+        self.example_users = example_users
+        self.user_rated = user_rated
+        self.user_predictions = user_predictions
+        self.label = '_personalized'
 
-    def get_recommendations(self, n):
+    def get_recommendations(self, n, user_type):
         base_recommendations = self.get_top_n_recommendations(n+75).astype(int)
-        this dont work
-        pdb.set_trace()
-
-
-
+        base = [set(l) for l in base_recommendations]
+        base = [l - self.user_rated[user_type] for l in base]
+        recs = np.zeros((base_recommendations.shape[0], 1))
+        for b in base:
+            pdb.set_trace()
 
 class Recommender(object):
     def __init__(self, dataset, label, load_cached):
@@ -383,6 +388,7 @@ class RatingBasedRecommender(Recommender):
             dataset, label, load_cached
         )
         self.sparse = sparse
+        self.user_types = ['min', 'median', 'max']
         self.example_users = self.get_example_users()
         self.user_rated = []
         self.user_predictions = []
@@ -399,15 +405,21 @@ class RatingBasedRecommender(Recommender):
         elif self.dataset == 'imdb':
             k = 20
 
-        self.similarity_matrix = um.s_r
+        self.similarity_matrix = SimilarityMatrix(um.s_r)
         cfnn = recsys.CFNN(um, k=k)
-        self.user_predictions = [
-            [cfnn.predict(u, i) for i in range(m.shape[0])]
-            for u in self.example_users
-        ]
+        self.user_predictions = [[] for u in self.example_users]
+        for idx, user_type in enumerate(self.user_types):
+            u = self.example_users[idx]
+            for i in range(m.shape[0]):
+                p = cfnn.predict(u, i)
+                if np.isfinite(p):
+                    self.user_predictions[idx].append(p)
+                else:
+                    self.user_predictions[idx].append(-1)
         self.user_rated = [set(np.where(~np.isnan(m[u, :]))[0])
                            for u in self.example_users
         ]
+
         super(RatingBasedRecommender, self).get_recommendations()
         s = TopNPersonalizedRecommendationStrategy(
             self.similarity_matrix,
@@ -415,6 +427,13 @@ class RatingBasedRecommender(Recommender):
             self.user_rated,
             self.user_predictions
         )
+
+        print(s.label)
+        for n in NUMBER_OF_RECOMMENDATIONS:
+            print('   ', n)
+            for idx, user_type in enumerate(self.user_types):
+                recs = s.get_recommendations(n=n, user_type=idx)
+                self.save_graph(recs, label=s.label + '_' + user_type, n=n)
 
     def get_utility_matrix(self, centered=False, load_cached=False):
         if self.load_cached or load_cached:
@@ -1068,7 +1087,8 @@ if __name__ == '__main__':
     start_time = datetime.now()
 
     GRAPH_SUFFIX = ''
-    DATASET = 'movielens'
+    # DATASET = 'movielens'
+    DATASET = 'bookcrossing'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('DATASET =', DATASET)
 
