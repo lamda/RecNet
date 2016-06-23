@@ -142,7 +142,7 @@ class Graph(object):
         # stats['cp_size'], stats['cp_count'] = self.largest_component()
         # print('SCC size:', stats['cp_size'] * self.graph.num_vertices())
         # stats['bow_tie'] = self.bow_tie()
-        # stats['bow_tie_changes'] = self.compute_bowtie_changes()
+        stats['bow_tie_changes'] = self.compute_bowtie_changes()
 
         print('saving...')
         with open(self.stats_file_path, 'wb') as outfile:
@@ -366,7 +366,7 @@ if __name__ == '__main__':
     ]
     rec_types = [
         # 'rbar',
-        'rb',
+        # 'rb',
         # 'rbiw',
         'rbmf',
     ]

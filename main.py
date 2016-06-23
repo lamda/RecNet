@@ -597,21 +597,21 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
-        # super(RatingBasedRecommender, self).get_recommendations()
-        #
-        # s = TopNPersonalizedRecommendationStrategy(
-        #     self.similarity_matrix,
-        #     self.example_users,
-        #     self.user_rated,
-        #     self.user_predictions
-        # )
-        #
-        # print(s.label)
-        # for n in NUMBER_OF_RECOMMENDATIONS:
-        #     print('   ', n)
-        #     for idx, user_type in enumerate(self.user_types):
-        #         recs = s.get_recommendations(n=n, user_type=idx)
-        #         self.save_graph(recs, label=s.label + '_' + user_type, n=n)
+        super(RatingBasedRecommender, self).get_recommendations()
+
+        s = TopNPersonalizedRecommendationStrategy(
+            self.similarity_matrix,
+            self.example_users,
+            self.user_rated,
+            self.user_predictions
+        )
+
+        print(s.label)
+        for n in NUMBER_OF_RECOMMENDATIONS:
+            print('   ', n)
+            for idx, user_type in enumerate(self.user_types):
+                recs = s.get_recommendations(n=n, user_type=idx)
+                self.save_graph(recs, label=s.label + '_' + user_type, n=n)
 
     def get_similarity_matrix(self):
         if self.load_cached:
@@ -1129,8 +1129,8 @@ if __name__ == '__main__':
     ## r = ContentBasedRecommender(dataset=DATASET)
     # r = RatingBasedRecommender(dataset=DATASET, load_cached=False, sparse=False)
     # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=False)
-    # r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=False, sparse=False)
-    r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=True)
+    r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=True, sparse=False)
+    # r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=True)
 
     r.get_recommendations()
 

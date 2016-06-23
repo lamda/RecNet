@@ -338,7 +338,7 @@ class Plotter(object):
                             outfile.write(u'\n')
                     outfile.write(ind + u']\n')
                     outfile.write(u'}')
-                hfname = os.path.join(outdir, self.label + '_' +\
+                hfname = os.path.join(outdir, 'alluvial_' + self.label + '_' +\
                          graph_type + pers_type + '.html')
                 with io.open(hfname, 'w', encoding='utf-8') as outfile:
                     outfile.write(template[0] + '"' + fname + '"' + template[1])
@@ -388,8 +388,8 @@ if __name__ == '__main__':
 
     for sf in [
         'movielens',
-        # 'bookcrossing',
-        # 'imdb',
+        'bookcrossing',
+        'imdb',
     ]:
         # p = Plotter(sf, to_plot=to_plot, personalized=False)
         p = Plotter(sf, to_plot=to_plot, personalized=True, personalized_suffices=personalized_suffix_list)
