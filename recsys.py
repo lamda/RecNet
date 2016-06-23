@@ -231,7 +231,7 @@ class CFNN(Recommender):
             diff = self.m.r[u, j] - (self.m.mu + self.m.b_u[u] + self.m.b_i[j])
             # print(j, self.w[i, j], diff)
             r += self.w[i, j] * diff
-
+        # print(r)
         # if (u, i) == (0, 0):
         #     print(' ', r)
         #     pdb.set_trace()
@@ -248,7 +248,7 @@ class CFNN(Recommender):
                 s = sum(self.w[i, j] for j in n_u_i
                         # resolve problems with near-zero weight sums
                         # if self.w[i, j] > 0
-                        if self.w[i, j] < 0 and ~np.isnan(self.w[i, j])
+                        if self.w[i, j] > 0 and ~np.isnan(self.w[i, j])
                         )
                 # if not np.isfinite(r/sum(self.w[i, j] for j in n_u_i)) or\
                 #         np.isnan(r/sum(self.w[i, j] for j in n_u_i)):
@@ -256,6 +256,9 @@ class CFNN(Recommender):
                 #     print(sum(self.w[i, j] for j in n_u_i))
                 #     pdb.set_trace()
                 r /= s
+        # print(r)
+        # print(b_xi + r)
+        # pdb.set_trace()
         return b_xi + r
 
 

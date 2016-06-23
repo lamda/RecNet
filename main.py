@@ -208,15 +208,24 @@ class TopNPersonalizedRecommendationStrategy(RecommendationStrategy):
         self.example_users = example_users
         self.user_rated = user_rated
         self.user_predictions = user_predictions
+        self.user_predictions_sorted = [np.argsort(up)[::-1] for up in self.user_predictions]
         self.label = '_personalized'
 
     def get_recommendations(self, n, user_type):
         base_recommendations = self.get_top_n_recommendations(n+75).astype(int)
         base = [set(l) for l in base_recommendations]
         base = [l - self.user_rated[user_type] for l in base]
-        recs = np.zeros((base_recommendations.shape[0], 1))
-        for b in base:
-            pdb.set_trace()
+        recs = np.zeros((base_recommendations.shape[0], n))
+        for bidx, b in enumerate(base):
+            i = 0
+            for j in self.user_predictions_sorted[user_type]:
+                if j in b:
+                    recs[bidx, i] = j
+                    i += 1
+                if i >= n:
+                    break
+        return recs
+
 
 class Recommender(object):
     def __init__(self, dataset, label, load_cached):
@@ -394,7 +403,7 @@ class RatingBasedRecommender(Recommender):
         self.user_predictions = []
 
     def get_recommendations(self):
-        m = self.get_utility_matrix(centered=True)
+        m = self.get_utility_matrix(centered=False)
         m = m.astype(float)
         m[m == 0] = np.nan
         um = recsys.UtilityMatrix(m)
@@ -410,7 +419,7 @@ class RatingBasedRecommender(Recommender):
         self.user_predictions = [[] for u in self.example_users]
         for idx, user_type in enumerate(self.user_types):
             u = self.example_users[idx]
-            for i in range(m.shape[0]):
+            for i in range(m.shape[1]):
                 p = cfnn.predict(u, i)
                 if np.isfinite(p):
                     self.user_predictions[idx].append(p)
@@ -420,7 +429,7 @@ class RatingBasedRecommender(Recommender):
                            for u in self.example_users
         ]
 
-        super(RatingBasedRecommender, self).get_recommendations()
+        # super(RatingBasedRecommender, self).get_recommendations()
         s = TopNPersonalizedRecommendationStrategy(
             self.similarity_matrix,
             self.example_users,
@@ -1087,8 +1096,8 @@ if __name__ == '__main__':
     start_time = datetime.now()
 
     GRAPH_SUFFIX = ''
-    # DATASET = 'movielens'
-    DATASET = 'bookcrossing'
+    DATASET = 'movielens'
+    # DATASET = 'bookcrossing'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('DATASET =', DATASET)
 
