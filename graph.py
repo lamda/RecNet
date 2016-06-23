@@ -51,14 +51,20 @@ class Graph(object):
             self.load_from_adjacency_list()
             self.save()
             print('graph loaded from adjacency list')
+            print('computing stats from scratch...')
+            self.compute_stats()
         else:
             try:
                 self.load_from_file()
                 print('graph loaded from .gt file')
+                print('updating stats...')
+                self.update_stats()
             except IOError:
                 self.load_from_adjacency_list()
                 self.save()
                 print('graph loaded from adjacency list')
+                print('computing stats from scratch...')
+                self.compute_stats()
 
     def load_from_file(self):
         self.graph = gt.load_graph(self.gt_file_path, fmt='gt')
@@ -135,8 +141,8 @@ class Graph(object):
         # stats['lc_ecc'] = self.eccentricity()
         # stats['cp_size'], stats['cp_count'] = self.largest_component()
         # print('SCC size:', stats['cp_size'] * self.graph.num_vertices())
-        stats['bow_tie'] = self.bow_tie()
-        stats['bow_tie_changes'] = self.compute_bowtie_changes()
+        # stats['bow_tie'] = self.bow_tie()
+        # stats['bow_tie_changes'] = self.compute_bowtie_changes()
 
         print('saving...')
         with open(self.stats_file_path, 'wb') as outfile:
@@ -251,8 +257,12 @@ class Graph(object):
             prev_N = self.N - 1
         else:
             prev_N = self.N - 5
-        prev_gt_file_path = self.gt_file_path.split('_')[0] +\
-            '_' + unicode(prev_N) + '.gt'
+        prev_gt_file_path = self.gt_file_path.split('_')[0] + '_' + unicode(prev_N)
+        split2 = self.gt_file_path.split('_', 2)
+        if len(split2) > 2:
+            prev_gt_file_path += '_' + split2[2]
+        else:
+            prev_gt_file_path += '.gt'
         prev_graph = gt.load_graph(prev_gt_file_path, fmt='gt')
 
         changes = np.zeros((len(labels), len(labels)))
@@ -346,18 +356,17 @@ if __name__ == '__main__':
     np.set_printoptions(suppress=True)
 
     # extract_recommendations()
-    rename_selected()
+    # rename_selected()
     # sys.exit()
 
     datasets = [
-        # 'movielens',
+        'movielens',
         # 'bookcrossing',
-        'imdb',
+        # 'imdb',
     ]
     rec_types = [
-        # 'cb',
         # 'rbar',
-        # 'rb',
+        'rb',
         # 'rbiw',
         'rbmf',
     ]
@@ -366,6 +375,16 @@ if __name__ == '__main__':
         # '_div_random',
         # '_div_diversify',
         # '_div_exprel'
+    ]
+    pers_recs = [
+        # 'rbiw',
+        'rbmf',
+    ]
+    pers_types = [
+        '',
+        '_personalized_min',
+        '_personalized_median',
+        '_personalized_max',
     ]
     Ns = [
         1,
@@ -381,10 +400,14 @@ if __name__ == '__main__':
     for dataset in datasets:
         for rec_type in rec_types:
             for N in Ns:
-                for div_type in div_types:
-                    fname = rec_type + '_' + unicode(N) + div_type
+                if rec_type in pers_recs:
+                    personalization_types = pers_types
+                else:
+                    personalization_types = ['']
+                for pt in personalization_types:
+                    fname = rec_type + '_' + unicode(N) + pt
                     g = Graph(dataset=dataset, fname=fname, N=N,
                               use_sample=False, refresh=False)
                     g.load_graph()
-                    g.compute_stats()
+                    # g.compute_stats()
                     # g.update_stats()

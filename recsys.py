@@ -379,11 +379,14 @@ class Factors(Recommender):
                         pass
                     else:  # 'increasing' or 'bold_driver'
                         self.eta *= 1.1
-            if (m % 20) == 0:
+            if (m % 10) == 0:
                 test_rmse.append(self.test_error())
                 print('    TEST RMSE:')
                 for idx, err in enumerate(test_rmse):
                     print('        %d | %.8f' % (idx * 10, err))
+                if len(test_rmse) > 2 and test_rmse[-1] > test_rmse[-2]:
+                    print('----> Error increasing')
+                    break
         print('    TEST RMSE:')
         for idx, err in enumerate(test_rmse):
             print('        %d | %.8f' % (idx * 10, err))
@@ -697,6 +700,8 @@ class WeightedCFNNBiased(CFNN):
             self.w = np.copy(self.m.s_rt)
         elif init == 'random':
             self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))
+        elif init == 'random_small':
+            self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1])) / 1000
         elif init == 'zeros':
             self.w = np.zeros((self.m.rt.shape[1], self.m.rt.shape[1]))
         else:
@@ -830,13 +835,13 @@ def read_movie_lens_data():
 
 if __name__ == '__main__':
     np.set_printoptions(precision=2)
-    np.random.seed(0)
+    # np.random.qd(0)
     similarities = True
 
     if 1:
         # dataset = 'movielens'
-        # dataset = 'bookcrossing'
-        dataset = 'imdb'
+        dataset = 'bookcrossing'
+        # dataset = 'imdb'
         m = np.load(
             'data/' + dataset +
             '/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy'

@@ -429,7 +429,7 @@ class RatingBasedRecommender(Recommender):
                            for u in self.example_users
         ]
 
-        # super(RatingBasedRecommender, self).get_recommendations()
+        super(RatingBasedRecommender, self).get_recommendations()
         s = TopNPersonalizedRecommendationStrategy(
             self.similarity_matrix,
             self.example_users,
@@ -580,7 +580,7 @@ class RatingBasedRecommender(Recommender):
 
     def get_example_users(self):
         um = self.get_utility_matrix()
-        ratings = um.sum(axis=1)
+        ratings = np.ravel(um.sum(axis=1))
         users = [
             np.where(ratings == min(ratings))[0][0],
             np.where(ratings == np.median(ratings))[0][0],
@@ -597,11 +597,27 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
-        super(RatingBasedRecommender, self).get_recommendations()
+        # super(RatingBasedRecommender, self).get_recommendations()
+        #
+        # s = TopNPersonalizedRecommendationStrategy(
+        #     self.similarity_matrix,
+        #     self.example_users,
+        #     self.user_rated,
+        #     self.user_predictions
+        # )
+        #
+        # print(s.label)
+        # for n in NUMBER_OF_RECOMMENDATIONS:
+        #     print('   ', n)
+        #     for idx, user_type in enumerate(self.user_types):
+        #         recs = s.get_recommendations(n=n, user_type=idx)
+        #         self.save_graph(recs, label=s.label + '_' + user_type, n=n)
 
     def get_similarity_matrix(self):
         if self.load_cached:
             sim_mat = self.load_recommendation_data('sim_mat')
+            self.user_rated, self.user_predictions =\
+                self.load_recommendation_data('mf_predictions')
             return sim_mat
         print('loading utility matrix...')
         um = self.get_utility_matrix(centered=False, load_cached=True)
@@ -631,7 +647,9 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
 
     def factorize(self, m):
         if self.load_cached:
-            f_q, self.user_ratings = self.load_recommendation_data('mf_data')
+            f_q = self.load_recommendation_data('mf_data')
+            self.user_rated, self.user_predictions =\
+                self.load_recommendation_data('mf_predictions')
             return f_q
 
         # k should be smaller than #users and #items (2-300?)
@@ -659,30 +677,23 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
             # for BookCrossing:
             #       k=5, nsteps=500, eta_type='increasing', regularize=True,
             #       eta=0.00001, init='random'
-            # f = recsys.Factors(um, k=5, nsteps=150, eta_type='bold_driver',
-            #                    regularize=True, eta=0.0001, init='random_small',
-            #                    lamda=0.25, reset_params=True)
             kwargs = {
-                'k': 5,
-                'eta': 0.0001,
+                'k': 30,
+                'eta': 0.00001,
                 'eta_type': 'bold_driver',
-                'init': 'random_small',
+                'init': 'random',
                 'regularize': True,
-                'nsteps': 150,
-                'lamda': 0.25,
-                'reset_params': True
+                'nsteps': 500
             }
 
         elif self.dataset == 'imdb':
             #     k=15, nsteps=500, eta_type='bold_driver', regularize=True,
             #     eta=0.00001, init='random'
-            # f = recsys.Factors(um, k=5, eta=0.00001, eta_type='bold_driver',
-            #                    init='random', regularize=True, nsteps=1000)
             kwargs = {
                 'k': 10,
                 'eta': 0.000001,
                 'eta_type': 'bold_driver',
-                'init': 'random_small',
+                'init': 'random',
                 'regularize': True,
                 'nsteps': 1000
             }
@@ -692,13 +703,27 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
         else:
             f = recsys.Factors(um, **kwargs)
 
-        self.user_ratings = [
-            [f.predict(u, i) for i in range(m.shape[0])]
-            for u in self.example_users
-        ]
+        self.user_predictions = [[] for u in self.example_users]
+        for idx, user_type in enumerate(self.user_types):
+            u = self.example_users[idx]
+            for i in range(m.shape[1]):
+                p = f.predict(u, i)
+                if np.isfinite(p):
+                    self.user_predictions[idx].append(p)
+                else:
+                    self.user_predictions[idx].append(-1)
+        if self.sparse:
+            self.user_rated = [set(np.where(~np.isnan(m[u, :].toarray()))[0])
+                               for u in self.example_users
+            ]
+        else:
+            self.user_rated = [set(np.where(~np.isnan(m[u, :]))[0])
+                               for u in self.example_users
+            ]
+        self.save_recommendation_data(f.q, 'mf_data')
         self.save_recommendation_data(
-            [f.q, self.user_ratings],
-            'mf_data'
+            [self.user_rated, self.user_predictions],
+            'mf_predictions'
         )
         return f.q
 
@@ -866,7 +891,6 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                 'regularize': True,
                 'init': 'random_small',
                 'nsteps': 101,
-                'reset_params': False,
                 'lamda': 0.15
             }
 
@@ -1096,16 +1120,17 @@ if __name__ == '__main__':
     start_time = datetime.now()
 
     GRAPH_SUFFIX = ''
-    DATASET = 'movielens'
+    # DATASET = 'movielens'
     # DATASET = 'bookcrossing'
+    DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('DATASET =', DATASET)
 
     ## r = ContentBasedRecommender(dataset=DATASET)
-    r = RatingBasedRecommender(dataset=DATASET, load_cached=False, sparse=False)
+    # r = RatingBasedRecommender(dataset=DATASET, load_cached=False, sparse=False)
     # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=False)
-    # r = MatrixFactorizationRecommender(dagtaset=DATASET, load_cached=False, sparse=True)
-    # r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=False)
+    # r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=False, sparse=False)
+    r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=True)
 
     r.get_recommendations()
 
