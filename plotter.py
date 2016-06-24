@@ -358,6 +358,7 @@ class Plotter(object):
               'plots/alluvial/alluvial_legend_full.pdf plots/alluvial/alluvial_legend.pdf'
         os.system(cmd)
 
+
 if __name__ == '__main__':
     n_vals = [
             '1',

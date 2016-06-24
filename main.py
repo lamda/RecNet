@@ -1121,8 +1121,8 @@ if __name__ == '__main__':
 
     GRAPH_SUFFIX = ''
     # DATASET = 'movielens'
-    # DATASET = 'bookcrossing'
-    DATASET = 'imdb'
+    DATASET = 'bookcrossing'
+    # DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('DATASET =', DATASET)
 

@@ -17,9 +17,8 @@ import shutil
 
 class Graph(object):
     def __init__(self, dataset, fname='', graph=None, N=None, use_sample=False,
-                 refresh=False, suffix=''):
-        print(dataset, fname, N, 'use_sample =', use_sample,
-              'refresh =', refresh)
+                 suffix=''):
+        print(dataset, fname, N, 'use_sample =', use_sample)
         self.graph_folder = os.path.join('data', dataset, 'graphs')
         self.matrix_folder = 'matrix'
         self.stats_folder = os.path.join('data', dataset, 'stats')
@@ -360,9 +359,9 @@ if __name__ == '__main__':
     # sys.exit()
 
     datasets = [
-        'movielens',
+        # 'movielens',
         # 'bookcrossing',
-        # 'imdb',
+        'imdb',
     ]
     rec_types = [
         # 'rbar',
@@ -406,8 +405,7 @@ if __name__ == '__main__':
                     personalization_types = ['']
                 for pt in personalization_types:
                     fname = rec_type + '_' + unicode(N) + pt
-                    g = Graph(dataset=dataset, fname=fname, N=N,
-                              use_sample=False, refresh=False)
-                    g.load_graph()
+                    g = Graph(dataset=dataset, fname=fname, N=N)
+                    g.load_graph(refresh=True)
                     # g.compute_stats()
                     # g.update_stats()
