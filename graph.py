@@ -7,6 +7,7 @@ import cPickle as pickle
 import graph_tool.all as gt
 import io
 import itertools
+import joblib
 import numpy as np
 import os
 import pdb
@@ -17,13 +18,17 @@ import shutil
 
 class Graph(object):
     def __init__(self, dataset, fname='', graph=None, N=None, use_sample=False,
-                 suffix=''):
+                 suffix='', selection_size=False):
         print(dataset, fname, N, 'use_sample =', use_sample)
-        self.graph_folder = os.path.join('data', dataset, 'graphs')
-        self.matrix_folder = 'matrix'
-        self.stats_folder = os.path.join('data', dataset, 'stats')
+        if selection_size:
+            self.graph_folder = os.path.join('data', dataset, 'graphs', 'selection_sizes')
+            self.stats_folder = os.path.join('data', dataset, 'stats_selection_size')
+        else:
+            self.graph_folder = os.path.join('data', dataset, 'graphs')
+            self.stats_folder = os.path.join('data', dataset, 'stats')
         if not os.path.exists(self.stats_folder):
             os.makedirs(self.stats_folder)
+        self.selection_size = selection_size
         self.use_sample = use_sample
         self.graph_name = fname if not use_sample else fname + '_sample'
         self.graph_file_path = os.path.join(self.graph_folder,
@@ -50,20 +55,23 @@ class Graph(object):
             self.load_from_adjacency_list()
             self.save()
             print('graph loaded from adjacency list')
-            print('computing stats from scratch...')
-            self.compute_stats()
+            if not self.selection_size:
+                print('computing stats from scratch...')
+                self.compute_stats()
         else:
             try:
                 self.load_from_file()
                 print('graph loaded from .gt file')
                 print('updating stats...')
-                self.update_stats()
+                if not self.selection_size:
+                    self.update_stats()
             except IOError:
                 self.load_from_adjacency_list()
                 self.save()
                 print('graph loaded from adjacency list')
-                print('computing stats from scratch...')
-                self.compute_stats()
+                if not self.selection_size:
+                    print('computing stats from scratch...')
+                    self.compute_stats()
 
     def load_from_file(self):
         self.graph = gt.load_graph(self.gt_file_path, fmt='gt')
@@ -112,11 +120,11 @@ class Graph(object):
     def compute_stats(self):
         print('computing stats...')
         stats = {}
-        data = self.basic_stats()
-        stats['graph_size'], stats['recommenders'], stats[
-            'outdegree_av'] = data
+        # data = self.basic_stats()
+        # stats['graph_size'], stats['recommenders'], stats[
+        #     'outdegree_av'] = data
         # stats['cc'] = self.clustering_coefficient()
-        # stats['cp_size'], stats['cp_count'] = self.largest_component()
+        stats['cp_size'], stats['cp_count'] = self.largest_component()
         stats['bow_tie'] = self.bow_tie()
         stats['bow_tie_changes'] = self.compute_bowtie_changes()
         if self.N in [5, 20]:
@@ -350,6 +358,14 @@ def rename_selected():
         shutil.copyfile(os.path.join(old_dir, f), os.path.join(new_dir, f_new))
 
 
+def compute_selection_parallel(rec_type, N, pt, ss):
+    fname = rec_type + '_' + str(N) + pt + '_ss_' + str(ss)
+    g = Graph(dataset=dataset, fname=fname, N=N, selection_size=True)
+    g.load_graph(refresh=True)
+    cp_size, cp_count = g.largest_component()
+    return cp_size
+
+
 if __name__ == '__main__':
     np.set_printoptions(precision=3)
     np.set_printoptions(suppress=True)
@@ -359,8 +375,8 @@ if __name__ == '__main__':
     # sys.exit()
 
     datasets = [
-        # 'movielens',
         # 'bookcrossing',
+        # 'movielens',
         'imdb',
     ]
     rec_types = [
@@ -380,7 +396,7 @@ if __name__ == '__main__':
         'rbmf',
     ]
     pers_types = [
-        '',
+        # '',
         '_personalized_min',
         '_personalized_median',
         '_personalized_max',
@@ -395,17 +411,45 @@ if __name__ == '__main__':
         15,
         20
     ]
-    bowtie_stats = {}
-    for dataset in datasets:
-        for rec_type in rec_types:
-            for N in Ns:
-                if rec_type in pers_recs:
-                    personalization_types = pers_types
-                else:
-                    personalization_types = ['']
-                for pt in personalization_types:
-                    fname = rec_type + '_' + unicode(N) + pt
-                    g = Graph(dataset=dataset, fname=fname, N=N)
-                    g.load_graph(refresh=True)
-                    # g.compute_stats()
-                    # g.update_stats()
+
+    selection_sizes = True
+    parallelized = True
+
+    if selection_sizes:
+        for dataset in datasets:
+            stats_folder = os.path.join('data', dataset, 'stats_selection_size')
+            result = {}
+            for rec_type in rec_types:
+                result[rec_type] = {}
+                for N in [10]:
+                    result[rec_type][N] = {}
+                    for pt in pers_types:
+                        if parallelized:
+                            scc = joblib.Parallel(n_jobs=12)(
+                                joblib.delayed(
+                                    compute_selection_parallel
+                                )(rec_type, N, pt, ss) for ss in range(150))
+                        else:
+                            scc = []
+                            for ss in range(150):
+                                fname = rec_type + '_' + str(N) + pt + '_ss_' + str(ss)
+                                g = Graph(dataset=dataset, fname=fname, N=N, selection_size=True)
+                                g.load_graph(refresh=True)
+                                cp_size, cp_count = g.largest_component()
+                                scc.append(cp_size)
+                        result[rec_type][N][pt] = scc
+            fname = dataset + '.obj'
+            with open(os.path.join(stats_folder, fname), 'wb')as outfile:
+                pickle.dump(result, outfile, -1)
+    else:
+        for dataset in datasets:
+            for rec_type in rec_types:
+                for N in Ns:
+                    if rec_type in pers_recs:
+                        personalization_types = pers_types
+                    else:
+                        personalization_types = ['']
+                    for pt in personalization_types:
+                        fname = rec_type + '_' + unicode(N) + pt
+                        g = Graph(dataset=dataset, fname=fname, N=N)
+                        g.load_graph(refresh=True)

@@ -359,6 +359,36 @@ class Plotter(object):
         os.system(cmd)
 
 
+def plot_selection_sizes(dataset):
+    fname = dataset + '.obj'
+    fpath = os.path.join('data', dataset, 'stats_selection_size', fname)
+    with open(fpath, 'rb') as infile:
+        results = pickle.load(infile)
+    plot_folder = os.path.join('plots', 'selection_size')
+    if not os.path.exists(plot_folder):
+        os.makedirs(plot_folder)
+    for rec_type in results:
+        print(rec_type)
+        for N in results[rec_type]:
+            print('   ', N)
+            for pt in results[rec_type][N]:
+                print('       ', pt)
+                pt2label = {
+                    '_personalized_min': 'Minimum',
+                    '_personalized_median': 'Median',
+                    '_personalized_max': 'Maximum',
+                }
+                data = results[rec_type][N][pt]
+                plt.plot(data, lw=2)
+                plt.title(pt2label[pt])
+                plt.xlabel('Selection Size (# of Items)')
+                plt.ylabel('SCC Size (%)')
+                plt.ylim(0, 100)
+                plt.tight_layout()
+                plt.savefig(os.path.join(plot_folder, dataset + pt + '.png'))
+                plt.close()
+
+
 if __name__ == '__main__':
     n_vals = [
             '1',
@@ -388,10 +418,11 @@ if __name__ == '__main__':
     ]
 
     for sf in [
-        'movielens',
         'bookcrossing',
+        'movielens',
         'imdb',
     ]:
         # p = Plotter(sf, to_plot=to_plot, personalized=False)
-        p = Plotter(sf, to_plot=to_plot, personalized=True, personalized_suffices=personalized_suffix_list)
+        # p = Plotter(sf, to_plot=to_plot, personalized=True, personalized_suffices=personalized_suffix_list)
         # p.plot_alluvial_legend()
+        plot_selection_sizes(sf)

@@ -211,8 +211,8 @@ class TopNPersonalizedRecommendationStrategy(RecommendationStrategy):
         self.user_predictions_sorted = [np.argsort(up)[::-1] for up in self.user_predictions]
         self.label = '_personalized'
 
-    def get_recommendations(self, n, user_type):
-        base_recommendations = self.get_top_n_recommendations(n+75).astype(int)
+    def get_recommendations(self, n, user_type, ss=75):
+        base_recommendations = self.get_top_n_recommendations(n+ss).astype(int)
         base = [set(l) for l in base_recommendations]
         base = [l - self.user_rated[user_type] for l in base]
         recs = np.zeros((base_recommendations.shape[0], n))
@@ -224,6 +224,15 @@ class TopNPersonalizedRecommendationStrategy(RecommendationStrategy):
                     i += 1
                 if i >= n:
                     break
+        return recs
+
+    def get_recommendations_selection_sizes(self, n, user_type):
+        recs = []
+        print('getting selection sizes...')
+        for ss in range(150):
+            print('\r   ', ss, end='')
+            recs.append(self.get_recommendations(n, user_type, ss=ss))
+        print()
         return recs
 
 
@@ -287,9 +296,15 @@ class Recommender(object):
         else:
             conn.close()
 
-    def save_graph(self, recs, label, n):
+    def save_graph(self, recs, label, n, selection_size=False):
+        if selection_size:
+            folder = os.path.join(self.graph_folder, 'selection_sizes')
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+        else:
+            folder = self.graph_folder
         file_name = os.path.join(
-            self.graph_folder,
+            folder,
             self.label + '_' + unicode(n) + label + GRAPH_SUFFIX
         )
         with io.open(file_name + '.txt', 'w', encoding='utf-8') as outfile:
@@ -612,6 +627,13 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
             for idx, user_type in enumerate(self.user_types):
                 recs = s.get_recommendations(n=n, user_type=idx)
                 self.save_graph(recs, label=s.label + '_' + user_type, n=n)
+
+        ss_n = 10
+        for idx, user_type in enumerate(self.user_types):
+            ss_recs = s.get_recommendations_selection_sizes(n=ss_n, user_type=idx)
+            for ridx, recs in enumerate(ss_recs):
+                label = s.label + '_' + user_type + '_ss_' + str(ridx)
+                self.save_graph(recs, label=label, n=ss_n, selection_size=True)
 
     def get_similarity_matrix(self):
         if self.load_cached:
@@ -1120,9 +1142,9 @@ if __name__ == '__main__':
     start_time = datetime.now()
 
     GRAPH_SUFFIX = ''
+    # DATASET = 'bookcrossing'
     # DATASET = 'movielens'
-    DATASET = 'bookcrossing'
-    # DATASET = 'imdb'
+    DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('DATASET =', DATASET)
 
