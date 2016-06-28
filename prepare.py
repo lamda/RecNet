@@ -7,11 +7,11 @@ import cPickle as pickle
 import io
 import HTMLParser
 import numpy as np
-import operator
 import os
 import pandas as pd
 import pdb
 import random
+import sklearn.cluster
 import sklearn.feature_extraction.text
 import sqlite3
 
@@ -46,8 +46,9 @@ class ItemCollection(object):
         except ValueError:
             self.ids = map(str, sorted(map(lambda x: x[0], ids)))
 
-    def write_clusters_title_matrix(self):
+    def write_clusters_title_matrix(self, random_based=True):
         print('write_clusters_title_matrix()')
+        file_suffix = '_random' if random else ''
         conn = sqlite3.connect(self.db_file)
         cursor = conn.cursor()
         limit = ""
@@ -57,6 +58,7 @@ class ItemCollection(object):
         cursor.execute(stmt)
         result = cursor.fetchall()
         id2cat = {t[0]: t[1] for t in result}
+
         # get the titles
         stmt = """SELECT id, original_title FROM """ + \
                self.db_main_table + """ ORDER BY id ASC""" + limit
@@ -111,7 +113,7 @@ class ItemCollection(object):
             data_new.append(d_new)
         data = data_new
 
-        # categorize/cluster items by release date and genre
+        # categorize/cluster items
         clusters = collections.defaultdict(
             lambda: collections.defaultdict(set)
         )
@@ -121,7 +123,7 @@ class ItemCollection(object):
         except ValueError:
             ids = sorted(ids)
 
-        def write_cluster(clusters, id2cat, fname):
+        def write_cluster(clusters, fname):
             f = os.path.join(self.data_folder, fname + '.txt')
             fr = os.path.join(self.data_folder, fname + '_resolved.txt')
             with io.open(f, encoding='utf-8', mode='w') as outfile, \
@@ -152,41 +154,121 @@ class ItemCollection(object):
                 for l in sorted(lens):
                     outfile_res.write(unicode(l) + '\t')
 
-        item2cats = collections.defaultdict(list)
-        for id, c in cats:
-            if id in id2year and len(item2cats[id]) < 3:  # TODO
-                item2cats[id].append(id2cat[c])
-        for k in item2cats:
-            item2cats[k] = ' '.join(item2cats[k])
-        for k in item2cats:
-            item2cats[k] = frozenset(item2cats[k].split())
-        for id, c in item2cats.items():
-            year = id2year[id]
-            clusters[year][item2cats[id]].add(id2titleshort[id])
-        write_cluster(clusters, id2cat, 'clusters')
+        def write_cluster_ratingbased(clusters, fname):
+            fname += file_suffix
+            f = os.path.join(self.data_folder, fname + '.txt')
+            fr = os.path.join(self.data_folder, fname + '_resolved.txt')
+            with io.open(f, encoding='utf-8', mode='w') as outfile, \
+                    io.open(fr, encoding='utf-8', mode='w') as outfile_res:
+                lens = []
+                for cluster in clusters:
+                    for c in sorted(cluster):
+                        outfile_res.write('(' + unicode(len(cluster)) + ')')
+                        lens.append(len(cluster))
+                        tids = [titleshort2id[t] for t in cluster]
+                        line = u'\t'.join(map(unicode, tids))
+                        line_res = u'\t'.join(cluster)
+                        outfile.write(line + u'\n')
+                        outfile_res.write(line_res + u'\n')
+                    outfile.write(u'\n')
+                    outfile_res.write(u'\n')
+                for l in sorted(lens):
+                    outfile_res.write(unicode(l) + '\t')
 
-        years = sorted(clusters.keys())
-        cluster_items = []
-        for y in years:
-            for c in sorted(clusters[y].keys()):
-                if not clusters[y][c]:
-                    continue
-                tids = sorted([titleshort2id[t] for t in clusters[y][c]])
-                cluster_items.append(tids)
-
-        cd = {}
-        for c in cluster_items:
-            for n in c:
-                cd[n] = c
-
-        selected_clusters = [c for c in cluster_items if 4 <= len(c) <= 30]
         mission_limit = 1200
         pairs = set()
-        numpairs = len(ids) * (len(ids) - 1) if len(ids) < 35 else mission_limit
-        while len(pairs) < numpairs:
-            pairs.add(tuple(random.sample(ids, 2)))
+        # numpairs = len(ids) * (len(ids) - 1) if len(ids) < 35 else mission_limit
+        numpairs = mission_limit
 
-        fpath = os.path.join(self.data_folder, 'missions.txt')
+        if random_based:
+            # select missions randomly
+            while len(pairs) < numpairs:
+                pairs.add(tuple(random.sample(ids, 2)))
+
+            # cluster by genre and year
+            # select clusters based on similarity
+            item2cats = collections.defaultdict(list)
+            for id, c in cats:
+                if id in id2year and len(item2cats[id]) < 3:  # TODO
+                    item2cats[id].append(id2cat[c])
+            for k in item2cats:
+                item2cats[k] = frozenset(item2cats[k])
+            for id, c in item2cats.items():
+                year = id2year[id]
+                clusters[year][c].add(id2titleshort[id])
+            write_cluster(clusters, 'clusters')
+
+            years = sorted(clusters.keys())
+            cluster_items = []
+            for y in years:
+                for c in sorted(clusters[y].keys()):
+                    if not clusters[y][c]:
+                        continue
+                    tids = sorted([titleshort2id[t] for t in clusters[y][c]])
+                    cluster_items.append(tids)
+
+            cd = {}
+            for c in cluster_items:
+                for n in c:
+                    cd[n] = c
+            selected_clusters = [c for c in cluster_items if 4 <= len(c) <= 30]
+
+            perm = []
+            while len(perm) < mission_limit:
+                m = random.sample(selected_clusters, 4)
+                if m not in perm:
+                    perm.append(m)
+
+        else:
+            # select missions based on corated items
+            # get coratings
+            fname = 'RatingBasedRecommender_um_sparse.obj.npy'
+            fpath = os.path.join('data', dataset, 'recommendation_data', fname)
+            um = np.load(fpath)
+            if not um.shape:
+                um = um.item()
+            um.data = np.ones(um.data.shape[0])
+            coratings = um.T.dot(um)
+            coratings.setdiag(0)
+
+            cs = np.cumsum(coratings.toarray())
+            cs /= cs[-1]
+
+            id2dataset_id = {idx: id_val for idx, id_val in enumerate(ids)}
+
+            # compute missions
+            while len(pairs) < numpairs:
+                # pairs.add(tuple(random.sample(ids, 2)))
+                idx = cs.searchsorted(np.random.random(), 'right')
+                pairs.add(np.unravel_index(idx, coratings.shape))
+
+            pairs = [(id2dataset_id[t[0]], id2dataset_id[t[1]]) for t in pairs]
+
+            # cluster rating-based with k-means
+            # select clusters based on similarity
+            km = sklearn.cluster.KMeans(n_clusters=int(len(ids)/3), n_jobs=-2)
+            km.fit(um.T)
+            labels = km.predict(um.T)
+            clusters = [[] for _ in range(max(labels))]
+            for idx, val in enumerate(labels):
+                clusters[idx].append(val)
+            write_cluster_ratingbased(clusters, 'clusters')
+            selected_clusters = [c for c in clusters if 4 <= len(c) <= 30]
+
+            # TODO: find similar clusters to select next
+            # http://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html
+            # km.cluster_centers
+            # km.labels_
+            # Ansatz: find 2nd, 3rd, 4th closest cluster and choose them
+            perm = []
+            while len(perm) < mission_limit:
+                m = random.sample(selected_clusters, 4)
+                if m not in perm:
+                    perm.append(m)
+
+
+        # write missions
+        fpath = os.path.join(self.data_folder, 'missions' + file_suffix+ '.txt')
         with io.open(fpath, 'w', encoding='utf-8') as outfile:
             for p in pairs:
                 outfile.write(unicode(p[0]) + u'\t' + unicode(p[1]) + u'\n')
@@ -197,18 +279,12 @@ class ItemCollection(object):
                 if_missions.append([s_node] + cluster)
         if_selected_missions = random.sample(if_missions, mission_limit)
 
-        fpath = os.path.join(self.data_folder, 'missions_if.txt')
+        fpath = os.path.join(self.data_folder, 'missions_if' + file_suffix + '.txt')
         with io.open(fpath, 'w', encoding='utf-8') as outfile:
             for mission in if_selected_missions:
                 outfile.write(u'\t'.join(map(unicode, mission)) + u'\n')
 
-        perm = []
-        while len(perm) < mission_limit:
-            m = random.sample(selected_clusters, 4)
-            if m not in perm:
-                perm.append(m)
-
-        fpath = os.path.join(self.data_folder, 'missions_bp.txt')
+        fpath = os.path.join(self.data_folder, 'missions_bp' + file_suffix + '.txt')
         with io.open(fpath, 'w', encoding='utf-8') as outfile:
             for p in perm:
                 for ind, c in enumerate(p):
@@ -230,8 +306,8 @@ class ItemCollection(object):
         mpath = os.path.join(self.data_folder, 'matrices')
         if not os.path.isdir(mpath):
             os.makedirs(mpath)
-        np.save(os.path.join(mpath, 'title_matrix'), m)
-        np.save(os.path.join(mpath, 'title_matrix_c'), title_matrix)
+        np.save(os.path.join(mpath, 'title_matrix' + file_suffix), m)
+        np.save(os.path.join(mpath, 'title_matrix_c' + file_suffix), title_matrix)
 
     def get_tfidf_cluster_matrix(self, ids, data, cd, simple=False):
         """
@@ -469,8 +545,9 @@ class ItemCollection(object):
 
 if __name__ == '__main__':
     for dataset in [
-        # 'movielens',
         'bookcrossing',
+        # 'movielens',
+        # 'imdb',
     ]:
         ic = ItemCollection(dataset=dataset)
         ic.write_clusters_title_matrix()
