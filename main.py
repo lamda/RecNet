@@ -419,6 +419,7 @@ class RatingBasedRecommender(Recommender):
 
     def get_recommendations(self):
         m = self.get_utility_matrix(centered=False)
+        pdb.set_trace()
         m = m.astype(float)
         m[m == 0] = np.nan
         um = recsys.UtilityMatrix(m)
@@ -1149,9 +1150,9 @@ if __name__ == '__main__':
     print('DATASET =', DATASET)
 
     ## r = ContentBasedRecommender(dataset=DATASET)
-    # r = RatingBasedRecommender(dataset=DATASET, load_cached=False, sparse=False)
+    r = RatingBasedRecommender(dataset=DATASET, load_cached=True, sparse=False)
     # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=False)
-    r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=True, sparse=False)
+    # r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=True, sparse=False)
     # r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=True)
 
     r.get_recommendations()

@@ -14,6 +14,7 @@ import random
 import sklearn.cluster
 import sklearn.feature_extraction.text
 import sqlite3
+import sys
 
 DATA_BASE_FOLDER = 'data'
 
@@ -34,7 +35,7 @@ class ItemCollection(object):
                 os.makedirs(folder)
 
         self.db_file = os.path.join(self.data_folder, 'database_new.db')
-        self.db_main_table = 'movies' if dataset == 'movielens' else 'books'
+        self.db_main_table = 'books' if dataset == 'bookcrossing' else 'movies'
 
         conn = sqlite3.connect(self.db_file)
         cursor = conn.cursor()
@@ -48,7 +49,7 @@ class ItemCollection(object):
 
     def write_clusters_title_matrix(self, random_based=True):
         print('write_clusters_title_matrix()')
-        file_suffix = '_random' if random else ''
+        file_suffix = '_random' if random_based else ''
         conn = sqlite3.connect(self.db_file)
         cursor = conn.cursor()
         limit = ""
@@ -124,8 +125,8 @@ class ItemCollection(object):
             ids = sorted(ids)
 
         def write_cluster(clusters, fname):
-            f = os.path.join(self.data_folder, fname + '.txt')
-            fr = os.path.join(self.data_folder, fname + '_resolved.txt')
+            f = os.path.join(self.data_folder, fname + file_suffix + '.txt')
+            fr = os.path.join(self.data_folder, fname + file_suffix + '_resolved.txt')
             with io.open(f, encoding='utf-8', mode='w') as outfile, \
                     io.open(fr, encoding='utf-8', mode='w') as outfile_res:
                 lens = []
@@ -141,10 +142,10 @@ class ItemCollection(object):
                                           unicode(len(clusters[y][c])) +
                                           u')' + u'\t')
                         lens.append(len(clusters[y][c]))
-                        tids = [titleshort2id[t] for t in clusters[y][c]]
-                        if tids:
-                            line = u'\t'.join(map(unicode, tids))
-                            line_res = u'\t'.join(clusters[y][c])
+                        titles = [id2titleshort[t] for t in clusters[y][c]]
+                        if titles:
+                            line = u'\t'.join(map(unicode, clusters[y][c]))
+                            line_res = u'\t'.join(titles)
                         else:
                             line, line_res = u'\t', u'\t'
                         outfile.write(line + u'\n')
@@ -162,20 +163,19 @@ class ItemCollection(object):
                     io.open(fr, encoding='utf-8', mode='w') as outfile_res:
                 lens = []
                 for cluster in clusters:
-                    for c in sorted(cluster):
-                        outfile_res.write('(' + unicode(len(cluster)) + ')')
-                        lens.append(len(cluster))
-                        tids = [titleshort2id[t] for t in cluster]
-                        line = u'\t'.join(map(unicode, tids))
-                        line_res = u'\t'.join(cluster)
-                        outfile.write(line + u'\n')
-                        outfile_res.write(line_res + u'\n')
+                    outfile_res.write('(' + unicode(len(cluster)) + ')\t')
+                    lens.append(len(cluster))
+                    titles = [id2titleshort[t] for t in cluster]
+                    line = u'\t'.join(map(unicode, cluster))
+                    line_res = u'\t'.join(titles)
+                    outfile.write(line + u'\n')
+                    outfile_res.write(line_res + u'\n')
                     outfile.write(u'\n')
                     outfile_res.write(u'\n')
                 for l in sorted(lens):
                     outfile_res.write(unicode(l) + '\t')
 
-        mission_limit = 1200
+        mission_limit = 1145
         pairs = set()
         # numpairs = len(ids) * (len(ids) - 1) if len(ids) < 35 else mission_limit
         numpairs = mission_limit
@@ -188,14 +188,21 @@ class ItemCollection(object):
             # cluster by genre and year
             # select clusters based on similarity
             item2cats = collections.defaultdict(list)
+            erroneous = set()
             for id, c in cats:
                 if id in id2year and len(item2cats[id]) < 3:  # TODO
                     item2cats[id].append(id2cat[c])
+                # else:
+                #     erroneous.add((id, id2titleshort[id], tuple(item2cats[id])))
+            for err in erroneous:
+                print(err)
+            # pdb.set_trace()
+            # Why are there so many excluded (<3) and what happens to them later?
             for k in item2cats:
                 item2cats[k] = frozenset(item2cats[k])
             for id, c in item2cats.items():
                 year = id2year[id]
-                clusters[year][c].add(id2titleshort[id])
+                clusters[year][c].add(id)
             write_cluster(clusters, 'clusters')
 
             years = sorted(clusters.keys())
@@ -204,7 +211,7 @@ class ItemCollection(object):
                 for c in sorted(clusters[y].keys()):
                     if not clusters[y][c]:
                         continue
-                    tids = sorted([titleshort2id[t] for t in clusters[y][c]])
+                    tids = sorted([t for t in clusters[y][c]])
                     cluster_items.append(tids)
 
             cd = {}
@@ -246,26 +253,41 @@ class ItemCollection(object):
 
             # cluster rating-based with k-means
             # select clusters based on similarity
-            km = sklearn.cluster.KMeans(n_clusters=int(len(ids)/3), n_jobs=-2)
+            km = sklearn.cluster.KMeans(
+                n_clusters=int(len(ids)/3),
+                n_jobs=-2,
+                max_iter=500,
+                precompute_distances=True,
+                n_init=250,
+                verbose=True,
+            )
             km.fit(um.T)
+            with open('kmeans.obj', 'wb') as outfile:
+                pickle.dump(km, outfile, -1)
             labels = km.predict(um.T)
-            clusters = [[] for _ in range(max(labels))]
+            clusters = [[] for _ in range(max(labels)+1)]
             for idx, val in enumerate(labels):
-                clusters[idx].append(val)
+                clusters[val].append(id2dataset_id[idx])
             write_cluster_ratingbased(clusters, 'clusters')
             selected_clusters = [c for c in clusters if 4 <= len(c) <= 30]
+            selected_cluster_ids = [cidx for cidx, c in enumerate(clusters)
+                                    if 4 <= len(c) <= 30]
+            cd = {}
+            for c in clusters:
+                for n in c:
+                    cd[n] = c
 
-            # TODO: find similar clusters to select next
-            # http://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html
-            # km.cluster_centers
-            # km.labels_
-            # Ansatz: find 2nd, 3rd, 4th closest cluster and choose them
             perm = []
-            while len(perm) < mission_limit:
-                m = random.sample(selected_clusters, 4)
-                if m not in perm:
-                    perm.append(m)
-
+            for cidx in selected_cluster_ids:
+                cc = km.cluster_centers_[cidx]
+                cc_tiled = np.tile(cc, (km.cluster_centers_.shape[0], 1))
+                dists = np.sqrt(np.sum(
+                    (km.cluster_centers_ - cc_tiled) ** 2, axis=1)
+                )
+                mission = np.argsort(dists)[:4]
+                perm.append([clusters[i] for i in mission])
+                if len(perm) >= mission_limit:
+                    break
 
         # write missions
         fpath = os.path.join(self.data_folder, 'missions' + file_suffix+ '.txt')
@@ -277,6 +299,7 @@ class ItemCollection(object):
         for cluster in selected_clusters:
             for s_node in cluster:
                 if_missions.append([s_node] + cluster)
+        pdb.set_trace()
         if_selected_missions = random.sample(if_missions, mission_limit)
 
         fpath = os.path.join(self.data_folder, 'missions_if' + file_suffix + '.txt')
@@ -328,6 +351,7 @@ class ItemCollection(object):
                 else:
                     m[row, col] = sum(title_matrix[row, movie2matrix[k]]
                                       for k in cd[j]) / len(cd[j])
+        print()
         return [m, title_matrix]
 
     def get_tf_idf_similarity(self, data, max_features=50000,
@@ -544,11 +568,16 @@ class ItemCollection(object):
 
 
 if __name__ == '__main__':
-    for dataset in [
+    if len(sys.argv) < 2 or sys.argv[1] not in [
         'bookcrossing',
-        # 'movielens',
-        # 'imdb',
+        'movielens',
+        'imdb',
     ]:
-        ic = ItemCollection(dataset=dataset)
-        ic.write_clusters_title_matrix()
-        # ic.write_network_neighbors_matrix()
+        print('dataset not supported')
+        sys.exit()
+    dataset = sys.argv[1]
+
+    ic = ItemCollection(dataset=dataset)
+    # ic.write_clusters_title_matrix(random_based=True)
+    ic.write_clusters_title_matrix(random_based=False)
+    # ic.write_network_neighbors_matrix()

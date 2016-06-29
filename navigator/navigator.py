@@ -22,6 +22,7 @@ except ImportError:
     pass  # useful to import stuff from this script in other scripts
 import numpy as np
 # import matplotlib.pyplot as plt
+import sys
 
 
 def debug(*text):
@@ -188,11 +189,12 @@ class BPMission(Mission):
 
 class Strategy(object):
     """This class represents a strategy for choosing the next hop.
-    During missions, thhe find_next method is called to select the next node
+    During missions, the find_next method is called to select the next node
     """
     strategies = [
         u'random',
         u'title',
+        u'title_stochastic',
         u'optimal'
     ]
 
@@ -228,6 +230,10 @@ class Strategy(object):
         if not candidates:
             chosen_node = None  # abort search
         else:
+            if strategy == 'title_stochastic' and random.random() >= 0.05:
+                chosen_node = random.choice(candidates.keys())
+                print('randomly selecting node', chosen_node)
+                return chosen_node
             chosen_node = max(candidates.iteritems(),
                               key=operator.itemgetter(1))[0]
             debug('candidates are:')
@@ -241,7 +247,7 @@ class Strategy(object):
 
 
 class DataSet(object):
-    def __init__(self, label, rec_types, div_types):
+    def __init__(self, label, rec_types, personalization_types):
         self.label = label
         self.base_folder = os.path.join('..', 'data', self.label)
         self.folder_graphs = os.path.join(self.base_folder, 'graphs')
@@ -253,9 +259,9 @@ class DataSet(object):
             self.graphs[rec_type] = [
                 os.path.join(
                     self.folder_graphs,
-                    rec_type + '_' + unicode(N) + d + '.gt')
+                    rec_type + '_' + unicode(N) + p + '.gt')
                 for N in self.n_vals
-                for d in div_types
+                for p in personalization_types
             ]
             self.compute_shortest_path_lengths(self.graphs[rec_type])
 
@@ -746,7 +752,6 @@ class Evaluator(object):
         print('simulations were on average %.2f times better than'
               ' the random walks' % np.average(better))
 
-
     def plot_sample(self):
         """plot and save an example evaluation showing all types of background
         knowledge used in the simulations
@@ -787,11 +792,11 @@ rec_types = [
     'rbiw',
 ]
 
-div_types = [
+personalized_types = [
     '',
-    # '_div_random',
-    # '_div_diversify',
-    # '_div_exprel'
+    '_personalized_min',
+    '_personalized_median',
+    '_personalized_max',
 ]
 
 n_vals = [
@@ -803,16 +808,21 @@ n_vals = [
 
 
 if __name__ == '__main__':
-    # for dataset in [
-    #     'movielens',
-    #     'bookcrossing',
-    # ]:
-    #     dataset = DataSet(dataset, rec_types, div_types)
-    #     nav = Navigator(dataset)
-    #     print('running...')
-    #     nav.run()
+    if len(sys.argv) < 2 or sys.argv[1] not in [
+        'bookcrossing',
+        'movielens',
+        'imdb',
+    ]:
+        print('dataset not supported')
+        sys.exit()
+    dataset_label = sys.argv[1]
+    print(dataset_label)
+    dataset = DataSet(dataset_label, rec_types, personalized_types)
+    # nav = Navigator(dataset)
+    # print('running...')
+    # nav.run()
 
-    evaluator = Evaluator(datasets=['movielens', 'bookcrossing'])
-    evaluator.plot_bar()
+    # evaluator = Evaluator(datasets=['bookcrossing', 'movielens', 'imdb'])
+    # evaluator.plot_bar()
 
 
