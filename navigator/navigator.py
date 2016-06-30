@@ -8,6 +8,7 @@ import copy
 import io
 import itertools
 import operator
+import prettyplotlib as ppl
 import random
 import cPickle as pickle
 import pdb
@@ -75,7 +76,7 @@ class MissionCollection(object):
         call after all missions have been simulated"""
         if self.stats is not None:
             return
-        self.stats = np.zeros(Navigator.steps_max + 1)
+        self.stats = np.zeros(STEPS_MAX + 1)
         for m in self.missions:
             m.compute_stats()
             self.stats += 100 * m.stats
@@ -85,7 +86,14 @@ class MissionCollection(object):
 class Mission(object):
     """This class represents a Point-to-Point Search mission"""
     # mission types
-    missions = [u'Greedy Search', u'Berrypicking', u'Information Foraging']
+    missions = [
+        u'Greedy Search',
+        u'Greedy Search (Random)',
+        u'Berrypicking',
+        u'Berrypicking (Random)',
+        u'Information Foraging',
+        u'Information Foraging (Random)'
+    ]
 
     def __init__(self, start, targets):
         self.steps = 0
@@ -106,7 +114,7 @@ class Mission(object):
 
     def is_active(self):
         """check if the mission is still within its limits"""
-        if self.steps > Navigator.steps_max or not self.targets[0]:
+        if self.steps > STEPS_MAX or not self.targets[0]:
             return False
         return True
 
@@ -116,7 +124,7 @@ class Mission(object):
         del self.targets[0]
 
     def compute_stats(self):
-        self.stats = np.zeros(Navigator.steps_max + 1)
+        self.stats = np.zeros(STEPS_MAX + 1)
         try:
             ind = self.path.index(self.targets_original[0][0])
             self.stats[ind:] = 1.0
@@ -130,7 +138,7 @@ class IFMission(Mission):
         super(IFMission, self).__init__(start, targets)
 
     def compute_stats(self):
-        self.stats = np.zeros(Navigator.steps_max + 1)
+        self.stats = np.zeros(STEPS_MAX + 1)
         targets = copy.deepcopy(self.targets_original[0])
         i = targets.index(self.path[0])
         del targets[i]
@@ -159,16 +167,16 @@ class BPMission(Mission):
             self.targets[0] = []
 
     def is_active(self):
-        if self.steps > Navigator.steps_max or not self.targets[0]:
+        if self.steps > STEPS_MAX or not self.targets[0]:
             return False
         return True
 
     def compute_stats(self):
-        self.stats = np.zeros(Navigator.steps_max + 1)
+        self.stats = np.zeros(STEPS_MAX + 1)
         self.path = self.path[2:]
         if self.path[-2:] == ['*', '*']:
             self.path = self.path[:-2]
-        diff = len(self.path) - 2*self.path.count(u'*') - Navigator.steps_max-1
+        diff = len(self.path) - 2 * self.path.count(u'*') - STEPS_MAX - 1
         if diff > 0:
             self.path = self.path[:-diff]
         path = ' '.join(self.path).split('*')
@@ -230,9 +238,9 @@ class Strategy(object):
         if not candidates:
             chosen_node = None  # abort search
         else:
-            if strategy == 'title_stochastic' and random.random() >= 0.05:
+            if strategy == 'title_stochastic' and random.random() <= 0.05:
                 chosen_node = random.choice(candidates.keys())
-                print('randomly selecting node', chosen_node)
+                debug('randomly selecting node', chosen_node)
                 return chosen_node
             chosen_node = max(candidates.iteritems(),
                               key=operator.itemgetter(1))[0]
@@ -247,7 +255,7 @@ class Strategy(object):
 
 
 class DataSet(object):
-    def __init__(self, label, rec_types, personalization_types):
+    def __init__(self, label, rec_types, pers_recs, personalization_types):
         self.label = label
         self.base_folder = os.path.join('..', 'data', self.label)
         self.folder_graphs = os.path.join(self.base_folder, 'graphs')
@@ -259,17 +267,27 @@ class DataSet(object):
             self.graphs[rec_type] = [
                 os.path.join(
                     self.folder_graphs,
-                    rec_type + '_' + unicode(N) + p + '.gt')
+                    rec_type + '_' + unicode(N) + '.gt')
                 for N in self.n_vals
-                for p in personalization_types
             ]
+            if rec_type in pers_recs:
+                self.graphs[rec_type] += [
+                    os.path.join(
+                        self.folder_graphs,
+                        rec_type + '_' + unicode(N) + p + '.gt')
+                    for N in self.n_vals
+                    for p in personalization_types
+                ]
             self.compute_shortest_path_lengths(self.graphs[rec_type])
 
-        m_ptp = self.load_missions(Mission, u'missions.txt')
-        m_if = self.load_missions(IFMission, u'missions_if.txt')
-        m_bp = self.load_missions(BPMission, u'missions_bp.txt')
-        missions = {u'Greedy Search': m_ptp, u'Information Foraging': m_if,
-                    u'Berrypicking': m_bp}
+        missions = {
+            u'Greedy Search': self.load_missions(Mission, u'missions.txt'),
+            u'Greedy Search (Random)': self.load_missions(Mission, u'missions_random.txt'),
+            u'Information Foraging': self.load_missions(IFMission, u'missions_if.txt'),
+            u'Information Foraging (Random)': self.load_missions(IFMission, u'missions_if_random.txt'),
+            u'Berrypicking': self.load_missions(BPMission, u'missions_bp.txt'),
+            u'Berrypicking (Random)': self.load_missions(BPMission, u'missions_bp_random.txt'),
+        }
 
         # Structure: self.matrices[rec_type][graph][strategy]
         # Structure: self.missions[rec_type][graph][strategy][scenario]
@@ -286,12 +304,14 @@ class DataSet(object):
                 self.matrices[rec_type][graph]['title'] =\
                     [os.path.join(self.folder_matrices, 'title_matrix.npy'),
                      os.path.join(self.folder_matrices, 'title_matrix_c.npy')]
-                self.matrices[rec_type][graph]['wp_neighbors'] =\
-                    [os.path.join(self.folder_matrices, 'wp_neighbors.npy'),
-                     os.path.join(self.folder_matrices, 'wp_neighbors_c.npy')]
-                self.matrices[rec_type][graph]['neighbors'] =\
-                    [os.path.join(self.folder_matrices, rec_type + '_' + str(N) + '.npy'),
-                     os.path.join(self.folder_matrices, rec_type + '_' + str(N) + '_c.npy')]
+                self.matrices[rec_type][graph]['title_stochastic'] =\
+                    self.matrices[rec_type][graph]['title']
+                # self.matrices[rec_type][graph]['wp_neighbors'] =\
+                #     [os.path.join(self.folder_matrices, 'wp_neighbors.npy'),
+                #      os.path.join(self.folder_matrices, 'wp_neighbors_c.npy')]
+                # self.matrices[rec_type][graph]['neighbors'] =\
+                #     [os.path.join(self.folder_matrices, rec_type + '_' + str(N) + '.npy'),
+                #      os.path.join(self.folder_matrices, rec_type + '_' + str(N) + '_c.npy')]
                 for strategy in Strategy.strategies:
                     self.missions[rec_type][graph][strategy] = {}
                     for m in missions:
@@ -342,14 +362,11 @@ class DataSet(object):
 
 
 class Navigator(object):
-    steps_max = 50
-
     def __init__(self, data_set):
         self.data_set = data_set
 
     def run(self):
-        """run the simulations for optimal, random and the three types of
-         background knowledge
+        """run the simulations for all strategies (optimal, random and informed)
         """
         print('    strategies...')
         matrix_file = ''
@@ -378,7 +395,7 @@ class Navigator(object):
                         debug('            ---- matrix_file != m_new')
                     for miss in self.data_set.missions[rec_type][graph][strategy]:
                         print('                ', miss)
-                        if miss in ['Information Foraging', 'Berrypicking']:
+                        if 'Information Foraging' in miss or 'Berrypicking' in miss:
                             matrix = matrix_c
                         else:
                             matrix = matrix_s
@@ -411,7 +428,7 @@ class Navigator(object):
                             debug('++++' * 16, 'mission', ti, '/',
                                   len(m.targets_original))
                             debug(m.targets_original[ti])
-                            if miss == u'Greedy Search':
+                            if 'Greedy Search' in miss:
                                 if m.targets_original[ti][0] in sp[start]:
                                     s = sp[start][m.targets_original[ti][0]]
                                     dist[s] += 1
@@ -474,16 +491,14 @@ class Navigator(object):
                     outfile.write('----' * 8 + ' ' + graph + '\n')
                     for strategy in Strategy.strategies:
                         outfile.write('----' * 4 + strategy + '\n')
-                        for miss in ['Greedy Search',
-                                     'Berrypicking',
-                                     'Information Foraging']:
+                        for miss in Mission.missions:
                             outfile.write('----' * 2 + miss + '\n')
                             stras = self.data_set.missions[rec_type][graph][strategy][miss]
                             for m in stras:
                                 outfile.write('\t'.join(m.path) + '\n')
 
     def save(self):
-        with open('data_sets_' + self.data_set.label + '.obj', 'wb') as outfile:
+        with open('data_sets_' + self.data_set.label + '_' + str(STEPS_MAX) + '.obj', 'wb') as outfile:
             pickle.dump([self.data_set], outfile, -1)
 
 
@@ -494,30 +509,35 @@ class PlotData(object):
 
 class Evaluator(object):
     """Class responsible for calculating stats and plotting the results"""
-    def __init__(self, datasets):
-        global div_types
+    def __init__(self, datasets, stochastic=False):
         self.data_sets = []
+        self.stochastic = stochastic
         for dataset in datasets:
             try:
-                with open('data_sets_' + dataset + '_new.obj', 'rb') as infile:
+                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) + '_new.obj', 'rb') as infile:
                     print('loading...')
                     self.data_sets.append(pickle.load(infile)[0])
                 print('loaded')
             except (IOError, EOFError):
                 print('loading failed... computing from scratch (%s)' % dataset)
-                with open('data_sets_' + dataset + '.obj', 'rb') as infile:
+                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) +'.obj', 'rb') as infile:
                     data_set = pickle.load(infile)[0]
                 data_set_new = self.compute(label=dataset, data_set=data_set)
                 self.data_sets.append(data_set_new)
                 print('saving to disk...')
-                with open('data_sets_' + dataset + '_new.obj', 'wb') as outfile:
+                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) + '_new.obj', 'wb') as outfile:
                     pickle.dump([data_set_new], outfile, -1)
 
         if not os.path.isdir('plots'):
             os.makedirs('plots')
-        self.sc2abb = {u'Greedy Search': u'ptp',
-                       u'Information Foraging': u'if',
-                       u'Berrypicking': u'bp'}
+        self.sc2abb = {
+            u'Greedy Search': u'ptp',
+            u'Greedy Search (Random)': u'ptp_random',
+            u'Information Foraging': u'if',
+            u'Information Foraging (Random)': u'if_random',
+            u'Berrypicking': u'bp',
+            u'Berrypicking (Random)': u'bp_random',
+        }
         self.colors = ['#FFA500', '#FF0000', '#0000FF', '#05FF05', '#000000']
         self.hatches = ['----', '/', 'xxx', '///', '---']
         self.linestyles = ['-', '--', ':', '-.']
@@ -542,7 +562,7 @@ class Evaluator(object):
         }
         self.label2rec_type = {v: k for k, v in self.rec_type2label.items()}
         self.plot_file_types = [
-            # '.png',
+            '.png',
             '.pdf',
         ]
 
@@ -554,17 +574,19 @@ class Evaluator(object):
         pt.folder_graphs = data_set.folder_graphs
         for i, rec_type in enumerate(data_set.missions):
             pt.missions[rec_type] = {}
-            for dtype in div_types:
-                for j, g in enumerate(n_vals):
-                    graph = data_set.folder_graphs + '/' + rec_type + '_' + unicode(g) + dtype + '.gt'
-                    pt.missions[rec_type][graph] = {}
-                    for strategy in Strategy.strategies:
-                        pt.missions[rec_type][graph][strategy] = {}
-                        for scenario in Mission.missions:
-                            debug(rec_type, graph, strategy, scenario)
-                            m = data_set.missions[rec_type][graph][strategy][scenario]
-                            m.compute_stats()
-                            pt.missions[rec_type][graph][strategy][scenario] = m.stats
+            for j, g in enumerate(n_vals):
+                graph = os.path.join(
+                    data_set.folder_graphs,
+                    rec_type + '_' + unicode(g) + '.gt'
+                )
+                pt.missions[rec_type][graph] = {}
+                for strategy in Strategy.strategies:
+                    pt.missions[rec_type][graph][strategy] = {}
+                    for scenario in Mission.missions:
+                        debug(rec_type, graph, strategy, scenario)
+                        m = data_set.missions[rec_type][graph][strategy][scenario]
+                        m.compute_stats()
+                        pt.missions[rec_type][graph][strategy][scenario] = m.stats
         return pt
 
     def plot(self):
@@ -582,10 +604,10 @@ class Evaluator(object):
                             debug(rec_type, graph, strategy, scenario)
                             stats = data_set.missions[rec_type][graph][strategy][scenario]
                             ppl.plot(axes[i, j],
-                                     np.arange(Navigator.steps_max + 1),
+                                     np.arange(STEPS_MAX + 1),
                                      stats, label=strategy, linewidth=1)
                             axes[i, j].set_ylim(0, 100)
-                            axes[i, j].set_xlim(0, Navigator.steps_max * 1.1)
+                            axes[i, j].set_xlim(0, STEPS_MAX * 1.1)
                             label = rec_type + ', Top' + str(g)
                             axes[i, j].set_title(label, size=10)
                 fig.subplots_adjust(left=0.06, bottom=0.05, right=0.95,
@@ -636,7 +658,7 @@ class Evaluator(object):
                         if g == 5:
                             lab += u' '
                         lab += unicode(g)
-                        x = np.arange(Navigator.steps_max + 1)
+                        x = np.arange(STEPS_MAX + 1)
                         cidx = 0 if i < len(rec_types)/2 else 1
                         ppl.plot(ax, x, c_max, label=lab, linewidth=2,
                                  # linestyle=ls, color=colors[i][j])
@@ -645,7 +667,7 @@ class Evaluator(object):
                 ax.set_xlabel('#Hops')
                 ax.set_ylabel('Success Ratio')
                 ax.set_ylim(0, 70)
-                ax.set_xlim(0, Navigator.steps_max * 1.1)
+                ax.set_xlim(0, STEPS_MAX * 1.1)
         for row in range(axes.shape[0]):
             t_x = (axes[row][0].get_ylim()[0] + axes[row][0].get_ylim()[1]) / 2
             label = [u'MovieLens', u'BookCrossing'][row]
@@ -707,11 +729,17 @@ class Evaluator(object):
                     for nidx, N in enumerate(n_vals):
                         g = data_set.folder_graphs + '/' + rec_type +\
                                 '_' + str(N) + '.gt'
-                        s = data_set.missions[rec_type][g]['title'][scenario][-1]
+                        if self.stochastic:
+                            s = data_set.missions[rec_type][g]['title_stochastic'][scenario][-1]
+                        else:
+                            s = data_set.missions[rec_type][g]['title'][scenario][-1]
                         r = data_set.missions[rec_type][g]['random'][scenario][-1]
                         o = data_set.missions[rec_type][g]['optimal'][scenario][-1]
                         bar_vals.append(s)
                         better.append(s/r)
+                        print(scenario, graph_type, N)
+                        print('   ', r, s, o)
+                        pdb.set_trace()
                         hugo.append(r)
                         print('            %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
                 bars = ax.bar(x_vals, bar_vals, align='center')
@@ -743,7 +771,8 @@ class Evaluator(object):
                 ylabel = 'Found Nodes (%)'
                 ax.set_ylabel(ylabel)
                 plt.tight_layout()
-                fname = data_set.label + '_' + scenario.lower().replace(' ', '_')
+                stochastic_suffix = '_stochastic' if self.stochastic else ''
+                fname = data_set.label + '_' + str(STEPS_MAX) + '_' + stochastic_suffix + scenario.lower().replace(' ', '_').replace('(', '').replace(')', '')
                 fpath = os.path.join('plots', fname)
                 for ftype in self.plot_file_types:
                     plt.savefig(fpath + ftype)
@@ -766,12 +795,12 @@ class Evaluator(object):
             for strategy in Strategy.strategies:
                 m = data_set.missions[rec_type][graph][strategy][scenario]
                 m.compute_stats()
-                ppl.plot(axes[i], np.arange(Navigator.steps_max + 1),
+                ppl.plot(axes[i], np.arange(STEPS_MAX + 1),
                          m.stats, label=strategy, linewidth=2)
                 axes[i].set_xlabel(u'#Hops')
                 axes[i].set_ylabel(u'Success Ratio')
                 axes[i].set_ylim(0, 85)
-                axes[i].set_xlim(0, Navigator.steps_max * 1.01)
+                axes[i].set_xlim(0, STEPS_MAX * 1.01)
                 axes[i].set_title(titles[i])
             ppl.legend(axes[i], loc=0)
 
@@ -785,15 +814,17 @@ class Evaluator(object):
 
 
 rec_types = [
-    # 'cb',
     'rb',
     'rbmf',
     'rbar',
     'rbiw',
 ]
 
+pers_recs = [
+    'rbmf',
+]
+
 personalized_types = [
-    '',
     '_personalized_min',
     '_personalized_median',
     '_personalized_max',
@@ -801,8 +832,6 @@ personalized_types = [
 
 n_vals = [
     5,
-    # 10,
-    # 15,
     20
 ]
 
@@ -812,17 +841,26 @@ if __name__ == '__main__':
         'bookcrossing',
         'movielens',
         'imdb',
+        'evaluate'
     ]:
         print('dataset not supported')
         sys.exit()
     dataset_label = sys.argv[1]
+    if len(sys.argv) > 2:
+        STEPS_MAX = int(sys.argv[2])
+    else:
+        STEPS_MAX = 50
     print(dataset_label)
-    dataset = DataSet(dataset_label, rec_types, personalized_types)
-    # nav = Navigator(dataset)
-    # print('running...')
-    # nav.run()
+    print(STEPS_MAX)
 
-    # evaluator = Evaluator(datasets=['bookcrossing', 'movielens', 'imdb'])
-    # evaluator.plot_bar()
+    if dataset_label != 'evaluate':
+        dataset = DataSet(dataset_label, rec_types, pers_recs, personalized_types)
+        nav = Navigator(dataset)
+        print('running...')
+        nav.run()
+    else:
+        # evaluator = Evaluator(datasets=['bookcrossing', 'movielens', 'imdb'])
+        evaluator = Evaluator(datasets=['imdb'])
+        evaluator.plot_bar()
 
 

@@ -253,17 +253,21 @@ class ItemCollection(object):
 
             # cluster rating-based with k-means
             # select clusters based on similarity
+            kmeans_init = 'random' if dataset == 'movielens' else 'kmeans-++'
             km = sklearn.cluster.KMeans(
                 n_clusters=int(len(ids)/3),
-                n_jobs=-2,
+                init=kmeans_init,
+                n_jobs=-4,
                 max_iter=500,
                 precompute_distances=True,
-                n_init=250,
-                verbose=True,
+                n_init=100,
+                verbose=False,
             )
             km.fit(um.T)
-            with open('kmeans.obj', 'wb') as outfile:
-                pickle.dump(km, outfile, -1)
+            # with open('kmeans.obj', 'wb') as outfile:
+            #     pickle.dump(km, outfile, -1)
+            # with open('kmeans.obj', 'rb') as infile:
+            #     km = pickle.load(infile)
             labels = km.predict(um.T)
             clusters = [[] for _ in range(max(labels)+1)]
             for idx, val in enumerate(labels):
@@ -290,7 +294,7 @@ class ItemCollection(object):
                     break
 
         # write missions
-        fpath = os.path.join(self.data_folder, 'missions' + file_suffix+ '.txt')
+        fpath = os.path.join(self.data_folder, 'missions' + file_suffix + '.txt')
         with io.open(fpath, 'w', encoding='utf-8') as outfile:
             for p in pairs:
                 outfile.write(unicode(p[0]) + u'\t' + unicode(p[1]) + u'\n')
@@ -299,8 +303,7 @@ class ItemCollection(object):
         for cluster in selected_clusters:
             for s_node in cluster:
                 if_missions.append([s_node] + cluster)
-        pdb.set_trace()
-        if_selected_missions = random.sample(if_missions, mission_limit)
+        if_selected_missions = random.sample(if_missions, min(mission_limit, len(if_missions)))
 
         fpath = os.path.join(self.data_folder, 'missions_if' + file_suffix + '.txt')
         with io.open(fpath, 'w', encoding='utf-8') as outfile:
@@ -578,6 +581,6 @@ if __name__ == '__main__':
     dataset = sys.argv[1]
 
     ic = ItemCollection(dataset=dataset)
-    # ic.write_clusters_title_matrix(random_based=True)
+    ic.write_clusters_title_matrix(random_based=True)
     ic.write_clusters_title_matrix(random_based=False)
     # ic.write_network_neighbors_matrix()

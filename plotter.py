@@ -136,7 +136,7 @@ class Plotter(object):
     def plot_ecc(self):
         print(self.label)
         for ecc_type in [
-            'ecc_max',
+            # 'ecc_max',
             'ecc_median',
         ]:
             # plot_ecc_legend()
@@ -162,7 +162,7 @@ class Plotter(object):
                 vals = [
                     self.graph_data[graph_name][ecc_type]
                     for graph_name in
-                    [self.graphs[graph_type][4], self.graphs[graph_type][7]]
+                    [self.graphs[graph_type][0][4], self.graphs[graph_type][0][7]]
                 ]
                 print('   ', graph_type)
                 for vidx, val, in enumerate(vals):
@@ -180,7 +180,7 @@ class Plotter(object):
                         bar.set_fill(False)
                         bar.set_hatch(self.hatches[vidx])
                         bar.set_edgecolor(self.colors[gidx])
-                ax.set_xlim(0, 85)
+                ax.set_xlim(0, 45)
                 ax.set_ylim(0, 100)
                 ax.set_xlabel('Eccentricity')
                 ax.set_ylabel('% of Nodes')
@@ -360,6 +360,7 @@ class Plotter(object):
 
 
 def plot_selection_sizes(dataset):
+    colors = ['#FFA500', '#FF0000', '#0000FF', '#05FF05', '#000000']
     fname = dataset + '.obj'
     fpath = os.path.join('data', dataset, 'stats_selection_size', fname)
     with open(fpath, 'rb') as infile:
@@ -367,26 +368,34 @@ def plot_selection_sizes(dataset):
     plot_folder = os.path.join('plots', 'selection_size')
     if not os.path.exists(plot_folder):
         os.makedirs(plot_folder)
+    pt2label = {
+        '_personalized_min': 'Minimum',
+        '_personalized_median': 'Median',
+        '_personalized_max': 'Maximum',
+    }
+    pt2color = {
+        '_personalized_min': colors[0],
+        '_personalized_median': colors[1],
+        '_personalized_max': colors[2],
+    }
     for rec_type in results:
         print(rec_type)
         for N in results[rec_type]:
             print('   ', N)
+            fig, ax = plt.subplots(1, figsize=(6, 4))
             for pt in results[rec_type][N]:
                 print('       ', pt)
-                pt2label = {
-                    '_personalized_min': 'Minimum',
-                    '_personalized_median': 'Median',
-                    '_personalized_max': 'Maximum',
-                }
                 data = results[rec_type][N][pt]
-                plt.plot(data, lw=2)
-                plt.title(pt2label[pt])
-                plt.xlabel('Selection Size (# of Items)')
-                plt.ylabel('SCC Size (%)')
-                plt.ylim(0, 100)
-                plt.tight_layout()
-                plt.savefig(os.path.join(plot_folder, dataset + pt + '.png'))
-                plt.close()
+                plt.plot(data, lw=2, color=pt2color[pt], label=pt2label[pt])
+            plt.legend()
+            plt.xlabel('Selection Size (# of Items)')
+            plt.ylabel('SCC Size (%)')
+            plt.xlim(0, 151)
+            plt.ylim(0, 100)
+            plt.tight_layout()
+            fname = 'selection_sizes_' + dataset + '.pdf'
+            plt.savefig(os.path.join(plot_folder, fname))
+            plt.close()
 
 
 if __name__ == '__main__':
@@ -404,9 +413,9 @@ if __name__ == '__main__':
         # 'cp_count',
         # 'cp_size',
         # 'cc',
-        # 'ecc',
+        'ecc',
         # 'bow_tie',
-        'bow_tie_alluvial',
+        # 'bow_tie_alluvial',
     ]
     personalized_recs = [
         'MF'
@@ -422,7 +431,7 @@ if __name__ == '__main__':
         'movielens',
         'imdb',
     ]:
-        # p = Plotter(sf, to_plot=to_plot, personalized=False)
+        p = Plotter(sf, to_plot=to_plot, personalized=False)
         # p = Plotter(sf, to_plot=to_plot, personalized=True, personalized_suffices=personalized_suffix_list)
         # p.plot_alluvial_legend()
-        plot_selection_sizes(sf)
+        # plot_selection_sizes(sf)

@@ -380,10 +380,10 @@ if __name__ == '__main__':
         'imdb',
     ]
     rec_types = [
-        # 'rbar',
+        'rbar',
         # 'rb',
         # 'rbiw',
-        'rbmf',
+        # 'rbmf',
     ]
     div_types = [
         '',
@@ -412,7 +412,7 @@ if __name__ == '__main__':
         20
     ]
 
-    selection_sizes = True
+    selection_sizes = False
     parallelized = True
 
     if selection_sizes:
