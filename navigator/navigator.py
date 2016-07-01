@@ -509,23 +509,25 @@ class PlotData(object):
 
 class Evaluator(object):
     """Class responsible for calculating stats and plotting the results"""
-    def __init__(self, datasets, stochastic=False):
+    def __init__(self, datasets, stochastic=False, personalized=False):
         self.data_sets = []
         self.stochastic = stochastic
+        self.personalized = personalized
+        self.personalized_suffix = '_personalized' if self.personalized else ''
         for dataset in datasets:
             try:
-                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) + '_new.obj', 'rb') as infile:
+                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) + self.personalized_suffix + '_new.obj', 'rb') as infile:
                     print('loading...')
                     self.data_sets.append(pickle.load(infile)[0])
                 print('loaded')
             except (IOError, EOFError):
                 print('loading failed... computing from scratch (%s)' % dataset)
-                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) +'.obj', 'rb') as infile:
+                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) + '.obj', 'rb') as infile:
                     data_set = pickle.load(infile)[0]
                 data_set_new = self.compute(label=dataset, data_set=data_set)
                 self.data_sets.append(data_set_new)
                 print('saving to disk...')
-                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) + '_new.obj', 'wb') as outfile:
+                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) + self.personalized_suffix + '_new.obj', 'wb') as outfile:
                     pickle.dump([data_set_new], outfile, -1)
 
         if not os.path.isdir('plots'):
@@ -541,19 +543,29 @@ class Evaluator(object):
         self.colors = ['#FFA500', '#FF0000', '#0000FF', '#05FF05', '#000000']
         self.hatches = ['----', '/', 'xxx', '///', '---']
         self.linestyles = ['-', '--', ':', '-.']
-        self.graphs = {
-            'RB': ['rb_' + str(c) for c in n_vals],
-            'MF': ['rbmf_' + str(c) for c in n_vals],
-            'AR': ['rbar_' + str(c) for c in n_vals],
-            'IW': ['rbiw_' + str(c) for c in n_vals],
-        }
-        self.graph_labels = {
-            'CF': ['CF (' + str(c) + ')' for c in n_vals],
-            'MF': ['MF (' + str(c) + ')' for c in n_vals],
-            'AR': ['AR (' + str(c) + ')' for c in n_vals],
-            'IW': ['IW (' + str(c) + ')' for c in n_vals],
-        }
-        self.graph_order = ['AR', 'CF', 'IW', 'MF']
+        if not self.personalized:
+            self.graphs = {
+                'RB': ['rb_' + str(c) for c in n_vals],
+                'MF': ['rbmf_' + str(c) for c in n_vals],
+                'AR': ['rbar_' + str(c) for c in n_vals],
+                'IW': ['rbiw_' + str(c) for c in n_vals],
+            }
+            self.graph_labels = {
+                'CF': ['CF (' + str(c) + ')' for c in n_vals],
+                'MF': ['MF (' + str(c) + ')' for c in n_vals],
+                'AR': ['AR (' + str(c) + ')' for c in n_vals],
+                'IW': ['IW (' + str(c) + ')' for c in n_vals],
+            }
+            self.graph_order = ['AR', 'CF', 'IW', 'MF']
+        else:
+            self.graphs = {
+                'MF': ['rbmf_' + str(c) + p for c in n_vals for p in personalized_types],
+            }
+            self.graph_labels = {
+                'MF': ['MF (' + str(c) + p + ')' for c in n_vals for p in personalized_types],
+            }
+            self.graph_order = ['MF']
+
         self.rec_type2label = {
             'rb': 'CF',
             'rbmf': 'MF',
@@ -572,21 +584,42 @@ class Evaluator(object):
         pt = PlotData()
         pt.label = data_set.label
         pt.folder_graphs = data_set.folder_graphs
-        for i, rec_type in enumerate(data_set.missions):
-            pt.missions[rec_type] = {}
-            for j, g in enumerate(n_vals):
-                graph = os.path.join(
-                    data_set.folder_graphs,
-                    rec_type + '_' + unicode(g) + '.gt'
-                )
-                pt.missions[rec_type][graph] = {}
-                for strategy in Strategy.strategies:
-                    pt.missions[rec_type][graph][strategy] = {}
-                    for scenario in Mission.missions:
-                        debug(rec_type, graph, strategy, scenario)
-                        m = data_set.missions[rec_type][graph][strategy][scenario]
-                        m.compute_stats()
-                        pt.missions[rec_type][graph][strategy][scenario] = m.stats
+
+        if not self.personalized:
+            for i, rec_type in enumerate(data_set.missions):
+                pt.missions[rec_type] = {}
+                for j, g in enumerate(n_vals):
+                    graph = os.path.join(
+                        data_set.folder_graphs,
+                        rec_type + '_' + unicode(g) + '.gt'
+                    )
+                    pt.missions[rec_type][graph] = {}
+                    for strategy in Strategy.strategies:
+                        pt.missions[rec_type][graph][strategy] = {}
+                        for scenario in Mission.missions:
+                            debug(rec_type, graph, strategy, scenario)
+                            m = data_set.missions[rec_type][graph][strategy][scenario]
+                            m.compute_stats()
+                            pt.missions[rec_type][graph][strategy][scenario] = m.stats
+        else:
+            for i, rec_type in enumerate(data_set.missions):
+                if rec_type not in pers_recs:
+                    continue
+                pt.missions[rec_type] = {}
+                for j, g in enumerate(n_vals):
+                    for pers_type in personalized_types:
+                        graph = os.path.join(
+                            data_set.folder_graphs,
+                            rec_type + '_' + unicode(g) + pers_type + '.gt'
+                        )
+                        pt.missions[rec_type][graph] = {}
+                        for strategy in Strategy.strategies:
+                            pt.missions[rec_type][graph][strategy] = {}
+                            for scenario in Mission.missions:
+                                debug(rec_type, graph, strategy, scenario)
+                                m = data_set.missions[rec_type][graph][strategy][scenario]
+                                m.compute_stats()
+                                pt.missions[rec_type][graph][strategy][scenario] = m.stats
         return pt
 
     def plot(self):
@@ -737,9 +770,9 @@ class Evaluator(object):
                         o = data_set.missions[rec_type][g]['optimal'][scenario][-1]
                         bar_vals.append(s)
                         better.append(s/r)
-                        print(scenario, graph_type, N)
-                        print('   ', r, s, o)
-                        pdb.set_trace()
+                        # print(scenario, graph_type, N)
+                        # print('   ', r, s, o)
+                        # pdb.set_trace()
                         hugo.append(r)
                         print('            %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
                 bars = ax.bar(x_vals, bar_vals, align='center')
@@ -771,15 +804,107 @@ class Evaluator(object):
                 ylabel = 'Found Nodes (%)'
                 ax.set_ylabel(ylabel)
                 plt.tight_layout()
-                stochastic_suffix = '_stochastic' if self.stochastic else ''
-                fname = data_set.label + '_' + str(STEPS_MAX) + '_' + stochastic_suffix + scenario.lower().replace(' ', '_').replace('(', '').replace(')', '')
+                stochastic_suffix = 'stochastic_' if self.stochastic else ''
+                fname = data_set.label + '_' + str(STEPS_MAX) + '_' +\
+                        stochastic_suffix +\
+                        scenario.lower().replace(' ', '_').replace('(', '').replace(')', '')
                 fpath = os.path.join('plots', fname)
                 for ftype in self.plot_file_types:
                     plt.savefig(fpath + ftype)
                 plt.close()
-            print('random walks averge is %.2f' % np.average(hugo))
+            print('random walks average is %.2f' % np.average(hugo))
         print('simulations were on average %.2f times better than'
               ' the random walks' % np.average(better))
+
+    def plot_bar_personalized(self):
+        print('plot_bar()')
+        # plot the scenarios
+        better = []
+        x_vals = [1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15]
+        for scenario in Mission.missions:
+            hugo = []
+            print(scenario)
+            for data_set in self.data_sets:
+                print('   ', data_set.label)
+                fig, ax = plt.subplots(1, figsize=(12, 6))
+
+                # plot optimal solutions
+                bar_vals = []
+                for graph_type in self.graph_order:
+                    rec_type = self.label2rec_type[graph_type]
+                    for nidx, N in enumerate(n_vals):
+                        for pidx, pt in enumerate(personalized_types):
+                            g = data_set.folder_graphs + '/' + rec_type +\
+                                    '_' + str(N) + pt + '.gt'
+                            bar_vals.append(data_set.missions[rec_type][g]['optimal'][scenario][-1])
+                bars = ax.bar(x_vals, bar_vals, align='center', color='#EFEFEF')
+
+                # Beautification
+                for bidx, bar in enumerate(bars):
+                    # bar.set_fill(False)
+                    bar.set_edgecolor('#AAAAAA')
+
+                # plot simulation results
+                bar_vals = []
+                for graph_type in self.graph_order:
+                    print('       ', graph_type)
+                    rec_type = self.label2rec_type[graph_type]
+                    for nidx, N in enumerate(n_vals):
+                        for pidx, pt in enumerate(personalized_types):
+                            g = data_set.folder_graphs + '/' + rec_type +\
+                                    '_' + str(N) + pt + '.gt'
+                            if self.stochastic:
+                                s = data_set.missions[rec_type][g]['title_stochastic'][scenario][-1]
+                            else:
+                                s = data_set.missions[rec_type][g]['title'][scenario][-1]
+                            r = data_set.missions[rec_type][g]['random'][scenario][-1]
+                            o = data_set.missions[rec_type][g]['optimal'][scenario][-1]
+                            bar_vals.append(s)
+                            better.append(s/r)
+                            hugo.append(r)
+                            print('            %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
+                bars = ax.bar(x_vals, bar_vals, align='center')
+
+                # Beautification
+                for bidx, bar in enumerate(bars):
+                    bar.set_fill(False)
+                    bar.set_hatch(self.hatches[bidx % 2])
+                    bar.set_edgecolor(self.colors[3])
+
+                # plot random walk solutions (as a dot)
+                bar_vals = []
+                for graph_type in self.graph_order:
+                    rec_type = self.label2rec_type[graph_type]
+                    for nidx, N in enumerate(n_vals):
+                        for pidx, pt in enumerate(personalized_types):
+                            g = data_set.folder_graphs + '/' + rec_type +\
+                                    '_' + str(N) + pt + '.gt'
+                            bar_vals.append(data_set.missions[rec_type][g]['random'][scenario][-1])
+                ax.plot(x_vals, bar_vals, c='black', ls='', marker='.', ms=10)
+
+                ax.set_xlim(0.25, x_vals[-1] + 0.75)
+                ax.set_xticks([x - 0.25 for x in x_vals])
+                for tic in ax.xaxis.get_major_ticks():
+                    tic.tick1On = tic.tick2On = False
+                labels = [g for k in self.graph_order for g in self.graph_labels[k]]
+                ax.set_xticklabels(labels, rotation='-50', ha='left')
+
+                ax.set_ylim(0, 100)
+                ylabel = 'Found Nodes (%)'
+                ax.set_ylabel(ylabel)
+                plt.tight_layout()
+                stochastic_suffix = 'stochastic_' if self.stochastic else ''
+                fname = data_set.label + '_' + str(STEPS_MAX) + '_personalized_' + \
+                        stochastic_suffix +\
+                        scenario.lower().replace(' ', '_').replace('(', '').replace(')', '')
+                fpath = os.path.join('plots', fname)
+                for ftype in self.plot_file_types:
+                    plt.savefig(fpath + ftype)
+                plt.close()
+                print('random walks average is %.2f' % np.average(hugo))
+        print('simulations were on average %.2f times better than'
+              ' the random walks' % np.average(better))
+
 
     def plot_sample(self):
         """plot and save an example evaluation showing all types of background
@@ -815,9 +940,9 @@ class Evaluator(object):
 
 rec_types = [
     'rb',
-    'rbmf',
     'rbar',
     'rbiw',
+    'rbmf',
 ]
 
 pers_recs = [
@@ -828,6 +953,9 @@ personalized_types = [
     '_personalized_min',
     '_personalized_median',
     '_personalized_max',
+    '_personalized_mixed_min',
+    '_personalized_mixed_median',
+    '_personalized_mixed_max',
 ]
 
 n_vals = [
@@ -859,8 +987,15 @@ if __name__ == '__main__':
         print('running...')
         nav.run()
     else:
-        # evaluator = Evaluator(datasets=['bookcrossing', 'movielens', 'imdb'])
-        evaluator = Evaluator(datasets=['imdb'])
-        evaluator.plot_bar()
+        datasets = [
+            'bookcrossing',
+            'movielens',
+            'imdb'
+        ]
+        # evaluator = Evaluator(datasets=datasets, stochastic=True)
+        # evaluator.plot_bar()
+
+        evaluator = Evaluator(datasets=datasets, personalized=True)
+        evaluator.plot_bar_personalized()
 
 

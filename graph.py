@@ -127,7 +127,7 @@ class Graph(object):
         stats['cp_size'], stats['cp_count'] = self.largest_component()
         stats['bow_tie'] = self.bow_tie()
         stats['bow_tie_changes'] = self.compute_bowtie_changes()
-        if self.N in [5, 20]:
+        if self.N in [5, 20] and 'personalized' not in self.graph_name:
             stats['ecc_max'], stats['ecc_median'] = self.eccentricity()
 
         print('saving...')
@@ -380,13 +380,13 @@ if __name__ == '__main__':
         'imdb',
     ]
     rec_types = [
-        'rbar',
+        # 'rbar',
         # 'rb',
         # 'rbiw',
-        # 'rbmf',
+        'rbmf',
     ]
     div_types = [
-        '',
+        # '',
         # '_div_random',
         # '_div_diversify',
         # '_div_exprel'
@@ -400,6 +400,9 @@ if __name__ == '__main__':
         '_personalized_min',
         '_personalized_median',
         '_personalized_max',
+        '_personalized_mixed_min',
+        '_personalized_mixed_median',
+        '_personalized_mixed_max',
     ]
     Ns = [
         1,

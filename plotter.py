@@ -135,6 +135,7 @@ class Plotter(object):
 
     def plot_ecc(self):
         print(self.label)
+        bar_colors = ['#444444', '#DDDDDD']
         for ecc_type in [
             # 'ecc_max',
             'ecc_median',
@@ -144,12 +145,10 @@ class Plotter(object):
             # figlegend = plt.figure(figsize=(3, 2))
             # ax = fig.add_subplot(111)
             # objects = [
-            #     matplotlib.patches.Patch(color='black', hatch='---'),
-            #     matplotlib.patches.Patch(color='black', hatch='//')
+            #     matplotlib.patches.Patch(color=bar_colors[0], ec='black'),
+            #     matplotlib.patches.Patch(color=bar_colors[1], ec='black')
             # ]
             # labels = ['N = 5', 'N = 20']
-            # for pidx, patch in enumerate(objects):
-            #     patch.set_fill(False)
             #
             # figlegend.legend(objects, labels, ncol=2)
             # figlegend.savefig('plots/legend_ecc_full.pdf', bbox_inches='tight')
@@ -174,12 +173,12 @@ class Plotter(object):
                     #     av += vidx2 * v
                     # print('average = %.2f' % (av/100))
                     # print()
-                    bars = ax.bar(range(len(val)), val, color=self.colors[gidx], lw=2)
+                    bars = ax.bar(range(len(val)), val, color=bar_colors[vidx], lw=2)
                     # Beautification
-                    for bidx, bar in enumerate(bars):
-                        bar.set_fill(False)
-                        bar.set_hatch(self.hatches[vidx])
-                        bar.set_edgecolor(self.colors[gidx])
+                    # for bidx, bar in enumerate(bars):
+                    #     bar.set_fill(False)
+                    #     bar.set_hatch(self.hatches[vidx])
+                    #     bar.set_edgecolor(self.colors[gidx])
                 ax.set_xlim(0, 45)
                 ax.set_ylim(0, 100)
                 ax.set_xlabel('Eccentricity')
@@ -360,7 +359,8 @@ class Plotter(object):
 
 
 def plot_selection_sizes(dataset):
-    colors = ['#FFA500', '#FF0000', '#0000FF', '#05FF05', '#000000']
+    colors = ['#FF0000', '#0000FF', '#05FF05']
+    linestyles = ['solid', 'dashed']
     fname = dataset + '.obj'
     fpath = os.path.join('data', dataset, 'stats_selection_size', fname)
     with open(fpath, 'rb') as infile:
@@ -368,30 +368,45 @@ def plot_selection_sizes(dataset):
     plot_folder = os.path.join('plots', 'selection_size')
     if not os.path.exists(plot_folder):
         os.makedirs(plot_folder)
+    pts_ordered = [
+        '_personalized_min',
+        '_personalized_median',
+        '_personalized_max',
+        '_personalized_mixed_min',
+        '_personalized_mixed_median',
+        '_personalized_mixed_max',
+    ]
     pt2label = {
         '_personalized_min': 'Minimum',
         '_personalized_median': 'Median',
         '_personalized_max': 'Maximum',
+        '_personalized_mixed_min': 'Minimum (mixed)',
+        '_personalized_mixed_median': 'Median (mixed)',
+        '_personalized_mixed_max': 'Maximum (mixed)',
     }
     pt2color = {
-        '_personalized_min': colors[0],
-        '_personalized_median': colors[1],
-        '_personalized_max': colors[2],
+        '_personalized_min': (colors[0], linestyles[0]),
+        '_personalized_median': (colors[1], linestyles[0]),
+        '_personalized_max': (colors[2], linestyles[0]),
+        '_personalized_mixed_min': (colors[0], linestyles[1]),
+        '_personalized_mixed_median': (colors[1], linestyles[1]),
+        '_personalized_mixed_max': (colors[2], linestyles[1]),
     }
     for rec_type in results:
         print(rec_type)
         for N in results[rec_type]:
             print('   ', N)
             fig, ax = plt.subplots(1, figsize=(6, 4))
-            for pt in results[rec_type][N]:
+            for pt in pts_ordered:
                 print('       ', pt)
                 data = results[rec_type][N][pt]
-                plt.plot(data, lw=2, color=pt2color[pt], label=pt2label[pt])
+                c, ls = pt2color[pt]
+                plt.plot(data, lw=2, color=c, ls=ls, label=pt2label[pt])
             plt.legend()
             plt.xlabel('Selection Size (# of Items)')
             plt.ylabel('SCC Size (%)')
-            plt.xlim(0, 151)
-            plt.ylim(0, 100)
+            plt.xlim(0, 155)
+            plt.ylim(0, 105)
             plt.tight_layout()
             fname = 'selection_sizes_' + dataset + '.pdf'
             plt.savefig(os.path.join(plot_folder, fname))
@@ -413,9 +428,9 @@ if __name__ == '__main__':
         # 'cp_count',
         # 'cp_size',
         # 'cc',
-        'ecc',
+        # 'ecc',
         # 'bow_tie',
-        # 'bow_tie_alluvial',
+        'bow_tie_alluvial',
     ]
     personalized_recs = [
         'MF'
@@ -424,6 +439,9 @@ if __name__ == '__main__':
         '_personalized_min',
         '_personalized_median',
         '_personalized_max',
+        '_personalized_mixed_min',
+        '_personalized_mixed_median',
+        '_personalized_mixed_max',
     ]
 
     for sf in [
@@ -431,7 +449,7 @@ if __name__ == '__main__':
         'movielens',
         'imdb',
     ]:
-        p = Plotter(sf, to_plot=to_plot, personalized=False)
-        # p = Plotter(sf, to_plot=to_plot, personalized=True, personalized_suffices=personalized_suffix_list)
+        # p = Plotter(sf, to_plot=to_plot, personalized=False)
+        p = Plotter(sf, to_plot=to_plot, personalized=True, personalized_suffices=personalized_suffix_list)
         # p.plot_alluvial_legend()
         # plot_selection_sizes(sf)

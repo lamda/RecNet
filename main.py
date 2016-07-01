@@ -211,15 +211,57 @@ class TopNPersonalizedRecommendationStrategy(RecommendationStrategy):
         self.user_predictions_sorted = [np.argsort(up)[::-1] for up in self.user_predictions]
         self.label = '_personalized'
 
-    def get_recommendations(self, n, user_type, ss=75):
+    def get_recommendations(self, n, user_type, ss=50):
         base_recommendations = self.get_top_n_recommendations(n+ss).astype(int)
         base = [set(l) for l in base_recommendations]
-        base = [l - self.user_rated[user_type] for l in base]
+
+        # do not recommend already rated items
+        # base = [l - self.user_rated[user_type] for l in base]
+
         recs = np.zeros((base_recommendations.shape[0], n))
         for bidx, b in enumerate(base):
             i = 0
             for j in self.user_predictions_sorted[user_type]:
                 if j in b:
+                    recs[bidx, i] = j
+                    i += 1
+                if i >= n:
+                    break
+        return recs
+
+    def get_recommendations_selection_sizes(self, n, user_type):
+        recs = []
+        print('getting selection sizes...')
+        for ss in range(150):
+            print('\r   ', ss, end='')
+            recs.append(self.get_recommendations(n, user_type, ss=ss))
+        print()
+        return recs
+
+
+class TopNPersonalizedMixedRecommendationStrategy(RecommendationStrategy):
+    def __init__(self, similarity_matrix, example_users, user_rated,
+                 user_predictions):
+        super(TopNPersonalizedMixedRecommendationStrategy, self).__init__(
+            similarity_matrix
+        )
+        self.example_users = example_users
+        self.user_rated = user_rated
+        self.user_predictions = user_predictions
+        self.user_predictions_sorted = [np.argsort(up)[::-1] for up in self.user_predictions]
+        self.label = '_personalized_mixed'
+
+    def get_recommendations(self, n, user_type, ss=50):
+        base_recommendations = self.get_top_n_recommendations(n+ss).astype(int)
+        base = [set(l) for l in base_recommendations]
+        recs = np.zeros((base_recommendations.shape[0], n))
+        middle = int(n/2)
+        for bidx, b in enumerate(base):
+            for i in range(middle):
+                recs[bidx, i] = base_recommendations[bidx, i]
+            i = middle
+            for j in self.user_predictions_sorted[user_type]:
+                if j in b and j not in recs[bidx, :]:
                     recs[bidx, i] = j
                     i += 1
                 if i >= n:
@@ -412,7 +454,11 @@ class RatingBasedRecommender(Recommender):
             dataset, label, load_cached
         )
         self.sparse = sparse
-        self.user_types = ['min', 'median', 'max']
+        self.user_types = [
+            'min',
+            'median',
+            'max'
+        ]
         self.example_users = self.get_example_users()
         self.user_rated = []
         self.user_predictions = []
@@ -613,27 +659,47 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
-        super(RatingBasedRecommender, self).get_recommendations()
+        # super(RatingBasedRecommender, self).get_recommendations()
+        #
+        # s = TopNPersonalizedRecommendationStrategy(
+        #     self.similarity_matrix,
+        #     self.example_users,
+        #     self.user_rated,
+        #     self.user_predictions
+        # )
 
-        s = TopNPersonalizedRecommendationStrategy(
+        sm = TopNPersonalizedMixedRecommendationStrategy(
             self.similarity_matrix,
             self.example_users,
             self.user_rated,
             self.user_predictions
         )
 
-        print(s.label)
+        # print(s.label)
+        # for n in NUMBER_OF_RECOMMENDATIONS:
+        #     print('   ', n)
+        #     for idx, user_type in enumerate(self.user_types):
+        #         recs = s.get_recommendations(n=n, user_type=idx)
+        #         self.save_graph(recs, label=s.label + '_' + user_type, n=n)
+
+        print(sm.label)
         for n in NUMBER_OF_RECOMMENDATIONS:
             print('   ', n)
             for idx, user_type in enumerate(self.user_types):
-                recs = s.get_recommendations(n=n, user_type=idx)
-                self.save_graph(recs, label=s.label + '_' + user_type, n=n)
+                recs = sm.get_recommendations(n=n, user_type=idx)
+                self.save_graph(recs, label=sm.label + '_' + user_type, n=n)
 
         ss_n = 10
         for idx, user_type in enumerate(self.user_types):
             ss_recs = s.get_recommendations_selection_sizes(n=ss_n, user_type=idx)
             for ridx, recs in enumerate(ss_recs):
                 label = s.label + '_' + user_type + '_ss_' + str(ridx)
+                self.save_graph(recs, label=label, n=ss_n, selection_size=True)
+
+        for idx, user_type in enumerate(self.user_types):
+            ss_recs = sm.get_recommendations_selection_sizes(n=ss_n, user_type=idx)
+            for ridx, recs in enumerate(ss_recs):
+                label = sm.label + '_' + user_type + '_ss_' + str(ridx)
                 self.save_graph(recs, label=label, n=ss_n, selection_size=True)
 
     def get_similarity_matrix(self):
@@ -1144,16 +1210,16 @@ if __name__ == '__main__':
 
     GRAPH_SUFFIX = ''
     # DATASET = 'bookcrossing'
-    DATASET = 'movielens'
-    # DATASET = 'imdb'
+    # DATASET = 'movielens'
+    DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('DATASET =', DATASET)
 
     ## r = ContentBasedRecommender(dataset=DATASET)
     # r = RatingBasedRecommender(dataset=DATASET, load_cached=True, sparse=False)
     # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=False)
-    # r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=True, sparse=False)
-    r = InterpolationWeightRecommender(dataset=DATASET, load_cached=True, sparse=True)
+    r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=True, sparse=False)
+    # r = InterpolationWeightRecommender(dataset=DATASET, load_cached=True, sparse=True)
 
     r.get_recommendations()
 

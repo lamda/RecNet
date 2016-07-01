@@ -253,7 +253,7 @@ class ItemCollection(object):
 
             # cluster rating-based with k-means
             # select clusters based on similarity
-            kmeans_init = 'random' if dataset == 'movielens' else 'kmeans-++'
+            kmeans_init = 'random' if dataset == 'movielens' else 'k-means++'
             km = sklearn.cluster.KMeans(
                 n_clusters=int(len(ids)/3),
                 init=kmeans_init,
@@ -581,6 +581,6 @@ if __name__ == '__main__':
     dataset = sys.argv[1]
 
     ic = ItemCollection(dataset=dataset)
-    ic.write_clusters_title_matrix(random_based=True)
+    # ic.write_clusters_title_matrix(random_based=True)
     ic.write_clusters_title_matrix(random_based=False)
     # ic.write_network_neighbors_matrix()
