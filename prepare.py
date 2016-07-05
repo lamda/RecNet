@@ -186,7 +186,6 @@ class ItemCollection(object):
                 pairs.add(tuple(random.sample(ids, 2)))
 
             # cluster by genre and year
-            # select clusters based on similarity
             item2cats = collections.defaultdict(list)
             erroneous = set()
             for id, c in cats:
@@ -196,8 +195,7 @@ class ItemCollection(object):
                 #     erroneous.add((id, id2titleshort[id], tuple(item2cats[id])))
             for err in erroneous:
                 print(err)
-            # pdb.set_trace()
-            # Why are there so many excluded (<3) and what happens to them later?
+
             for k in item2cats:
                 item2cats[k] = frozenset(item2cats[k])
             for id, c in item2cats.items():
@@ -285,11 +283,16 @@ class ItemCollection(object):
             for cidx in selected_cluster_ids:
                 cc = km.cluster_centers_[cidx]
                 cc_tiled = np.tile(cc, (km.cluster_centers_.shape[0], 1))
-                dists = np.sqrt(np.sum(
-                    (km.cluster_centers_ - cc_tiled) ** 2, axis=1)
-                )
-                mission = np.argsort(dists)[:4]
-                perm.append([clusters[i] for i in mission])
+                dists = np.sum((km.cluster_centers_ - cc_tiled) ** 2, axis=1)
+                dists = np.sqrt(dists)
+                mission = np.argsort(dists)
+                tmp = []
+                for i in mission:
+                    if i in selected_cluster_ids:
+                        tmp.append(clusters[i])
+                    if len(tmp) == 4:
+                        break
+                perm.append(tmp)
                 if len(perm) >= mission_limit:
                     break
 
