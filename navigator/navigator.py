@@ -573,18 +573,23 @@ class Evaluator(object):
         self.personalized_suffix = '_personalized' if self.personalized else ''
         for dataset in datasets:
             try:
-                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) + self.personalized_suffix + '_new.obj', 'rb') as infile:
+                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) +
+                                  self.personalized_suffix + '_new.obj', 'rb')\
+                        as infile:
                     print('loading...')
                     self.data_sets.append(pickle.load(infile)[0])
                 print('loaded')
             except (IOError, EOFError):
                 print('loading failed... computing from scratch (%s)' % dataset)
-                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) + '.obj', 'rb') as infile:
+                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) +
+                                  '.obj', 'rb') as infile:
                     data_set = pickle.load(infile)[0]
                 data_set_new = self.compute(label=dataset, data_set=data_set)
                 self.data_sets.append(data_set_new)
                 print('saving to disk...')
-                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) + self.personalized_suffix + '_new.obj', 'wb') as outfile:
+                with open('data_sets_' + dataset + '_' + str(STEPS_MAX) +
+                                  self.personalized_suffix + '_new.obj', 'wb')\
+                        as outfile:
                     pickle.dump([data_set_new], outfile, -1)
 
         if not os.path.isdir('plots'):
@@ -632,7 +637,7 @@ class Evaluator(object):
         self.label2rec_type = {v: k for k, v in self.rec_type2label.items()}
         self.plot_file_types = [
             '.png',
-            '.pdf',
+            # '.pdf',
         ]
 
     def compute(self, label, data_set):
@@ -871,10 +876,10 @@ class Evaluator(object):
                 ylabel = 'Found Nodes (%)'
                 ax.set_ylabel(ylabel)
                 plt.tight_layout()
-                stochastic_suffix = 'stochastic_' if self.stochastic else ''
-                fname = data_set.label + '_' + str(STEPS_MAX) + '_' +\
-                        stochastic_suffix +\
-                        scenario.lower().replace(' ', '_').replace('(', '').replace(')', '')
+                stochastic_suffix = '_stochastic' if self.stochastic else ''
+                sc = scenario.lower().replace(' ', '_').replace('(', '').replace(')', '')
+                fname = data_set.label + '_' + str(STEPS_MAX) + '_' + sc + \
+                        stochastic_suffix
                 fpath = os.path.join('plots', fname)
                 for ftype in self.plot_file_types:
                     plt.savefig(fpath + ftype)
@@ -1076,7 +1081,9 @@ if __name__ == '__main__':
             'movielens',
             'imdb'
         ]
-        # evaluator = Evaluator(datasets=datasets, stochastic=False)
+        evaluator = Evaluator(datasets=datasets, stochastic=False)
+        evaluator.plot_bar()
+
         evaluator = Evaluator(datasets=datasets, stochastic=True)
         evaluator.plot_bar()
         # evaluator.print_results()

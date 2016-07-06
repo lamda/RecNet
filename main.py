@@ -1131,13 +1131,10 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         print(3)
         um_inv = np.copy(um)
         print(3.1)
-        # np.place(um_inv, um_inv == 0, 2)
         um_inv[um_inv == 0] = 2
         print(3.2)
-        # np.place(um_inv, um_inv == 1, 0)
         um_inv[um_inv == 1] = 0
         print(3.3)
-        # np.place(um_inv, um_inv == 2, 1)
         um_inv[um_inv == 2] = 1
 
         print(4)
