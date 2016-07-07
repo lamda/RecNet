@@ -175,7 +175,7 @@ class ItemCollection(object):
                 for l in sorted(lens):
                     outfile_res.write(unicode(l) + '\t')
 
-        mission_limit = 1145
+        mission_limit = 1200
         pairs = set()
         # numpairs = len(ids) * (len(ids) - 1) if len(ids) < 35 else mission_limit
         numpairs = mission_limit
@@ -238,9 +238,9 @@ class ItemCollection(object):
 
             cs = np.cumsum(coratings.toarray())
             cs /= cs[-1]
-
+            #
             id2dataset_id = {idx: id_val for idx, id_val in enumerate(ids)}
-
+            #
             # compute missions
             while len(pairs) < numpairs:
                 # pairs.add(tuple(random.sample(ids, 2)))
@@ -249,23 +249,25 @@ class ItemCollection(object):
 
             pairs = [(id2dataset_id[t[0]], id2dataset_id[t[1]]) for t in pairs]
 
-            # cluster rating-based with k-means
-            # select clusters based on similarity
-            kmeans_init = 'random' if dataset == 'movielens' else 'k-means++'
-            km = sklearn.cluster.KMeans(
-                n_clusters=int(len(ids)/3),
-                init=kmeans_init,
-                n_jobs=-4,
-                max_iter=500,
-                precompute_distances=True,
-                n_init=100,
-                verbose=False,
-            )
-            km.fit(um.T)
-            # with open('kmeans.obj', 'wb') as outfile:
+            # # cluster rating-based with k-means
+            # # select clusters based on similarity
+            # kmeans_init = 'random' if dataset == 'movielens' else 'k-means++'
+            # km = sklearn.cluster.KMeans(
+            #     n_clusters=int(len(ids)/3),
+            #     init=kmeans_init,
+            #     n_jobs=-4,
+            #     max_iter=400,
+            #     precompute_distances=True,
+            #     n_init=90,
+            #     verbose=True,
+            # )
+            # km.fit(um.T)
+            fpath = os.path.join('data', dataset, 'recommendation_data', 'kmeans.obj')
+            # with open(fpath, 'wb') as outfile:
             #     pickle.dump(km, outfile, -1)
-            # with open('kmeans.obj', 'rb') as infile:
-            #     km = pickle.load(infile)
+            # sys.exit()
+            with open(fpath, 'rb') as infile:
+                km = pickle.load(infile)
             labels = km.predict(um.T)
             clusters = [[] for _ in range(max(labels)+1)]
             for idx, val in enumerate(labels):
@@ -279,22 +281,31 @@ class ItemCollection(object):
                 for n in c:
                     cd[n] = c
 
-            perm = []
+            c2similar = collections.defaultdict(list)
             for cidx in selected_cluster_ids:
                 cc = km.cluster_centers_[cidx]
                 cc_tiled = np.tile(cc, (km.cluster_centers_.shape[0], 1))
                 dists = np.sum((km.cluster_centers_ - cc_tiled) ** 2, axis=1)
                 dists = np.sqrt(dists)
                 mission = np.argsort(dists)
-                tmp = []
                 for i in mission:
+                    if i == cidx:
+                        continue
                     if i in selected_cluster_ids:
-                        tmp.append(clusters[i])
-                    if len(tmp) == 4:
+                        c2similar[cidx].append(i)
+                    if len(c2similar[cidx]) == 4:
                         break
+
+            perm = []
+            for i in range(mission_limit):
+                tmp = [np.random.choice(selected_cluster_ids, 1)[0]]
+                while len(tmp) < 4:
+                    choice = np.random.choice(c2similar[tmp[-1]], 1)[0]
+                    if choice not in tmp:
+                        tmp.append(choice)
                 perm.append(tmp)
-                if len(perm) >= mission_limit:
-                    break
+
+            perm = [[clusters[i] for i in p] for p in perm]
 
         # write missions
         fpath = os.path.join(self.data_folder, 'missions' + file_suffix + '.txt')
@@ -331,6 +342,8 @@ class ItemCollection(object):
             for k in sorted(item2matrix.keys()):
                 outfile.write(k + '\t' + str(item2matrix[k]) + '\n')
 
+        # print('skipping the matrix generation')
+        # sys.exit()
         m, title_matrix = self.get_tfidf_cluster_matrix(ids, data, cd)
         mpath = os.path.join(self.data_folder, 'matrices')
         if not os.path.isdir(mpath):

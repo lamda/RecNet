@@ -8,6 +8,7 @@ import numpy as np
 import numpy.matlib
 np.matlib = numpy.matlib
 import pdb
+import scipy.sparse
 
 
 def get_similarity_matrix_old(um):
@@ -82,53 +83,21 @@ def get_similarity_matrix(um):
 
     print(4)
     not_coratings = um_inv.T.dot(um)
-    # icount = um.shape[1]
-    # coratings_dense = self.load_recommendation_data('coratings')
-    # tmp = scipy.sparse.dok_matrix((icount, icount))
-    # for i in range(icount):
-    #     print('\r', i+1, '/', icount, end='')
-    #     for j in range(icount):
-    #         tmp[i, j] = coratings_dense[i][j]
-    # print()
-    # tmp = tmp.toarray()
-    # pdb.set_trace()
-
-    # # debug helpers
-    # self.rating_stats(um)
-    # self.corating_stats(coratings, item_id=0)
-    # self.ar_simple(um, coratings, 0, 2849)
-    # self.ar_complex(um, coratings, 0, 2849)
-    # self.ar_both(um, coratings, 0, 2849)
 
     print(5)
     col_sum = um.sum(axis=0)
     not_col_sum = um.shape[0] - col_sum
-
-    # sims = np.zeros((icount, icount))
-    # for x in range(icount):
-    #     print('\r', x, end='')
-    #     for y in range(icount):
-    #         # # (x and y) / x  simple version
-    #         # denominator = coratings[x, y]
-    #         # numerator = col_sum[x]
-    #
-    #         # ((x and y) * !x) / ((!x and y) * x)  complex version
-    #         denominator = coratings[x, y] * not_col_sum[x]
-    #         numerator = not_coratings[x, y] * col_sum[x]
-    #
-    #         if numerator > 0:
-    #             sims[x, y] = denominator / numerator
 
     print(6)
     col_sums = np.matlib.repmat(col_sum, coratings.shape[0], 1)
     not_col_sums = np.matlib.repmat(not_col_sum, not_coratings.shape[0], 1)
 
     print(7)
-    denominator = coratings * not_col_sums.T
-    numerator = not_coratings * col_sums.T
+    numerator = coratings * not_col_sums.T
+    denominator = not_coratings * col_sums.T
 
     print(8)
-    sims = denominator / numerator
+    sims = numerator / denominator
     sims[np.isnan(sims)] = 0
     sims[np.isinf(sims)] = 0
 
@@ -136,16 +105,26 @@ def get_similarity_matrix(um):
 
 
 if __name__ == '__main__':
-    m = np.array([  # simple test case
-        [5, 1, np.NAN, 2, 2, 4, 3, 2],
+    um_dense = np.array([  # simple test case
+        [5, 1, 0, 2, 2, 4, 3, 2],
         [1, 5, 2, 5, 5, 1, 1, 4],
-        [2, np.NAN, 3, 5, 4, 1, 2, 4],
-        [4, 3, 5, 3, np.NAN, 5, 3, np.NAN],
-        [2, np.NAN, 1, 3, np.NAN, 2, 5, 3],
-        [4, 1, np.NAN, 1, np.NAN, 4, 3, 2],
-        [4, 2, 1, 1, np.NAN, 5, 4, 1],
-        [5, 2, 2, np.NAN, 2, 5, 4, 1],
-        [4, 3, 3, np.NAN, np.NAN, 4, 3, np.NAN]
+        [2, 0, 3, 5, 4, 1, 2, 4],
+        [4, 3, 5, 3, 0, 5, 3, 0],
+        [2, 0, 1, 3, 0, 2, 5, 3],
+        [4, 1, 0, 1, 0, 4, 3, 2],
+        [4, 2, 1, 1, 0, 5, 4, 1],
+        [5, 2, 2, 0, 2, 5, 4, 1],
+        [4, 3, 3, 0, 0, 4, 3, 0]
     ])
 
-    # TODO: we need both dense and sparse here, I think
+    um_sparse = scipy.sparse.csr_matrix(um_dense)
+
+    # dataset = 'bookcrossing'
+    # # dataset = 'movielens'
+    # # dataset = 'imdb'
+    # um_dense = np.load('data/' + dataset + '/recommendation_data/RatingBasedRecommender_um.obj.npy')
+    # um_sparse = np.load('data/' + dataset + '/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy').item()
+
+    sims_new = get_similarity_matrix(um_sparse)
+    # sims_old = get_similarity_matrix_old(um_dense)
+    pdb.set_trace()

@@ -449,7 +449,7 @@ if __name__ == '__main__':
         'movielens',
         'imdb',
     ]:
-        # p = Plotter(sf, to_plot=to_plot, personalized=False)
-        p = Plotter(sf, to_plot=to_plot, personalized=True, personalized_suffices=personalized_suffix_list)
+        p = Plotter(sf, to_plot=to_plot, personalized=False)
+        # p = Plotter(sf, to_plot=to_plot, personalized=True, personalized_suffices=personalized_suffix_list)
         # p.plot_alluvial_legend()
         # plot_selection_sizes(sf)

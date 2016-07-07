@@ -1055,65 +1055,6 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         complex = self.ar_complex(um, coratings, x, y)
         print('s: %.4f, c: %.4f' % (simple, complex))
 
-    def get_similarity_matrix_old(self):
-        if self.load_cached:
-            sim_mat = self.load_recommendation_data('sim_mat')
-            return sim_mat
-        um = self.get_utility_matrix()
-        um = np.where(um == 0, um, 1)  # set all ratings to 1
-        # um = np.where(um >= 4, 1, 0)  # set all high ratings to 1
-        ucount = um.shape[0]
-        icount = um.shape[1]
-
-        # coratings = {i: collections.defaultdict(int) for i in range(icount)}
-        # for u in range(ucount):
-        #     print('\r', u+1, '/', ucount, end='')
-        #     items = np.nonzero(um[u, :])[0]
-        #     for i in itertools.combinations(items, 2):
-        #         coratings[i[0]][i[1]] += 1
-        #         coratings[i[1]][i[0]] += 1
-        # self.save_recommendation_data(coratings, 'coratings')
-        coratings = self.load_recommendation_data('coratings')
-
-        # not_coratings = {i: collections.defaultdict(int) for i in range(icount)}
-        # for i in coratings.keys():
-        #     print('\r', i+1, '/', len(coratings), end='')
-        #     not_rated_i = set(np.where(um[:, i] == 0)[0])
-        #     for j in coratings[i].keys():
-        #         rated_j = set(np.where(um[:, j] == 1)[0])
-        #         not_coratings[i][j] = len(not_rated_i & rated_j)
-        # self.save_recommendation_data(not_coratings, 'not_coratings')
-        not_coratings = self.load_recommendation_data('not_coratings')
-
-        # # debug helpers
-        # self.rating_stats(um)
-        # self.corating_stats(coratings, item_id=0)
-        # self.ar_simple(um, coratings, 0, 2849)
-        # self.ar_complex(um, coratings, 0, 2849)
-        # self.ar_both(um, coratings, 0, 2849)
-
-        sims = np.zeros((icount, icount))
-        for x in range(icount):
-            is_x = np.sum(um[:, x])
-            not_x = um.shape[0] - is_x
-            for y in coratings[x]:
-                # # (x and y) / x  simple version
-                # denominator = coratings[x][y]
-                # numerator = is_x
-
-                # ((x and y) * !x) / ((!x and y) * x)  complex version
-                denominator = coratings[x][y] * not_x
-                numerator = not_coratings[x][y] * is_x
-
-                if numerator > 0:
-                    sims[x, y] = denominator / numerator
-
-        pdb.set_trace()
-
-        sim_mat = SimilarityMatrix(1 - sims)
-        self.save_recommendation_data(sim_mat, 'sim_mat')
-        return sim_mat
-
     def get_similarity_matrix(self):
         if self.load_cached:
             sim_mat = self.load_recommendation_data('sim_mat_sparse')
@@ -1139,57 +1080,23 @@ class AssociationRuleRecommender(RatingBasedRecommender):
 
         print(4)
         not_coratings = um_inv.T.dot(um)
-        # icount = um.shape[1]
-        # coratings_dense = self.load_recommendation_data('coratings')
-        # tmp = scipy.sparse.dok_matrix((icount, icount))
-        # for i in range(icount):
-        #     print('\r', i+1, '/', icount, end='')
-        #     for j in range(icount):
-        #         tmp[i, j] = coratings_dense[i][j]
-        # print()
-        # tmp = tmp.toarray()
-        # pdb.set_trace()
-
-        # # debug helpers
-        # self.rating_stats(um)
-        # self.corating_stats(coratings, item_id=0)
-        # self.ar_simple(um, coratings, 0, 2849)
-        # self.ar_complex(um, coratings, 0, 2849)
-        # self.ar_both(um, coratings, 0, 2849)
 
         print(5)
         col_sum = um.sum(axis=0)
         not_col_sum = um.shape[0] - col_sum
-
-        # sims = np.zeros((icount, icount))
-        # for x in range(icount):
-        #     print('\r', x, end='')
-        #     for y in range(icount):
-        #         # # (x and y) / x  simple version
-        #         # denominator = coratings[x, y]
-        #         # numerator = col_sum[x]
-        #
-        #         # ((x and y) * !x) / ((!x and y) * x)  complex version
-        #         denominator = coratings[x, y] * not_col_sum[x]
-        #         numerator = not_coratings[x, y] * col_sum[x]
-        #
-        #         if numerator > 0:
-        #             sims[x, y] = denominator / numerator
 
         print(6)
         col_sums = np.matlib.repmat(col_sum, coratings.shape[0], 1)
         not_col_sums = np.matlib.repmat(not_col_sum, not_coratings.shape[0], 1)
 
         print(7)
-        denominator = coratings * not_col_sums.T
-        numerator = not_coratings * col_sums.T
+        numerator = coratings * not_col_sums.T
+        denominator = not_coratings * col_sums.T
 
         print(8)
-        sims = denominator / numerator
+        sims = numerator / denominator
         sims[np.isnan(sims)] = 0
         sims[np.isinf(sims)] = 0
-
-        # self.corating_stats_sparse(coratings, item_id=0)
 
         self.save_recommendation_data(sims, 'sim_mat_sparse')
         return SimilarityMatrix(sims)
@@ -1207,15 +1114,15 @@ if __name__ == '__main__':
 
     GRAPH_SUFFIX = ''
     # DATASET = 'bookcrossing'
-    # DATASET = 'movielens'
-    DATASET = 'imdb'
+    DATASET = 'movielens'
+    # DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('DATASET =', DATASET)
 
     ## r = ContentBasedRecommender(dataset=DATASET)
+    r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=True)
     # r = RatingBasedRecommender(dataset=DATASET, load_cached=True, sparse=False)
-    # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=False)
-    r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=True, sparse=False)
+    # r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=True, sparse=False)
     # r = InterpolationWeightRecommender(dataset=DATASET, load_cached=True, sparse=True)
 
     r.get_recommendations()

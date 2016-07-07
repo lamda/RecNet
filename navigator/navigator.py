@@ -496,7 +496,7 @@ class Navigator(object):
         #         pdb.set_trace()
 
         # write the results to a file
-        self.write_paths()
+        # self.write_paths()
         self.save()
 
     def optimal_path(self, mission, start, sp):
@@ -555,7 +555,8 @@ class Navigator(object):
                                 outfile.write('\t'.join(m.path) + '\n')
 
     def save(self):
-        with open('data_sets_' + self.data_set.label + '_' + str(STEPS_MAX) + '.obj', 'wb') as outfile:
+        fp = 'data_sets_' + self.data_set.label + '_' + str(STEPS_MAX) + '.obj'
+        with open(fp, 'wb') as outfile:
             pickle.dump([self.data_set], outfile, -1)
 
 
@@ -566,11 +567,12 @@ class PlotData(object):
 
 class Evaluator(object):
     """Class responsible for calculating stats and plotting the results"""
-    def __init__(self, datasets, stochastic=False, personalized=False):
+    def __init__(self, datasets, stochastic=False, personalized=False, suffix=''):
         self.data_sets = []
         self.stochastic = stochastic
         self.personalized = personalized
         self.personalized_suffix = '_personalized' if self.personalized else ''
+        self.suffix = suffix
         for dataset in datasets:
             try:
                 with open('data_sets_' + dataset + '_' + str(STEPS_MAX) +
@@ -799,9 +801,9 @@ class Evaluator(object):
         x_vals = [1, 2, 4, 5, 7, 8, 10, 11]
         for scenario in Mission.missions:
             hugo = []
-            # print(scenario)
+            print(scenario)
             for data_set in self.data_sets:
-                # print('   ', data_set.label)
+                print('   ', data_set.label)
                 fig, ax = plt.subplots(1, figsize=(6, 3))
 
                 # plot optimal solutions
@@ -822,11 +824,12 @@ class Evaluator(object):
                 # plot simulation results
                 bar_vals = []
                 for graph_type in self.graph_order:
-                    # print('       ', graph_type)
+                    print('       ', graph_type)
                     rec_type = self.label2rec_type[graph_type]
                     for nidx, N in enumerate(n_vals):
+                        print('           ', N)
                         g = data_set.folder_graphs + '/' + rec_type +\
-                                '_' + str(N) + '.gt'
+                            '_' + str(N) + '.gt'
                         if self.stochastic:
                             s = data_set.missions[rec_type][g]['title_stochastic'][scenario][-1]
                         else:
@@ -842,7 +845,7 @@ class Evaluator(object):
                         # print('   ', r, s, o)
                         # pdb.set_trace()
                         hugo.append(r)
-                        # print('            %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
+                        print('                %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
                         if s > o:
                             print(scenario, data_set.label, graph_type, N, '%.2f > %.2f' % (bar_vals[-1], o))
                             # print(g)
@@ -879,7 +882,7 @@ class Evaluator(object):
                 stochastic_suffix = '_stochastic' if self.stochastic else ''
                 sc = scenario.lower().replace(' ', '_').replace('(', '').replace(')', '')
                 fname = data_set.label + '_' + str(STEPS_MAX) + '_' + sc + \
-                        stochastic_suffix
+                        stochastic_suffix + self.suffix
                 fpath = os.path.join('plots', fname)
                 for ftype in self.plot_file_types:
                     plt.savefig(fpath + ftype)
@@ -971,7 +974,8 @@ class Evaluator(object):
                 stochastic_suffix = 'stochastic_' if self.stochastic else ''
                 fname = data_set.label + '_' + str(STEPS_MAX) + '_personalized_' + \
                         stochastic_suffix +\
-                        scenario.lower().replace(' ', '_').replace('(', '').replace(')', '')
+                        scenario.lower().replace(' ', '_').replace('(', '').replace(')', '') +\
+                        self.suffix
                 fpath = os.path.join('plots', fname)
                 for ftype in self.plot_file_types:
                     plt.savefig(fpath + ftype)
@@ -1035,7 +1039,7 @@ rec_types = [
 ]
 
 pers_recs = [
-    'rbmf',
+    # 'rbmf',
 ]
 
 personalized_types = [
@@ -1077,15 +1081,15 @@ if __name__ == '__main__':
         nav.run()
     else:
         datasets = [
-            'bookcrossing',
+            # 'bookcrossing',
             'movielens',
-            'imdb'
+            # 'imdb'
         ]
-        evaluator = Evaluator(datasets=datasets, stochastic=False)
+        evaluator = Evaluator(datasets=datasets, stochastic=False, suffix='_clusters')
         evaluator.plot_bar()
 
-        evaluator = Evaluator(datasets=datasets, stochastic=True)
-        evaluator.plot_bar()
+        # evaluator = Evaluator(datasets=datasets, stochastic=True)
+        # evaluator.plot_bar()
         # evaluator.print_results()
 
         # evaluator = Evaluator(datasets=datasets, personalized=True)
