@@ -465,7 +465,6 @@ class RatingBasedRecommender(Recommender):
 
     def get_recommendations(self):
         m = self.get_utility_matrix(centered=False)
-        pdb.set_trace()
         m = m.astype(float)
         m[m == 0] = np.nan
         um = recsys.UtilityMatrix(m)
@@ -937,7 +936,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                 'k': 15,
                 'eta': 0.00001,
                 'regularize': True,
-                'init': 'sim',
+                'init': 'random',
                 'nsteps': 50
             }
 
@@ -1112,7 +1111,7 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    GRAPH_SUFFIX = ''
+    GRAPH_SUFFIX = '_r_2'
     # DATASET = 'bookcrossing'
     DATASET = 'movielens'
     # DATASET = 'imdb'
@@ -1120,10 +1119,10 @@ if __name__ == '__main__':
     print('DATASET =', DATASET)
 
     ## r = ContentBasedRecommender(dataset=DATASET)
-    r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=True)
+    # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=True)
     # r = RatingBasedRecommender(dataset=DATASET, load_cached=True, sparse=False)
     # r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=True, sparse=False)
-    # r = InterpolationWeightRecommender(dataset=DATASET, load_cached=True, sparse=True)
+    r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=True)
 
     r.get_recommendations()
 

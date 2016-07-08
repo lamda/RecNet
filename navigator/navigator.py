@@ -147,7 +147,6 @@ class IFMission(Mission):
         for i, n in enumerate(self.path[:len(self.stats)]):
             if n in targets:
                 targets.remove(n)
-                # curr += (1 / len(self.targets_original[0]))  # old
                 curr += (1 / 3)  # new: normalize by no. of clusters instead
             self.stats[i] = curr
         if i < len(self.stats):
@@ -173,6 +172,7 @@ class BPMission(Mission):
         return True
 
     def compute_stats(self):
+        self.path_original = self.path[:]  # DEBUG
         self.stats = np.zeros(STEPS_MAX + 1)
         self.path = self.path[2:]
         if self.path[-2:] == ['*', '*']:
@@ -180,24 +180,24 @@ class BPMission(Mission):
         diff = len(self.path) - 2 * self.path.count(u'*') - STEPS_MAX - 1
         if diff > 0:
             self.path = self.path[:-diff]
+
         path = ' '.join(self.path).split('*')
         path = [l.strip().split(' ') for l in path]
         path = [path[0]] + [p[1:] for p in path[1:]]
-        path = path[:len(self.stats)]
-        curr = 0
-        pset = 0
-        del self.targets_original[0]
-        for p in path:
-            self.stats[pset:pset+len(p)] = curr
-            pset += len(p)
-            curr += (1 / len(self.targets_original))
-        ind = sum(len(p) for p in path) - 1
 
-        if ind < len(self.stats):
-            fill = self.stats[ind - 1]
+        del self.targets_original[0]
+        val = 0
+        len_sum = -1
+        for p in path:
+            self.stats[len_sum:len_sum+len(p)] = val
+            len_sum += len(p)
+            val += (1 / len(self.targets_original))
+
+        if len_sum < len(self.stats):
+            fill = self.stats[len_sum - 1]
             if path[-1] and path[-1][-1] in self.targets_original[len(path)-1]:
                 fill = min(fill+1/3, 1.0)
-            self.stats[ind:] = fill
+            self.stats[len_sum:] = fill
 
 
 class Strategy(object):
@@ -207,7 +207,7 @@ class Strategy(object):
     strategies = [
         u'random',
         u'title',
-        u'title_stochastic',
+        # u'title_stochastic',
         u'optimal'
     ]
 
@@ -356,6 +356,7 @@ class DataSet(object):
                     parts = line.strip().split('\t')
                     targets.append(parts[1:])
             missions.append(mission_class(start, targets))
+            pdb.set_trace()
             m = MissionCollection(missions)
         return m
 
@@ -392,7 +393,8 @@ class Navigator(object):
                         matrix_c = SimilarityMatrix(item2matrix, m_newc)
                         matrix_file = m_new
                         debug('            ---- matrix_file != m_new')
-                    for miss in self.data_set.missions[rec_type][graph][strategy]:
+                    # for miss in self.data_set.missions[rec_type][graph][strategy]:
+                    for miss in Mission.missions:
                         print('                ', miss)
                         if 'Information Foraging' in miss or 'Berrypicking' in miss:
                             matrix = matrix_c
@@ -433,7 +435,7 @@ class Navigator(object):
                                 m.path.append(u'*')
                             m.reset()
 
-        # # DEBUG - compare lengths of title and optimal missions
+        # # DEBUG
         # item2matrix = os.path.join(self.data_set.base_folder, 'item2matrix.txt')
         # for rec_type in ['rbar']:
         #     for graph in self.data_set.graphs[rec_type]:
@@ -494,6 +496,63 @@ class Navigator(object):
         #         mc2.compute_stats()
         #         print(mc1.stats[-1], mc2.stats[-1])
         #         pdb.set_trace()
+
+        # fname_5 = u'../data/bookcrossing/graphs/rbar_5.gt'
+        # fname_20 = u'../data/bookcrossing/graphs/rbar_20.gt'
+        # sp_file_5 = fname_5.rsplit('.', 1)[0] + '.npy'
+        # sp_file_20 = fname_20.rsplit('.', 1)[0] + '.npy'
+        # with open(sp_file_5, 'rb') as infile:
+        #     sp_5 = pickle.load(infile)
+        # with open(sp_file_20, 'rb') as infile:
+        #     sp_20 = pickle.load(infile)
+        # sc = 'Berrypicking'
+        # mc_5 = self.data_set.missions['rbar'][fname_5]['optimal'][sc]
+        # mc_52 = self.data_set.missions['rbar'][fname_5]['title'][sc]
+        # mc_20 = self.data_set.missions['rbar'][fname_20]['optimal'][sc]
+        # mc_202 = self.data_set.missions['rbar'][fname_20]['title'][sc]
+        # for m5, m20, m52, m202 in zip(
+        #     mc_5,
+        #     mc_20,
+        #     mc_52,
+        #     mc_202
+        # ):
+        #     # evaluate 5 with optimal strategy
+        #     for ti in xrange(len(m5.targets_original)):
+        #         start = m5.path[-2] if m5.path else m5.start
+        #         self.optimal_path(m5, start, sp_5)
+        #         if not (ti + 1) == len(m5.targets_original):
+        #             m5.path.append(u'*')
+        #             m5.reset()
+        #
+        #     # evaluate 20 with optimal strategy
+        #     for ti in xrange(len(m20.targets_original)):
+        #         start = m20.path[-2] if m20.path else m20.start
+        #         self.optimal_path(m20, start, sp_20)
+        #         if not (ti + 1) == len(m20.targets_original):
+        #             m20.path.append(u'*')
+        #             m20.reset()
+        #
+        #     # if len(m5.path) < len(m20.path) or \
+        #     if m5.path.count('*') > m20.path.count('*'):
+        #         print(len(m5.path))
+        #         for part in ' '.join(m5.path[2:]).split('*'):
+        #             print('   ', part)
+        #         print(len(m20.path))
+        #         for part in ' '.join(m20.path[2:]).split('*'):
+        #             print('   ', part)
+        #         pdb.set_trace()
+        #
+        # print('MISSION COLLECTION DONE')
+        # mc_5.compute_stats()
+        # mc_20.compute_stats()
+        # print(mc_5.stats[-1], mc_20.stats[-1])
+        #
+        # for m5, m20 in zip(mc_5.missions, mc_20.missions):
+        #     if m5.stats[-1] > m20.stats[-1]:
+        #         print(m5.stats)
+        #         print(m20.stats)
+        #         pdb.set_trace()
+        # pdb.set_trace()
 
         # write the results to a file
         # self.write_paths()
@@ -567,7 +626,7 @@ class PlotData(object):
 
 class Evaluator(object):
     """Class responsible for calculating stats and plotting the results"""
-    def __init__(self, datasets, stochastic=False, personalized=False, suffix=''):
+    def __init__(self, datasets, stochastic=False, personalized=False, suffix='', pdf=False):
         self.data_sets = []
         self.stochastic = stochastic
         self.personalized = personalized
@@ -639,8 +698,9 @@ class Evaluator(object):
         self.label2rec_type = {v: k for k, v in self.rec_type2label.items()}
         self.plot_file_types = [
             '.png',
-            # '.pdf',
         ]
+        if pdf:
+            self.plot_file_types.append('.pdf')
 
     def compute(self, label, data_set):
         print('computing...')
@@ -796,14 +856,15 @@ class Evaluator(object):
         # # plt.show()
         # figlegend.savefig('plots/nav_legend.pdf')
         print('---------------------------------------------------------------')
+
         # plot the scenarios
         better = []
         x_vals = [1, 2, 4, 5, 7, 8, 10, 11]
         for scenario in Mission.missions:
             hugo = []
-            print(scenario)
+            # print(scenario)
             for data_set in self.data_sets:
-                print('   ', data_set.label)
+                # print('   ', data_set.label)
                 fig, ax = plt.subplots(1, figsize=(6, 3))
 
                 # plot optimal solutions
@@ -824,10 +885,10 @@ class Evaluator(object):
                 # plot simulation results
                 bar_vals = []
                 for graph_type in self.graph_order:
-                    print('       ', graph_type)
+                    # print('       ', graph_type)
                     rec_type = self.label2rec_type[graph_type]
                     for nidx, N in enumerate(n_vals):
-                        print('           ', N)
+                        # print('           ', N)
                         g = data_set.folder_graphs + '/' + rec_type +\
                             '_' + str(N) + '.gt'
                         if self.stochastic:
@@ -845,9 +906,9 @@ class Evaluator(object):
                         # print('   ', r, s, o)
                         # pdb.set_trace()
                         hugo.append(r)
-                        print('                %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
-                        if s > o:
-                            print(scenario, data_set.label, graph_type, N, '%.2f > %.2f' % (bar_vals[-1], o))
+                        # print('                %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
+                        # if s > o:
+                        #     print(scenario, data_set.label, graph_type, N, '%.2f > %.2f' % (bar_vals[-1], o))
                             # print(g)
                             # pdb.set_trace()
                 bars = ax.bar(x_vals, bar_vals, align='center')
@@ -1016,20 +1077,40 @@ class Evaluator(object):
         plt.savefig('plots/sample.pdf')
 
     def print_results(self):
+        import pandas as pd
+        num_rows = len(self.data_sets) * len(rec_types) * len(n_vals) *\
+                   len(Strategy.strategies) * len(Mission.missions)
+        df = pd.DataFrame(
+            index=np.arange(0, num_rows),
+            columns=['val', 'data_set', 'rec_type', 'is_random', 'N', 'strategy', 'scenario']
+        )
+        i = 0
         for data_set in self.data_sets:
-            print(data_set.label)
+            # print(data_set.label)
             dm = data_set.missions
             for rec_type in dm:
                 for nidx, N in enumerate(n_vals):
                     graph = data_set.folder_graphs + '/' + rec_type + \
                         '_' + str(N) + '.gt'
-                    print('   ', graph)
+                    # print('   ', graph)
                     for strategy in dm[rec_type][graph]:
-                        print('       ', strategy)
+                        # print('       ', strategy)
                         for scenario in dm[rec_type][graph][strategy]:
+                            is_random = True if 'Random' in scenario else False
                             val = dm[rec_type][graph][strategy][scenario][-1]
-                            print('            %.2f %s' % (val, scenario))
+                            # print('            %.2f %s' % (val, scenario))
+                            df.loc[i] = [val, data_set.label, rec_type, is_random, N, strategy, scenario]
+                            i += 1
+        df['val'] = df['val'].astype(float)
+        # pd.pivot_table(df, values='val', index='scenario', columns=['rec_type', 'N'])
+        # pd.pivot_table(df[df['strategy'] == 'title'], values='val', index='rec_type', columns=['is_random'])
+        df_agg = pd.pivot_table(
+            df[df['strategy'] == 'title'], values='val',
+            index='rec_type',
+            columns=['is_random', 'data_set']
+        )
 
+        pdb.set_trace()
 
 rec_types = [
     'rb',
@@ -1081,16 +1162,16 @@ if __name__ == '__main__':
         nav.run()
     else:
         datasets = [
-            # 'bookcrossing',
+            'bookcrossing',
             'movielens',
-            # 'imdb'
+            'imdb'
         ]
-        evaluator = Evaluator(datasets=datasets, stochastic=False, suffix='_clusters')
-        evaluator.plot_bar()
-
-        # evaluator = Evaluator(datasets=datasets, stochastic=True)
+        # evaluator = Evaluator(datasets=datasets, stochastic=False, suffix='_clusters')
         # evaluator.plot_bar()
-        # evaluator.print_results()
+
+        evaluator = Evaluator(datasets=datasets, stochastic=False, pdf=True)
+        # evaluator.plot_bar()
+        evaluator.print_results()
 
         # evaluator = Evaluator(datasets=datasets, personalized=True)
         # evaluator.plot_bar_personalized()

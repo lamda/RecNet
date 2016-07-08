@@ -103,21 +103,87 @@ def get_similarity_matrix(um):
 
     return sims
 
+class Test(object):
+    def __init__(self, path, targets_original):
+        self.path = path
+        self.targets_original = targets_original
+
+    def compute_stats(self):
+        STEPS_MAX = 50
+        self.path_original = self.path[:]  # DEBUG
+        self.stats = np.zeros(STEPS_MAX + 1)
+        self.path = self.path[2:]
+        if self.path[-2:] == ['*', '*']:
+            self.path = self.path[:-2]
+        diff = len(self.path) - 2 * self.path.count(u'*') - STEPS_MAX - 1
+        if diff > 0:
+            self.path = self.path[:-diff]
+
+        path = ' '.join(self.path).split('*')
+        path = [l.strip().split(' ') for l in path]
+        path = [path[0]] + [p[1:] for p in path[1:]]
+
+        del self.targets_original[0]
+        val = 0
+        len_sum = -1
+        for p in path:
+            self.stats[len_sum:len_sum+len(p)] = val
+            len_sum += len(p)
+            val += (1 / len(self.targets_original))
+
+        if len_sum < len(self.stats):
+            fill = self.stats[len_sum - 1]
+            if path[-1] and path[-1][-1] in self.targets_original[len(path)-1]:
+                fill = min(fill+1/3, 1.0)
+            self.stats[len_sum:] = fill
+
+        print(self.stats)
+        pdb.set_trace()
 
 if __name__ == '__main__':
-    um_dense = np.array([  # simple test case
-        [5, 1, 0, 2, 2, 4, 3, 2],
-        [1, 5, 2, 5, 5, 1, 1, 4],
-        [2, 0, 3, 5, 4, 1, 2, 4],
-        [4, 3, 5, 3, 0, 5, 3, 0],
-        [2, 0, 1, 3, 0, 2, 5, 3],
-        [4, 1, 0, 1, 0, 4, 3, 2],
-        [4, 2, 1, 1, 0, 5, 4, 1],
-        [5, 2, 2, 0, 2, 5, 4, 1],
-        [4, 3, 3, 0, 0, 4, 3, 0]
-    ])
+    p = [
+        u'006100345X', u'*',
+        u'006100345X', u'0', u'0', u'0', u'0399134700', u'*',
+        u'0399134700', u'0', u'0', u'0006512062', u'*',
+        u'0006512062', u'0', u'0', u'0', u'0', u'0', u'0060509392'
+     ]
+    to = [
+        ['006100345X'],
+        [u'0060198702', u'006093736X', u'0061000027', u'0141001828',
+         u'0156007754', u'0312084986', u'0345285859', u'0345433491',
+         u'034544003X', u'0394545370', u'0399134409', u'0399134700',
+         u'0425144062', u'044020352X', u'0440204429', u'0446343455',
+         u'0449202496', u'0451205634', u'067091021X', u'0671455990',
+         u'0767904133', u'0786014245', u'0836218515', u'0836220986',
+         u'0842342702'],
+        [u'0006512062', u'0060089555', u'0060155515', u'0060171928',
+         u'0140185216', u'034542705X', u'0385304943', u'0394531809',
+         u'0451204530', u'0553050672', u'0553209906', u'0684826127',
+         u'0743427149', u'0743431030', u'0786866195'],
+        [u'0060509392', u'0312187106', u'0312261594', u'0330376136',
+         u'0345469674', u'0373250479', u'0385721234', u'039912764X',
+         u'0425155404', u'0425183394', u'0446526614', u'0452281679',
+         u'0553756850', u'0671025708', u'067179356X', u'0743202562',
+         u'0767907809']
+    ]
+    t = Test(p, to)
+    t.compute_stats()
+    print(t.stats)
+    pdb.set_trace()
 
-    um_sparse = scipy.sparse.csr_matrix(um_dense)
+    # um_dense = np.array([  # simple test case
+    #     [5, 1, 0, 2, 2, 4, 3, 2],
+    #     [1, 5, 2, 5, 5, 1, 1, 4],
+    #     [2, 0, 3, 5, 4, 1, 2, 4],
+    #     [4, 3, 5, 3, 0, 5, 3, 0],
+    #     [2, 0, 1, 3, 0, 2, 5, 3],
+    #     [4, 1, 0, 1, 0, 4, 3, 2],
+    #     [4, 2, 1, 1, 0, 5, 4, 1],
+    #     [5, 2, 2, 0, 2, 5, 4, 1],
+    #     [4, 3, 3, 0, 0, 4, 3, 0]
+    # ])
+    #
+    # um_sparse = scipy.sparse.csr_matrix(um_dense)
 
     # dataset = 'bookcrossing'
     # # dataset = 'movielens'
@@ -125,6 +191,8 @@ if __name__ == '__main__':
     # um_dense = np.load('data/' + dataset + '/recommendation_data/RatingBasedRecommender_um.obj.npy')
     # um_sparse = np.load('data/' + dataset + '/recommendation_data/RatingBasedRecommender_um_sparse.obj.npy').item()
 
-    sims_new = get_similarity_matrix(um_sparse)
-    # sims_old = get_similarity_matrix_old(um_dense)
-    pdb.set_trace()
+    # sims_new = get_similarity_matrix(um_sparse)
+    # # sims_old = get_similarity_matrix_old(um_dense)
+    # pdb.set_trace()
+
+
