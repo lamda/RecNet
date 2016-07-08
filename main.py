@@ -936,7 +936,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                 'k': 15,
                 'eta': 0.00001,
                 'regularize': True,
-                'init': 'random',
+                'init': 'zeros',
                 'nsteps': 50
             }
 
@@ -990,7 +990,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         print('beta = ', beta)
         print('sparse = ', self.sparse)
         self.user_ratings = [
-            [wf.predict(u, i) for i in range(m.shape[0])]
+            [wf.predict(u, i) for i in range(m.shape[1])]
             for u in self.example_users
         ]
         self.save_recommendation_data(
@@ -1111,7 +1111,7 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    GRAPH_SUFFIX = '_r_2'
+    GRAPH_SUFFIX = '_z'
     # DATASET = 'bookcrossing'
     DATASET = 'movielens'
     # DATASET = 'imdb'
@@ -1122,7 +1122,7 @@ if __name__ == '__main__':
     # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=True)
     # r = RatingBasedRecommender(dataset=DATASET, load_cached=True, sparse=False)
     # r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=True, sparse=False)
-    r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=True)
+    r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=False)
 
     r.get_recommendations()
 

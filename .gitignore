@@ -9,6 +9,7 @@
 plots/alluvial/*.pdf
 *.npy
 *.obj
+*.pdf
 *.pickle
 *.png
 *.pyc

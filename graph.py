@@ -123,7 +123,7 @@ class Graph(object):
         # data = self.basic_stats()
         # stats['graph_size'], stats['recommenders'], stats[
         #     'outdegree_av'] = data
-        # stats['cc'] = self.clustering_coefficient()
+        stats['cc'] = self.clustering_coefficient()
         stats['cp_size'], stats['cp_count'] = self.largest_component()
         stats['bow_tie'] = self.bow_tie()
         stats['bow_tie_changes'] = self.compute_bowtie_changes()

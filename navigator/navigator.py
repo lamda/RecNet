@@ -626,12 +626,16 @@ class PlotData(object):
 
 class Evaluator(object):
     """Class responsible for calculating stats and plotting the results"""
-    def __init__(self, datasets, stochastic=False, personalized=False, suffix='', pdf=False):
+    def __init__(self, datasets, stochastic=False, personalized=False,
+                 suffix='', pdf=False, subtract_baseline=False):
         self.data_sets = []
         self.stochastic = stochastic
         self.personalized = personalized
         self.personalized_suffix = '_personalized' if self.personalized else ''
         self.suffix = suffix
+        self.subtract_baseline = subtract_baseline
+        if self.subtract_baseline:
+            self.suffix += '_sb'
         for dataset in datasets:
             try:
                 with open('data_sets_' + dataset + '_' + str(STEPS_MAX) +
@@ -874,7 +878,10 @@ class Evaluator(object):
                     for nidx, N in enumerate(n_vals):
                         g = data_set.folder_graphs + '/' + rec_type +\
                                 '_' + str(N) + '.gt'
-                        bar_vals.append(data_set.missions[rec_type][g]['optimal'][scenario][-1])
+                        o = data_set.missions[rec_type][g]['optimal'][scenario][-1]
+                        r = data_set.missions[rec_type][g]['random'][scenario][-1]
+                        val = o-r if self.subtract_baseline else o
+                        bar_vals.append(val)
                 bars = ax.bar(x_vals, bar_vals, align='center', color='#EFEFEF')
 
                 # Beautification
@@ -897,7 +904,10 @@ class Evaluator(object):
                             s = data_set.missions[rec_type][g]['title'][scenario][-1]
                         r = data_set.missions[rec_type][g]['random'][scenario][-1]
                         o = data_set.missions[rec_type][g]['optimal'][scenario][-1]
-                        bar_vals.append(s)
+                        if self.subtract_baseline:
+                            bar_vals.append(s-r)
+                        else:
+                            bar_vals.append(s)
                         if r == 0:
                             print('for', g, 'random walk found no targets')
                         else:
@@ -919,15 +929,17 @@ class Evaluator(object):
                     bar.set_hatch(self.hatches[bidx % 2])
                     bar.set_edgecolor(self.colors[int(bidx/2)])
 
-                # plot random walk solutions (as a dot)
-                bar_vals = []
-                for graph_type in self.graph_order:
-                    rec_type = self.label2rec_type[graph_type]
-                    for nidx, N in enumerate(n_vals):
-                        g = data_set.folder_graphs + '/' + rec_type +\
-                                '_' + str(N) + '.gt'
-                        bar_vals.append(data_set.missions[rec_type][g]['random'][scenario][-1])
-                ax.plot(x_vals, bar_vals, c='black', ls='', marker='.', ms=10)
+                if not self.subtract_baseline:
+                    # plot random walk solutions (as a dot)
+                    bar_vals = []
+                    for graph_type in self.graph_order:
+                        rec_type = self.label2rec_type[graph_type]
+                        for nidx, N in enumerate(n_vals):
+                            g = data_set.folder_graphs + '/' + rec_type +\
+                                    '_' + str(N) + '.gt'
+                            val = data_set.missions[rec_type][g]['random'][scenario][-1]
+                            bar_vals.append(val)
+                    ax.plot(x_vals, bar_vals, c='black', ls='', marker='.', ms=10)
 
                 ax.set_xlim(0.25, 3 * len(self.graphs))
                 ax.set_xticks([x - 0.25 for x in x_vals])
@@ -1169,9 +1181,9 @@ if __name__ == '__main__':
         # evaluator = Evaluator(datasets=datasets, stochastic=False, suffix='_clusters')
         # evaluator.plot_bar()
 
-        evaluator = Evaluator(datasets=datasets, stochastic=False, pdf=True)
-        # evaluator.plot_bar()
-        evaluator.print_results()
+        evaluator = Evaluator(datasets=datasets, subtract_baseline=True, pdf=True)
+        evaluator.plot_bar()
+        # evaluator.print_results()
 
         # evaluator = Evaluator(datasets=datasets, personalized=True)
         # evaluator.plot_bar_personalized()

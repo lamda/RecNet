@@ -427,10 +427,11 @@ if __name__ == '__main__':
     to_plot = [
         # 'cp_count',
         # 'cp_size',
-        # 'cc',
+        'cc',
         # 'ecc',
         # 'bow_tie',
-        'bow_tie_alluvial',
+        # 'bow_tie_alluvial',
+
     ]
     personalized_recs = [
         'MF'
