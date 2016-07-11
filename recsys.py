@@ -88,7 +88,7 @@ class UtilityMatrix:
             else:  # use training matrix
                 r_u = self.rt[u, :]  # user ratings
                 s_i = np.copy(self.s_rt[i, :])  # item similarity
-            # s_i[s_i < 0.0] = np.nan  # mask only to similar items
+            s_i[s_i < 0.0] = np.nan  # mask only to similar items
             s_i[i] = np.nan  # mask the item
             s_i[np.isnan(r_u)] = np.nan  # mask to items rated by the user
             nn = np.isnan(s_i).sum()  # how many invalid items
@@ -767,14 +767,14 @@ class WeightedCFNNBiased(CFNN):
             # print(step, end='\r')
             print(step)
             delta_w_i_j = np.zeros((icount, icount))
+            # for (u, i) in m.rt_not_nan_indices:
             for u in xrange(ucount):
-                print('\r    ', u, '/', ucount, end='')
+                # print('\r    ', u, '/', ucount, end='')
                 for i in xrange(icount):
                     if (u, i) in rt_nan_indices:
                         continue
                     s_u_i = m.similar_items(u, i, self.k)
-                    error = m.b[u, i] - m.rt[u, i] +\
-                        sum(self.w[i, k] * m.rtb[u, k] for k in s_u_i)
+                    error = m.b[u, i] - m.rt[u, i] + sum(self.w[i, k] * m.rtb[u, k] for k in s_u_i)
                     for j in s_u_i:
                         delta_w_i_j[i, j] += error * m.rtb[u, j]
                         if self.regularize:
@@ -838,7 +838,7 @@ if __name__ == '__main__':
     # np.random.qd(0)
     similarities = True
 
-    if 1:
+    if 0:
         # dataset = 'movielens'
         dataset = 'bookcrossing'
         # dataset = 'imdb'
@@ -892,29 +892,36 @@ if __name__ == '__main__':
     # w = WeightedCFNN(um, eta_type='bold_driver', k=5, eta=0.001, regularize=True, init_sim=False)
 
     start_time = datetime.datetime.now()
-    gar = GlobalAverageRecommender(um); gar.print_test_error()
-    uiar = UserItemAverageRecommender(um); uiar.print_test_error()
-    for k in [
-        1,
-        2,
-        5,
-        10,
-        15,
-        20,
-        25,
-        40,
-        50,
-        # 60,
-        # 80,
-        # 100
-    ]:
-        cfnn = CFNN(um, k=k); cfnn.print_test_error()
+    # gar = GlobalAverageRecommender(um); gar.print_test_error()
+    # uiar = UserItemAverageRecommender(um); uiar.print_test_error()
+    # for k in [
+    #     1,
+    #     2,
+    #     5,
+    #     10,
+    #     15,
+    #     20,
+    #     25,
+    #     40,
+    #     50,
+    #     # 60,
+    #     # 80,
+    #     # 100
+    # ]:
+    #     cfnn = CFNN(um, k=k); cfnn.print_test_error()
     # f = Factors(um, k=15, nsteps=1000, eta_type='bold_driver', regularize=True,
     #             eta=0.00001, init='random')
     # wf = WeightedCFNNUnbiased(um, k=5, eta=0.0001, regularize=True,
     #                           eta_type='bold_driver', init='random')
-    # wf = WeightedCFNNBiased(um, eta_type='bold_driver', k=5, eta=0.00001, init='random')
-
+    wf = WeightedCFNNBiased(
+        um,
+        k=25,
+        eta_type='bold_driver',
+        eta=0.00001,
+        init='random',
+        regularize=True
+    )
+    print(wf.w)
     end_time = datetime.datetime.now()
     print('Duration: {}'.format(end_time - start_time))
 

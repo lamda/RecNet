@@ -854,11 +854,34 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                           columns=['title', 'coratings', 'frac_coratings', 'similarity'])
         return df
 
+    def debug_cr(self, m, w, mid, top_n=20):
+        print(self.id2title[mid])
+        for item in np.argsort(1 - w[mid, :])[:top_n]:
+            print('    %.3f %d %s %d' % (w[mid, item], m.coratings_r[mid, item], self.id2title[item], item))
+
     def get_similarity_matrix(self):
         if self.load_cached:
             sim_mat = self.load_recommendation_data('sim_mat')
             return sim_mat
         w, k, beta, m = self.get_interpolation_weights()
+
+        # # DEBUG
+        # w, k, beta, m, self.user_ratings = self.load_recommendation_data('iw_data')
+        # """
+        # 0   Toy Story (1995)
+        # 2898 Toy Story 2 (1999)
+        # 574 Aladding (1992)
+        #
+        # 802 Godfather, The (1972)
+        # 1182 Akira (1988)
+        # 2651 American Beauty (1999)
+        #
+        # """
+        # pdb.set_trace()
+        #  hugo = recsys_sparse.WeightedCFNNBiased(m=m, eta_type='bold_driver', k=k, eta=0.00001, regularize=True, init='random', nsteps=50, beta=beta)
+        # hugo.w = w
+        # hugo.test_error()
+        #/DEBUG
 
         # df = self.get_coratings(mid=0, w=w, k=10, coratings_top_10=coratings)
         # print(df.sort_values('similarity'))
@@ -880,25 +903,25 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         #         coratings[i][ci] += 1
         # self.save_recommendation_data(coratings, 'coratings')
         # # self.load_recommendataion_data('coratings')
-        coratings = m.coratings_r
+        # coratings = m.coratings_r
 
         threshold = 1
         if self.dataset == 'movielens':
             threshold = 1
         elif self.dataset == 'bookcrossing':
             threshold = 1
-        elif self.dataset == 'movielens':
+        elif self.dataset == 'imdb':
             threshold = 1
 
         sims = np.zeros((m.coratings_r.shape[1], m.coratings_r.shape[1]))
         nnz = m.coratings_r.nnz
-
         cr_coo = m.coratings_r.tocoo()
+        print('computing similarity thresholds...')
         for idx, (x, y, v) in enumerate(itertools.izip(cr_coo.row, cr_coo.col, cr_coo.data)):
             print('\r', idx, '/', nnz, end='')
             if v > threshold:  # confidence threshold
                 sims[x, y] = w[x, y]
-        print('threshold =', threshold, '\n')
+        print('\nthreshold =', threshold, '\n')
         sim_mat = SimilarityMatrix(sims)
         self.save_recommendation_data(sim_mat, 'sim_mat')
         return sim_mat
@@ -933,10 +956,10 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
             kwargs = {
                 'eta_type': 'bold_driver',
-                'k': 15,
-                'eta': 0.00001,
+                'k': 10,
+                'eta': 0.00005,
                 'regularize': True,
-                'init': 'zeros',
+                'init': 'random_small',
                 'nsteps': 50
             }
 
@@ -950,13 +973,21 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             #    beta = 1
             #    eta_type='bold_driver', k=20, eta=0.00001, regularize=True,
             #    init='zeros'
+            # kwargs = {
+            #     'eta_type': 'bold_driver',
+            #     'k': 20,
+            #     'eta': 0.00001,
+            #     'regularize': True,
+            #     'init': 'zeros',
+            #     'nsteps': 50,
+            # }
             kwargs = {
                 'eta_type': 'bold_driver',
-                'k': 20,
+                'k': 15,
                 'eta': 0.00001,
                 'regularize': True,
-                'init': 'zeros',
-                'nsteps': 60,
+                'init': 'random_small',
+                'nsteps': 200,
             }
 
             if self.sparse:
@@ -1111,18 +1142,18 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    GRAPH_SUFFIX = '_z'
-    # DATASET = 'bookcrossing'
-    DATASET = 'movielens'
+    GRAPH_SUFFIX = '_rs_15'
+    DATASET = 'bookcrossing'
+    # DATASET = 'movielens'
     # DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('DATASET =', DATASET)
 
-    ## r = ContentBasedRecommender(dataset=DATASET)
+    # r = ContentBasedRecommender(dataset=DATASET)
     # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=True)
     # r = RatingBasedRecommender(dataset=DATASET, load_cached=True, sparse=False)
     # r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=True, sparse=False)
-    r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=False)
+    r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=True)
 
     r.get_recommendations()
 

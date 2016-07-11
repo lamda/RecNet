@@ -18,7 +18,7 @@ import shutil
 
 class Graph(object):
     def __init__(self, dataset, fname='', graph=None, N=None, use_sample=False,
-                 suffix='', selection_size=False):
+                 suffix='', selection_size=False, compute_eccentricity=True):
         print(dataset, fname, N, 'use_sample =', use_sample)
         if selection_size:
             self.graph_folder = os.path.join('data', dataset, 'graphs', 'selection_sizes')
@@ -29,6 +29,7 @@ class Graph(object):
         if not os.path.exists(self.stats_folder):
             os.makedirs(self.stats_folder)
         self.selection_size = selection_size
+        self.compute_eccentricity = compute_eccentricity
         self.use_sample = use_sample
         self.graph_name = fname if not use_sample else fname + '_sample'
         self.graph_file_path = os.path.join(self.graph_folder,
@@ -127,7 +128,7 @@ class Graph(object):
         stats['cp_size'], stats['cp_count'] = self.largest_component()
         stats['bow_tie'] = self.bow_tie()
         stats['bow_tie_changes'] = self.compute_bowtie_changes()
-        if self.N in [5, 20] and 'personalized' not in self.graph_name:
+        if self.N in [5, 20] and 'personalized' not in self.graph_name and self.compute_eccentricity:
             stats['ecc_max'], stats['ecc_median'] = self.eccentricity()
 
         print('saving...')
@@ -380,9 +381,9 @@ if __name__ == '__main__':
         # 'imdb',
     ]
     rec_types = [
-        'rbar',
+        # 'rbar',
         # 'rb',
-        # 'rbiw',
+        'rbiw',
         # 'rbmf',
     ]
     div_types = [
@@ -417,6 +418,16 @@ if __name__ == '__main__':
 
     selection_sizes = False
     parallelized = True
+
+    # results = []
+    # for N in Ns:
+    #     g = Graph(dataset='movielens', fname='rbiw_' + str(N) + '_rs_2', N=N, compute_eccentricity=False)
+    #     g.load_graph(refresh=True)
+    #     cp_size, cp_count = g.largest_component()
+    #     results.append((N, cp_size, cp_count))
+    # for r in results:
+    #     print(r)
+    # sys.exit()
 
     if selection_sizes:
         for dataset in datasets:

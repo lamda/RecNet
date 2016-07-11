@@ -215,15 +215,14 @@ class UtilityMatrix:
             s_i = s.getrow(i)
             nnz = set(r_u.nonzero()[1])
             s_i_filtered = s_i.toarray()
-            s_i_filtered[s_i_filtered < 0] = 0
             s_i_sorted = np.argsort(s_i_filtered)
             top = []
             for el in s_i_sorted[0]:
-                if el in nnz:
+                if el in nnz and el != i:
                     top.append(el)
                 if len(top) == k:
                     break
-            s_i_k = tuple(top)
+            s_i_k = tuple(v for v in top if s_i[0, v] > 0)
 
             # new new and slow version
             # extremly slow!
@@ -250,12 +249,12 @@ class UtilityMatrix:
     def rt_not_nan_iterator(self, idx=False):
         if idx:
             for idx, (u, i, v) in enumerate(itertools.izip(
-                    self.rt_coo.row, self.r_coo.col, self.r_coo.data
+                    self.rt_coo.row, self.rt_coo.col, self.rt_coo.data
             )):
                 yield idx, (u, i, v)
         else:
             for u, i, v in itertools.izip(
-                    self.rt_coo.row, self.r_coo.col, self.r_coo.data
+                    self.rt_coo.row, self.rt_coo.col, self.rt_coo.data
             ):
                 yield (u, i, v)
 
@@ -295,7 +294,7 @@ class Recommender:
         return rmse
 
     def test_error(self):
-        sse_old = 0.0
+        # sse_old = 0.0
         # errs = []
         # no_hidden = self.m.hidden_indices.shape[0]
         # for idx, (u, i) in enumerate(self.m.hidden_indices):
@@ -872,6 +871,7 @@ class WeightedCFNNBiased(CFNN):
         self.lamda = lamda
         self.normalize = False
         self.reset_params = reset_params
+
         if init == 'sim':
             # self.w = np.copy(self.m.s_rt)
             self.w = self.m.s_rt.toarray()
@@ -946,8 +946,7 @@ class WeightedCFNNBiased(CFNN):
             for idx, (u, i, v) in self.m.rt_not_nan_iterator(idx=True):
                 # print('\r    ', idx, '/', nnz, end='')
                 s_u_i = m.similar_items(u, i, self.k)
-                error = m.b[u, i] - m.rt[u, i] +\
-                    sum(self.w[i, k] * m.rtb[u, k] for k in s_u_i)
+                error = m.b[u, i] - m.rt[u, i] + sum(self.w[i, k] * m.rtb[u, k] for k in s_u_i)
                 for j in s_u_i:
                     delta_w_i_j[i, j] += error * m.rtb[u, j]
                     if self.regularize:
@@ -978,11 +977,11 @@ class WeightedCFNNBiased(CFNN):
                     else:  # 'increasing' or 'bold_driver'
                         self.eta *= 1.1
 
-            # if (step % 10) == 0:
-            #     test_rmse.append(self.test_error())
-            #     print('    TEST RMSE:')
-            #     for idx, err in enumerate(test_rmse):
-            #         print('        %d | %.8f' % (idx * 10, err))
+            if (step % 10) == 0:
+                test_rmse.append(self.test_error())
+                print('    TEST RMSE:')
+                for idx, err in enumerate(test_rmse):
+                    print('        %d | %.8f' % (idx * 10, err))
 
 
 def read_movie_lens_data():
@@ -1034,7 +1033,7 @@ if __name__ == '__main__':
         # pdb.set_trace()
         # data = [m[u, :].nonzero()[0].shape[0] for u in range(m.shape[0])]
         um = UtilityMatrix(m, similarities=similarities)
-    elif 1:
+    elif 0:
         m = scipy.sparse.csr_matrix(np.array([  # simple test case
             [5, 1, 0, 2, 2, 4, 3, 2],
             [1, 5, 2, 5, 5, 1, 1, 4],
@@ -1139,9 +1138,10 @@ if __name__ == '__main__':
         k=25,
         eta_type='bold_driver',
         eta=0.00001,
-        init='sim',
+        init='random',
         regularize=True
     )
+    print(wf.w)
 
     print(dataset)
     end_time = datetime.datetime.now()

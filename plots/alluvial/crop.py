@@ -10,11 +10,11 @@ if __name__ == '__main__':
     files = [f for f in os.listdir('.') if f.endswith('.html')]
     files.remove('alluvial.html')
     files = [
-        (f, f.rsplit('.', 1)[0] + '_full.pdf', f.rsplit('.', 1)[0] + '.pdf') 
+        (f, f.rsplit('.', 1)[0] + '_full.pdf', f.rsplit('.', 1)[0] + '.pdf')
         for f in files
     ]
     # files = files[:1]
-    
+
     print('converting to pdf...')
     for f in files:
         cmd = '"C:\\Program Files\\wkhtmltopdf\\bin\wkhtmltopdf.exe" ' +\
@@ -25,12 +25,12 @@ if __name__ == '__main__':
     for f in files:
         cmd = 'pdfcrop --margins 15 ' + f[1] + ' ' + f[2]
         os.system(cmd)
-        
+
     print('copying pdfs...')
     for f in files:
         shutil.copy(
             f[2],
             'D:\\Dropbox\\Papers\\paper_recnet\\2016-07-XX (Revision)\\figures'
         )
-        
+
     print('done')
