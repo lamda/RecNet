@@ -341,7 +341,7 @@ def extract_recommendations():
 
 
 def rename_selected():
-    dataset = 'imdb'
+    dataset = 'movielens'
     old_dir = os.path.join('data', dataset, 'graphs_selected')
     new_dir = os.path.join('data', dataset, 'graphs')
     files = [f for f in os.listdir(old_dir) if f.endswith('.txt')]
@@ -376,8 +376,8 @@ if __name__ == '__main__':
     # sys.exit()
 
     datasets = [
-        # 'bookcrossing',
-        'movielens',
+        'bookcrossing',
+        # 'movielens',
         # 'imdb',
     ]
     rec_types = [

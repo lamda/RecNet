@@ -446,8 +446,8 @@ if __name__ == '__main__':
     ]
 
     for sf in [
-        # 'bookcrossing',
-        'movielens',
+        'bookcrossing',
+        # 'movielens',
         # 'imdb',
     ]:
         p = Plotter(sf, to_plot=to_plot, personalized=False)

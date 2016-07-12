@@ -356,7 +356,6 @@ class DataSet(object):
                     parts = line.strip().split('\t')
                     targets.append(parts[1:])
             missions.append(mission_class(start, targets))
-            pdb.set_trace()
             m = MissionCollection(missions)
         return m
 
@@ -1178,11 +1177,11 @@ if __name__ == '__main__':
             'movielens',
             'imdb'
         ]
-        # evaluator = Evaluator(datasets=datasets, stochastic=False, suffix='_clusters')
-        # evaluator.plot_bar()
-
-        evaluator = Evaluator(datasets=datasets, subtract_baseline=True, pdf=True)
+        evaluator = Evaluator(datasets=datasets, pdf=True)
         evaluator.plot_bar()
+
+        # evaluator = Evaluator(datasets=datasets, subtract_baseline=True, pdf=True)
+        # evaluator.plot_bar()
         # evaluator.print_results()
 
         # evaluator = Evaluator(datasets=datasets, personalized=True)

@@ -956,10 +956,10 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
             kwargs = {
                 'eta_type': 'bold_driver',
-                'k': 10,
+                'k': 15,
                 'eta': 0.00005,
                 'regularize': True,
-                'init': 'random_small',
+                'init': 'sim',
                 'nsteps': 50
             }
 
@@ -979,15 +979,15 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             #     'eta': 0.00001,
             #     'regularize': True,
             #     'init': 'zeros',
-            #     'nsteps': 50,
+            #     'nsteps': 51,
             # }
             kwargs = {
                 'eta_type': 'bold_driver',
-                'k': 15,
-                'eta': 0.00001,
+                'k': 20,
+                'eta': 0.0001,
                 'regularize': True,
                 'init': 'random_small',
-                'nsteps': 200,
+                'nsteps': 21,
             }
 
             if self.sparse:
@@ -1005,12 +1005,11 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
 
             kwargs = {
                 'eta_type': 'bold_driver',
-                'k': 5,
+                'k': 10,
                 'eta': 0.0001,
                 'regularize': True,
                 'init': 'random_small',
-                'nsteps': 101,
-                'lamda': 0.15
+                'nsteps': 41,
             }
 
             if self.sparse:
@@ -1142,10 +1141,10 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    GRAPH_SUFFIX = '_rs_15'
-    DATASET = 'bookcrossing'
+    GRAPH_SUFFIX = '_rs_10_41'
+    # DATASET = 'bookcrossing'
     # DATASET = 'movielens'
-    # DATASET = 'imdb'
+    DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('DATASET =', DATASET)
 
