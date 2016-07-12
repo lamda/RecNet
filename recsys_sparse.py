@@ -284,7 +284,6 @@ class Recommender:
 
     def training_error(self):
         sse = 0.0
-        nnz = self.m.rt.nnz
         for idx, (u, i, v) in self.m.rt_not_nan_iterator(idx=True):
             # print('\r', idx, '/', nnz, end='')
             err = v - self.predict(u, i)
@@ -936,8 +935,6 @@ class WeightedCFNNBiased(CFNN):
         m.rtb = self.m.rt - m.b
         nnz = self.m.rt.nnz
         for step in xrange(self.nsteps):
-            # print(step, end='\r')
-            print(step)
             delta_w_i_j = np.zeros((icount, icount))
             # for i in xrange(icount):
             #     for u in xrange(ucount):
@@ -979,6 +976,7 @@ class WeightedCFNNBiased(CFNN):
 
             if (step % 10) == 0:
                 test_rmse.append(self.test_error())
+                print('    {}'.format(datetime.datetime.now()))
                 print('    TEST RMSE:')
                 for idx, err in enumerate(test_rmse):
                     print('        %d | %.8f' % (idx * 10, err))
