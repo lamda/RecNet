@@ -377,8 +377,8 @@ if __name__ == '__main__':
 
     datasets = [
         # 'bookcrossing',
-        'movielens',
-        # 'imdb',
+        # 'movielens',
+        'imdb',
     ]
     rec_types = [
         # 'rbar',
