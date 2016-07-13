@@ -393,8 +393,6 @@ class Recommender(object):
         class_name = str(self.__class__).strip("<>'").rsplit('.', 1)[-1]
         fname = os.path.join(self.recommendation_data_folder,
                              class_name + '_' + label + '.obj')
-        # with open(fname, 'rb') as infile:
-        #     obj = pickle.load(infile)
         obj = np.load(fname + '.npy')
         if not obj.shape:
             obj = obj.item()
@@ -658,14 +656,14 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
 
     def get_recommendations(self):
         self.similarity_matrix = self.get_similarity_matrix()
-        # super(RatingBasedRecommender, self).get_recommendations()
-        #
-        # s = TopNPersonalizedRecommendationStrategy(
-        #     self.similarity_matrix,
-        #     self.example_users,
-        #     self.user_rated,
-        #     self.user_predictions
-        # )
+        super(RatingBasedRecommender, self).get_recommendations()
+
+        s = TopNPersonalizedRecommendationStrategy(
+            self.similarity_matrix,
+            self.example_users,
+            self.user_rated,
+            self.user_predictions
+        )
 
         sm = TopNPersonalizedMixedRecommendationStrategy(
             self.similarity_matrix,
@@ -674,12 +672,12 @@ class MatrixFactorizationRecommender(RatingBasedRecommender):
             self.user_predictions
         )
 
-        # print(s.label)
-        # for n in NUMBER_OF_RECOMMENDATIONS:
-        #     print('   ', n)
-        #     for idx, user_type in enumerate(self.user_types):
-        #         recs = s.get_recommendations(n=n, user_type=idx)
-        #         self.save_graph(recs, label=s.label + '_' + user_type, n=n)
+        print(s.label)
+        for n in NUMBER_OF_RECOMMENDATIONS:
+            print('   ', n)
+            for idx, user_type in enumerate(self.user_types):
+                recs = s.get_recommendations(n=n, user_type=idx)
+                self.save_graph(recs, label=s.label + '_' + user_type, n=n)
 
         print(sm.label)
         for n in NUMBER_OF_RECOMMENDATIONS:
@@ -826,6 +824,47 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         self.similarity_matrix = self.get_similarity_matrix()
         super(RatingBasedRecommender, self).get_recommendations()
 
+        s = TopNPersonalizedRecommendationStrategy(
+            self.similarity_matrix,
+            self.example_users,
+            self.user_rated,
+            self.user_predictions
+        )
+
+        sm = TopNPersonalizedMixedRecommendationStrategy(
+            self.similarity_matrix,
+            self.example_users,
+            self.user_rated,
+            self.user_predictions
+        )
+
+        print(s.label)
+        for n in NUMBER_OF_RECOMMENDATIONS:
+            print('   ', n)
+            for idx, user_type in enumerate(self.user_types):
+                recs = s.get_recommendations(n=n, user_type=idx)
+                self.save_graph(recs, label=s.label + '_' + user_type, n=n)
+
+        print(sm.label)
+        for n in NUMBER_OF_RECOMMENDATIONS:
+            print('   ', n)
+            for idx, user_type in enumerate(self.user_types):
+                recs = sm.get_recommendations(n=n, user_type=idx)
+                self.save_graph(recs, label=sm.label + '_' + user_type, n=n)
+
+        ss_n = 10
+        for idx, user_type in enumerate(self.user_types):
+            ss_recs = s.get_recommendations_selection_sizes(n=ss_n, user_type=idx)
+            for ridx, recs in enumerate(ss_recs):
+                label = s.label + '_' + user_type + '_ss_' + str(ridx)
+                self.save_graph(recs, label=label, n=ss_n, selection_size=True)
+
+        for idx, user_type in enumerate(self.user_types):
+            ss_recs = sm.get_recommendations_selection_sizes(n=ss_n, user_type=idx)
+            for ridx, recs in enumerate(ss_recs):
+                label = sm.label + '_' + user_type + '_ss_' + str(ridx)
+                self.save_graph(recs, label=label, n=ss_n, selection_size=True)
+
     def get_coratings_all(self, um, mid, w):
         d = collections.defaultdict(int)
         for line in um:
@@ -860,10 +899,10 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
             print('    %.3f %d %s %d' % (w[mid, item], m.coratings_r[mid, item], self.id2title[item], item))
 
     def get_similarity_matrix(self):
+        w, k, beta, m = self.get_interpolation_weights()
         if self.load_cached:
             sim_mat = self.load_recommendation_data('sim_mat')
             return sim_mat
-        w, k, beta, m = self.get_interpolation_weights()
 
         # # DEBUG
         # w, k, beta, m, self.user_ratings = self.load_recommendation_data('iw_data')
@@ -927,33 +966,8 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
         return sim_mat
 
     def get_interpolation_weights(self):
-        if self.load_cached:
-            w, k, beta, um, self.user_ratings = \
-                self.load_recommendation_data('iw_data')
-            return w, k, beta, um
-
-        # typical values for n lie in the range of 20-50 (Bell & Koren 2007)
-        m = self.get_utility_matrix()
-        m = m.astype(float)
-        m_nan = np.copy(m)
-        m_nan[m_nan == 0] = np.nan
-        beta = 1  # for now, using beta=1 seems to work pretty well for both
-        if self.dataset == 'imdb':
-            beta = 10
-
-        if self.sparse:
-            um = recsys_sparse.UtilityMatrix(m, beta=beta)
-        else:
-            um = recsys.UtilityMatrix(m, beta=beta)
 
         if self.dataset == 'movielens':
-            # for MovieLens:
-            # beta = 1
-            # um = recsys.UtilityMatrix(m_nan, beta=beta)
-            # wf = recsys.WeightedCFNNBiased(um, eta_type='bold_driver', k=15,
-            #                                eta=0.000001, regularize=True,
-            #                                init='sim', nsteps=50)
-
             kwargs = {
                 'eta_type': 'bold_driver',
                 'k': 15,
@@ -963,16 +977,7 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                 'nsteps': 50
             }
 
-            if self.sparse:
-                wf = recsys_sparse.WeightedCFNNBiased(um, **kwargs)
-            else:
-                wf = recsys.WeightedCFNNBiased(um, **kwargs)
-
         elif self.dataset == 'bookcrossing':
-            # for BookCrossing:
-            #    beta = 1
-            #    eta_type='bold_driver', k=20, eta=0.00001, regularize=True,
-            #    init='zeros'
             # kwargs = {
             #     'eta_type': 'bold_driver',
             #     'k': 20,
@@ -990,42 +995,72 @@ class InterpolationWeightRecommender(RatingBasedRecommender):
                 'nsteps': 21,
             }
 
-            if self.sparse:
-                wf = recsys_sparse.WeightedCFNNBiased(um, **kwargs)
-            else:
-                wf = recsys.WeightedCFNNBiased(um, **kwargs)
-
         elif self.dataset == 'imdb':
-            # for IMDb:
-            # beta = 1
-            # um = recsys.UtilityMatrix(m_nan, beta=beta)
-            # wf = recsys.WeightedCFNNBiased(um, eta_type='bold_driver', k=15,
-            #                                eta=0.000001, regularize=True,
-            #                                init='sim', nsteps=50)
-
             kwargs = {
                 'eta_type': 'bold_driver',
-                'k': 10,
+                'k': 5,
                 'eta': 0.0001,
                 'regularize': True,
-                'init': 'random_small',
-                'nsteps': 41,
+                'init': 'sim',
+                'nsteps': 11,
             }
+
+        if self.load_cached:
+            w, k, beta, um = self.load_recommendation_data('iw_data')
+            kwargs['w'] = w
+            if self.sparse:
+                wf = recsys_sparse.WeightedCFNNBiased(um, **kwargs)
+            else:
+                wf = recsys.WeightedCFNNBiased(um, **kwargs)
+        else:
+            # typical values for n lie in the range of 20-50 (Bell & Koren 2007)
+            m = self.get_utility_matrix()
+            m = m.astype(float)
+            # m_nan = np.copy(m)
+            # m_nan[m_nan == 0] = np.nan
+            beta = 1  # for now, using beta=1 seems to work pretty well for both
+            if self.dataset == 'imdb':
+                beta = 10
+
+            if self.sparse:
+                um = recsys_sparse.UtilityMatrix(m, beta=beta)
+            else:
+                um = recsys.UtilityMatrix(m, beta=beta)
 
             if self.sparse:
                 wf = recsys_sparse.WeightedCFNNBiased(um, **kwargs)
             else:
                 wf = recsys.WeightedCFNNBiased(um, **kwargs)
 
-        print('beta = ', beta)
-        print('sparse = ', self.sparse)
-        self.user_ratings = [
-            [wf.predict(u, i) for i in range(m.shape[1])]
-            for u in self.example_users
-        ]
+            print('beta = ', beta)
+            print('sparse = ', self.sparse)
+
+        self.user_predictions = [[] for u in self.example_users]
+        for idx, user_type in enumerate(self.user_types):
+            u = self.example_users[idx]
+            for i in range(um.r.shape[1]):
+                p = wf.predict(u, i)
+                if np.isfinite(p):
+                    self.user_predictions[idx].append(p)
+                else:
+                    self.user_predictions[idx].append(-1)
+
+        if self.sparse:
+            self.user_rated = [set(np.where(~np.isnan(um.r[u, :].toarray()))[0])
+                               for u in self.example_users
+                               ]
+        else:
+            self.user_rated = [set(np.where(~np.isnan(um.r[u, :]))[0])
+                               for u in self.example_users
+                               ]
+
         self.save_recommendation_data(
-            [wf.w, wf.k, beta, wf.m, self.user_ratings],
+            [wf.w, wf.k, beta, wf.m],
             'iw_data'
+        )
+        self.save_recommendation_data(
+            [self.user_rated, self.user_predictions],
+            'iw_predictions'
         )
         return wf.w, wf.k, beta, wf.m
 
@@ -1141,10 +1176,10 @@ if __name__ == '__main__':
     from datetime import datetime
     start_time = datetime.now()
 
-    GRAPH_SUFFIX = '_rs_10_41'
+    GRAPH_SUFFIX = ''
     # DATASET = 'bookcrossing'
-    # DATASET = 'movielens'
-    DATASET = 'imdb'
+    DATASET = 'movielens'
+    # DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('DATASET =', DATASET)
 

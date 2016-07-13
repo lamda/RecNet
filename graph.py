@@ -377,14 +377,14 @@ if __name__ == '__main__':
 
     datasets = [
         # 'bookcrossing',
-        # 'movielens',
-        'imdb',
+        'movielens',
+        # 'imdb',
     ]
     rec_types = [
         # 'rbar',
         # 'rb',
-        'rbiw',
-        # 'rbmf',
+        # 'rbiw',
+        'rbmf',
     ]
     div_types = [
         # '',
@@ -397,7 +397,7 @@ if __name__ == '__main__':
         'rbmf',
     ]
     pers_types = [
-        # '',
+        '',
         '_personalized_min',
         '_personalized_median',
         '_personalized_max',
@@ -467,3 +467,4 @@ if __name__ == '__main__':
                         fname = rec_type + '_' + unicode(N) + pt
                         g = Graph(dataset=dataset, fname=fname, N=N)
                         g.load_graph(refresh=True)
+

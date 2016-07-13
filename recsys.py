@@ -686,7 +686,7 @@ class WeightedCFNNUnbiased(CFNN):
 
 class WeightedCFNNBiased(CFNN):
     def __init__(self, m, k, eta_type, init, nsteps=500, eta=0.00075,
-                 tol=1e-5, lamda=0.05, regularize=False):
+                 tol=1e-5, lamda=0.05, regularize=False, w=None):
         Recommender.__init__(self, m)
         self.k = k
         self.nsteps = nsteps
@@ -696,38 +696,41 @@ class WeightedCFNNBiased(CFNN):
         self.regularize = regularize
         self.lamda = lamda
         self.normalize = False
-        if init == 'sim':
-            self.w = np.copy(self.m.s_rt)
-        elif init == 'random':
-            self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))
-        elif init == 'random_small':
-            self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1])) / 1000
-        elif init == 'zeros':
-            self.w = np.zeros((self.m.rt.shape[1], self.m.rt.shape[1]))
+        if w is not None:
+            self.w = w
         else:
-            print('init method not supported')
-            pdb.set_trace()
-        # w_init = np.copy(self.w)
+            if init == 'sim':
+                self.w = np.copy(self.m.s_rt)
+            elif init == 'random':
+                self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1]))
+            elif init == 'random_small':
+                self.w = np.random.random((self.m.rt.shape[1], self.m.rt.shape[1])) / 1000
+            elif init == 'zeros':
+                self.w = np.zeros((self.m.rt.shape[1], self.m.rt.shape[1]))
+            else:
+                print('init method not supported')
+                pdb.set_trace()
+            # w_init = np.copy(self.w)
 
-        print('init =', init)
-        print('k =', k)
-        print('lamda =', self.lamda)
-        print('eta =', self.eta)
-        print('eta_type =', self.eta_type)
+            print('init =', init)
+            print('k =', k)
+            print('lamda =', self.lamda)
+            print('eta =', self.eta)
+            print('eta_type =', self.eta_type)
 
-        self.interpolate_weights()
+            self.interpolate_weights()
 
-        print('init =', init)
-        print('k =', k)
-        print('lamda =', self.lamda)
-        print('eta = ', self.eta)
-        print('eta_type =', self.eta_type)
+            print('init =', init)
+            print('k =', k)
+            print('lamda =', self.lamda)
+            print('eta = ', self.eta)
+            print('eta_type =', self.eta_type)
 
-        # diff = np.linalg.norm(w_init - self.w)
+            # diff = np.linalg.norm(w_init - self.w)
 
-        # self.plot_rmse('%.4f' % diff, suffix=init)
-        print(self.__class__.__name__)
-        print('test error: %.4f' % self.test_error())
+            # self.plot_rmse('%.4f' % diff, suffix=init)
+            print(self.__class__.__name__)
+            print('test error: %.4f' % self.test_error())
 
     def predict(self, u, i, dbg=False):
         # predict an item-based CF rating based on the training data

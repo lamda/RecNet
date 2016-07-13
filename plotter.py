@@ -92,52 +92,56 @@ class Plotter(object):
                     self.graph_data[graph_name] = graph_data
 
     def plot(self, prop):
-        fig, ax = plt.subplots(1, figsize=(6, 3))
-        bar_vals = []
-        for graph_type in self.graph_order:
-            bar_vals += [self.graph_data[graph_name][prop]
-                         for graph_name in self.graphs[graph_type]]
-            print(graph_type)
-            for b, N in zip(bar_vals[-2:], n_vals):
-                print('   ', N, ' ', b)
-        x_vals = [1, 2, 4, 5, 7, 8, 10, 11]
-        bars = ax.bar(x_vals, bar_vals, align='center')
-
-        # Beautification
-        for bidx, bar in enumerate(bars):
-            bar.set_fill(False)
-            bar.set_hatch(self.hatches[bidx % 2])
-            bar.set_edgecolor(self.colors[int(bidx/2)])
-
-        ax.set_xlim(0.25, 3 * len(self.graphs))
-        ax.set_xticks([x - 0.25 for x in x_vals])
-        for tic in ax.xaxis.get_major_ticks():
-            tic.tick1On = tic.tick2On = False
-        labels = [g for k in self.graph_order for g in self.graph_labels[k]]
-        ax.set_xticklabels(labels, rotation='-50', ha='left')
-
-        if prop == 'cc':
-            ylabel = 'Clustering Coefficient'
-            ax.set_ylim(0, 0.5)
-        elif prop == 'cp_count':
-            ylabel = '# of components'
-            # ax.set_ylim(0, 110)
-        else:
-            ylabel = 'Share of Nodes (%)'
-            ax.set_ylim(0, 110)
-        ax.set_ylabel(ylabel)
-
-        plt.tight_layout()
-        fpath = os.path.join(self.plot_folder, self.label + '_' + prop)
-        for ftype in self.plot_file_types:
-            plt.savefig(fpath + ftype)
-        plt.close()
+        for pidx, pers_type in enumerate(self.personalized_suffices):
+            print(pers_type)
+            fig, ax = plt.subplots(1, figsize=(6, 3))
+            bar_vals = []
+            for graph_type in self.graph_order:
+                # pdb.set_trace()
+                bar_vals += [self.graph_data[graph_name][prop]
+                             for graph_name in self.graphs[graph_type][pidx]]
+                print('   ', graph_type)
+                print('       ', n_vals[-4], bar_vals[-4])
+                print('       ', n_vals[-1], bar_vals[-1])
+            # x_vals = [1, 2, 4, 5, 7, 8, 10, 11]
+            # pdb.set_trace()
+            # bars = ax.bar(x_vals, bar_vals, align='center')
+            #
+            # # Beautification
+            # for bidx, bar in enumerate(bars):
+            #     bar.set_fill(False)
+            #     bar.set_hatch(self.hatches[bidx % 2])
+            #     bar.set_edgecolor(self.colors[int(bidx/2)])
+            #
+            # ax.set_xlim(0.25, 3 * len(self.graphs))
+            # ax.set_xticks([x - 0.25 for x in x_vals])
+            # for tic in ax.xaxis.get_major_ticks():
+            #     tic.tick1On = tic.tick2On = False
+            # labels = [g for k in self.graph_order for g in self.graph_labels[k]]
+            # ax.set_xticklabels(labels, rotation='-50', ha='left')
+            #
+            # if prop == 'cc':
+            #     ylabel = 'Clustering Coefficient'
+            #     ax.set_ylim(0, 0.5)
+            # elif prop == 'cp_count':
+            #     ylabel = '# of components'
+            #     # ax.set_ylim(0, 110)
+            # else:
+            #     ylabel = 'Share of Nodes (%)'
+            #     ax.set_ylim(0, 110)
+            # ax.set_ylabel(ylabel)
+            #
+            # plt.tight_layout()
+            # fpath = os.path.join(self.plot_folder, self.label + '_' + prop)
+            # for ftype in self.plot_file_types:
+            #     plt.savefig(fpath + ftype)
+            # plt.close()
 
     def plot_ecc(self):
         print(self.label)
         bar_colors = ['#444444', '#DDDDDD']
         for ecc_type in [
-            # 'ecc_max',
+            'ecc_max',
             'ecc_median',
         ]:
             # plot_ecc_legend()
@@ -179,7 +183,7 @@ class Plotter(object):
                     #     bar.set_fill(False)
                     #     bar.set_hatch(self.hatches[vidx])
                     #     bar.set_edgecolor(self.colors[gidx])
-                ax.set_xlim(0, 45)
+                ax.set_xlim(0, 30)
                 ax.set_ylim(0, 100)
                 ax.set_xlabel('Eccentricity')
                 ax.set_ylabel('% of Nodes')
@@ -426,11 +430,11 @@ if __name__ == '__main__':
         ]
     to_plot = [
         # 'cp_count',
-        # 'cp_size',
+        'cp_size',
         # 'cc',
         # 'ecc',
         # 'bow_tie',
-        'bow_tie_alluvial',
+        # 'bow_tie_alluvial',
 
     ]
     personalized_recs = [
@@ -450,6 +454,7 @@ if __name__ == '__main__':
         'movielens',
         'imdb',
     ]:
+        print('\n', sf, '----------------')
         p = Plotter(sf, to_plot=to_plot, personalized=False)
         # p = Plotter(sf, to_plot=to_plot, personalized=True, personalized_suffices=personalized_suffix_list)
         # p.plot_alluvial_legend()

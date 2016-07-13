@@ -965,7 +965,7 @@ class Evaluator(object):
         print('---------------------------------------------------------------')
 
     def plot_bar_personalized(self):
-        print('plot_bar()')
+        print('plot_bar_personalized()')
         # plot the scenarios
         better = []
         x_vals = [1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15]
@@ -1048,7 +1048,9 @@ class Evaluator(object):
                         stochastic_suffix +\
                         scenario.lower().replace(' ', '_').replace('(', '').replace(')', '') +\
                         self.suffix
-                fpath = os.path.join('plots', fname)
+                if not os.path.isdir(os.path.join('plots', 'personalized')):
+                    os.makedirs(os.path.join('plots', 'personalized'))
+                fpath = os.path.join('plots', 'personalized', fname)
                 for ftype in self.plot_file_types:
                     plt.savefig(fpath + ftype)
                 plt.close()
@@ -1131,7 +1133,7 @@ rec_types = [
 ]
 
 pers_recs = [
-    # 'rbmf',
+    'rbmf',
 ]
 
 personalized_types = [
@@ -1177,14 +1179,14 @@ if __name__ == '__main__':
             'movielens',
             'imdb'
         ]
-        evaluator = Evaluator(datasets=datasets, pdf=True)
-        evaluator.plot_bar()
+        # evaluator = Evaluator(datasets=datasets, pdf=True)
+        # evaluator.plot_bar()
 
         # evaluator = Evaluator(datasets=datasets, subtract_baseline=True, pdf=True)
         # evaluator.plot_bar()
         # evaluator.print_results()
 
-        # evaluator = Evaluator(datasets=datasets, personalized=True)
-        # evaluator.plot_bar_personalized()
+        evaluator = Evaluator(datasets=datasets, personalized=True, pdf=True)
+        evaluator.plot_bar_personalized()
 
 
