@@ -81,6 +81,8 @@ class Plotter(object):
             self.plot_bow_tie()
         if 'bow_tie_alluvial' in to_plot:
             self.plot_alluvial()
+        if 'bow_tie_stats' in to_plot:
+            self.bow_tie_stats()
 
     def load_graph_data(self):
         for graph_type in self.graphs:
@@ -430,11 +432,12 @@ if __name__ == '__main__':
         ]
     to_plot = [
         # 'cp_count',
-        'cp_size',
+        # 'cp_size',
         # 'cc',
         # 'ecc',
         # 'bow_tie',
         # 'bow_tie_alluvial',
+        'bow_tie_stats',
 
     ]
     personalized_recs = [

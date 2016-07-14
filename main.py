@@ -313,13 +313,18 @@ class Recommender(object):
         cols = ['dataset_id', 'cf_title', 'wp_title', 'original_title',
                 'wp_id', 'wp_text']
         self.df = pd.DataFrame(data=data, columns=cols)
-        self.df['dataset_id'] = self.df['dataset_id'].apply(lambda i: unicode(i))
+        self.df['dataset_id'] = self.df['dataset_id'].apply(
+            lambda i: unicode(i))
         self.id2title = {
             t[0]: t[1] for t in zip(self.df.index, self.df['original_title'])
         }
         self.title2id = {v: k for k, v in self.id2title.items()}
+        ttids = self.df['dataset_id']
+        if DATASET in ['movielens', 'imdb']:
+            ttids = map(int, ttids)
+        ttids = sorted(ttids)
         self.id2dataset_id = {
-            t[0]: t[1] for t in zip(self.df.index, self.df['dataset_id'])
+            ttid: unicode(i) for ttid, i in zip(range(len(ttids)), ttids)
         }
         if DEBUG:
             self.df = self.df.iloc[:DEBUG_SIZE]
@@ -399,53 +404,6 @@ class Recommender(object):
         return obj
 
 
-class ContentBasedRecommender(Recommender):
-    def __init__(self, dataset, load_cached=False):
-        super(ContentBasedRecommender, self).__init__(dataset, 'cb',
-                                                      load_cached)
-
-    def get_recommendations(self):
-        self.similarity_matrix = self.get_similarity_matrix()
-        super(ContentBasedRecommender, self).get_recommendations()
-
-    def get_similarity_matrix(self):
-        """get the TF-IDF similarity values of a given list of text"""
-        import nltk
-        data = self.df['wp_text']
-        max_features = 50000
-        simple = False
-
-        class LemmaTokenizer(object):
-            """
-            lemmatizer (scikit-learn.org/dev/modules/feature_extraction.html
-                          #customizing-the-vectorizer-classes)
-            """
-            def __init__(self):
-                self.wnl = nltk.WordNetLemmatizer()
-
-            def __call__(self, doc):
-                return [self.wnl.lemmatize(t) for t in nltk.word_tokenize(doc)]
-
-        path_stopw = os.path.join(DATA_BASE_FOLDER, 'stopwords.txt')
-        stopw = [l.strip() for l in io.open(path_stopw, encoding='utf-8-sig')]
-
-        if simple:
-            cv = sklearn.feature_extraction.text.CountVectorizer()
-        else:
-            cv = sklearn.feature_extraction.text.CountVectorizer(
-                stop_words=stopw,
-                tokenizer=LemmaTokenizer(),
-                max_features=max_features
-            )
-        counts = cv.fit_transform(data)
-
-        v = sklearn.feature_extraction.text.TfidfTransformer()
-        v = v.fit_transform(counts)
-        v_dense = v.todense()
-        similarity = np.array(v_dense * v_dense.T)  # cosine similarity
-        return SimilarityMatrix(similarity)
-
-
 class RatingBasedRecommender(Recommender):
     def __init__(self, dataset, label='rb', load_cached=False, sparse=False):
         super(RatingBasedRecommender, self).__init__(
@@ -475,33 +433,33 @@ class RatingBasedRecommender(Recommender):
 
         self.similarity_matrix = SimilarityMatrix(um.s_r)
         cfnn = recsys.CFNN(um, k=k)
-        self.user_predictions = [[] for u in self.example_users]
-        for idx, user_type in enumerate(self.user_types):
-            u = self.example_users[idx]
-            for i in range(m.shape[1]):
-                p = cfnn.predict(u, i)
-                if np.isfinite(p):
-                    self.user_predictions[idx].append(p)
-                else:
-                    self.user_predictions[idx].append(-1)
-        self.user_rated = [set(np.where(~np.isnan(m[u, :]))[0])
-                           for u in self.example_users
-        ]
+        # self.user_predictions = [[] for u in self.example_users]
+        # for idx, user_type in enumerate(self.user_types):
+        #     u = self.example_users[idx]
+        #     for i in range(m.shape[1]):
+        #         p = cfnn.predict(u, i)
+        #         if np.isfinite(p):
+        #             self.user_predictions[idx].append(p)
+        #         else:
+        #             self.user_predictions[idx].append(-1)
+        # self.user_rated = [set(np.where(~np.isnan(m[u, :]))[0])
+        #                    for u in self.example_users
+        # ]
 
         super(RatingBasedRecommender, self).get_recommendations()
-        s = TopNPersonalizedRecommendationStrategy(
-            self.similarity_matrix,
-            self.example_users,
-            self.user_rated,
-            self.user_predictions
-        )
-
-        print(s.label)
-        for n in NUMBER_OF_RECOMMENDATIONS:
-            print('   ', n)
-            for idx, user_type in enumerate(self.user_types):
-                recs = s.get_recommendations(n=n, user_type=idx)
-                self.save_graph(recs, label=s.label + '_' + user_type, n=n)
+        # s = TopNPersonalizedRecommendationStrategy(
+        #     self.similarity_matrix,
+        #     self.example_users,
+        #     self.user_rated,
+        #     self.user_predictions
+        # )
+        #
+        # print(s.label)
+        # for n in NUMBER_OF_RECOMMENDATIONS:
+        #     print('   ', n)
+        #     for idx, user_type in enumerate(self.user_types):
+        #         recs = s.get_recommendations(n=n, user_type=idx)
+        #         self.save_graph(recs, label=s.label + '_' + user_type, n=n)
 
     def get_utility_matrix(self, centered=False, load_cached=False):
         if self.load_cached or load_cached:
@@ -1119,6 +1077,17 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         complex = self.ar_complex(um, coratings, x, y)
         print('s: %.4f, c: %.4f' % (simple, complex))
 
+    def get_rating_stats(self):
+        um = self.get_utility_matrix()
+        um.data = np.ones(um.data.shape[0])
+        counts = np.array(um.sum(axis=0))[0]
+        dataset_id2id = {v: k for k, v in self.id2dataset_id.items()}
+        cts = []
+        for did in self.df['dataset_id']:
+            cts.append(counts[dataset_id2id[did]])
+        self.df['rating_count'] = cts
+        self.df.to_pickle(os.path.join(self.data_folder, 'item_stats.obj'))
+
     def get_similarity_matrix(self):
         if self.load_cached:
             sim_mat = self.load_recommendation_data('sim_mat_sparse')
@@ -1178,18 +1147,19 @@ if __name__ == '__main__':
 
     GRAPH_SUFFIX = ''
     # DATASET = 'bookcrossing'
-    DATASET = 'movielens'
-    # DATASET = 'imdb'
+    # DATASET = 'movielens'
+    DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('DATASET =', DATASET)
 
     # r = ContentBasedRecommender(dataset=DATASET)
-    # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=True)
+    r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=True)
     # r = RatingBasedRecommender(dataset=DATASET, load_cached=True, sparse=False)
     # r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=True, sparse=False)
-    r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=True)
+    # r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=True)
 
-    r.get_recommendations()
+    # r.get_recommendations()
+    r.get_rating_stats()
 
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('DATASET =', DATASET)

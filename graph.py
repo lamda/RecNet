@@ -383,8 +383,8 @@ if __name__ == '__main__':
     rec_types = [
         # 'rbar',
         # 'rb',
-        # 'rbiw',
-        'rbmf',
+        'rbiw',
+        # 'rbmf',
     ]
     div_types = [
         # '',
