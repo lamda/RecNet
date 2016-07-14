@@ -15,6 +15,7 @@ def get_stats(dataset, dataset_id2rating_count, dataset_id2title, rec_type):
     folder = os.path.join('data', dataset, 'graphs')
     res = {}
     nodes = {}
+    stats = {}
     for N in Ns:
         print('       ', N)
         gt_file = os.path.join(folder, '%s_%d.gt' % (rec_type, N))
@@ -33,10 +34,31 @@ def get_stats(dataset, dataset_id2rating_count, dataset_id2title, rec_type):
         for did, bt in dataset_id2bow_tie.items():
             bt2ratings[bt].append(dataset_id2rating_count[did])
             bt2nodes[bt].append(dataset_id2title[did])
-        res[N] = {k: np.mean(v) for k, v in bt2ratings.items()}
-        res[N] = {k: v for k, v in res[N].items() if not np.isnan(v)}
+        res[N] = {k: [np.mean(v), np.median(v)] for k, v in bt2ratings.items()}
+        res[N] = {k: v for k, v in res[N].items() if not np.isnan(v[0])}
+        stats[N] = graph_stats(graph)
         nodes[N] = bt2nodes
-    return res, nodes
+    return res, nodes, stats
+
+
+def graph_stats(graph):
+    clustering_coefficient = 0
+    neighbors = {int(node): set([int(n) for n in node.out_neighbours()])
+                 for node in graph.vertices()}
+    for idx, node in enumerate(graph.vertices()):
+        node = int(node)
+        if len(neighbors[node]) < 2:
+            continue
+        edges = sum(len(neighbors[int(n)] & neighbors[node])
+                    for n in neighbors[node])
+        cc = edges / (len(neighbors[node]) * (len(neighbors[node]) - 1))
+        clustering_coefficient += cc
+    component, histogram = gt.label_components(graph)
+    return [
+        clustering_coefficient / graph.num_vertices(),
+        len(histogram),
+    ]
+
 
 if __name__ == '__main__':
     datasets = [
@@ -59,10 +81,12 @@ if __name__ == '__main__':
     bt_labels = ['IN', 'SCC', 'OUT', 'TL_IN', 'TL_OUT', 'TUBE', 'OTHER']
     results = {}
     result_nodes = {}
+    result_stats = {}
     for dataset in datasets:
         print(dataset)
         results[dataset] = {}
         result_nodes[dataset] = {}
+        result_stats[dataset] = {}
         df = pd.read_pickle(os.path.join('data', dataset, 'item_stats.obj'))
         dataset_id2rating_count = {r['dataset_id']: r['rating_count']
                                    for ridx, r in df.iterrows()}
@@ -70,8 +94,10 @@ if __name__ == '__main__':
                             for ridx, r in df.iterrows()}
         for rec_type in rec_types:
             print('   ', rec_type)
-            results[dataset][rec_type], result_nodes[dataset][rec_type] = \
-                get_stats(dataset, dataset_id2rating_count, dataset_id2title, rec_type)
+            results[dataset][rec_type], result_nodes[dataset][rec_type], \
+            result_stats[dataset][rec_type] = \
+                get_stats(dataset, dataset_id2rating_count, dataset_id2title,
+                          rec_type)
 
     out_folder = os.path.join('data', 'rating_stats')
     if not os.path.exists(out_folder):
@@ -82,10 +108,14 @@ if __name__ == '__main__':
             for rec_type in rec_types:
                 outfile.write(u'    %s\n' % (rec_type))
                 for N in Ns:
-                    outfile.write(u'        %d\n' % (N))
+                    outfile.write(u'        %d (%d components, %.2f cc)\n' % (
+                        N, result_stats[dataset][rec_type][N][1],
+                        result_stats[dataset][rec_type][N][0]))
                     for label in results[dataset][rec_type][N]:
-                        outfile.write(u'            %.2f\t%s\n' % (
-                            results[dataset][rec_type][N][label], label
+                        outfile.write(u'            %.2f\t%.2f\t%s\n' % (
+                            results[dataset][rec_type][N][label][0],
+                            results[dataset][rec_type][N][label][1],
+                            label
                         ))
 
     for dataset in datasets:
