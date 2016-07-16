@@ -81,8 +81,6 @@ class Plotter(object):
             self.plot_bow_tie()
         if 'bow_tie_alluvial' in to_plot:
             self.plot_alluvial()
-        if 'bow_tie_stats' in to_plot:
-            self.bow_tie_stats()
 
     def load_graph_data(self):
         for graph_type in self.graphs:
@@ -144,7 +142,7 @@ class Plotter(object):
         bar_colors = ['#444444', '#DDDDDD']
         for ecc_type in [
             'ecc_max',
-            'ecc_median',
+            # 'ecc_median',
         ]:
             # plot_ecc_legend()
             # fig = plt.figure()
@@ -171,7 +169,11 @@ class Plotter(object):
                 ]
                 print('   ', graph_type)
                 for vidx, val, in enumerate(vals):
-                    val = [100 * v / sum(val) for v in val]
+                    # compute median median eccentricity
+                    # dummy = [[idx] * v for idx, v in enumerate(val)]
+                    # dummy = [i for sl in dummy for i in sl]
+                    # print(np.median(dummy))
+                    # val = [100 * v / sum(val) for v in val]
                     print('       ', len(val) - 1)
                     # av = 0
                     # for vidx2, v in enumerate(val):
@@ -179,6 +181,7 @@ class Plotter(object):
                     #     av += vidx2 * v
                     # print('average = %.2f' % (av/100))
                     # print()
+
                     bars = ax.bar(range(len(val)), val, color=bar_colors[vidx], lw=2)
                     # Beautification
                     # for bidx, bar in enumerate(bars):
@@ -285,11 +288,12 @@ class Plotter(object):
                 print(labels)
                 for d, c in zip(data_raw, changes):
                     print('------------------------------------------------------------')
-                    print(100*c)
+                    # print(100*c)
                     for dd in d:
                         print('%.2f, ' % dd, end='')
                     print()
                     print()
+
                 # /DEBUG
                 # pdb.set_trace()
 
@@ -434,10 +438,9 @@ if __name__ == '__main__':
         # 'cp_count',
         # 'cp_size',
         # 'cc',
-        # 'ecc',
+        'ecc',
         # 'bow_tie',
         # 'bow_tie_alluvial',
-        'bow_tie_stats',
 
     ]
     personalized_recs = [

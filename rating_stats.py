@@ -16,6 +16,7 @@ def get_stats(dataset, dataset_id2rating_count, dataset_id2title, rec_type):
     res = {}
     nodes = {}
     stats = {}
+    links_to_scc = {}
     for N in Ns:
         print('       ', N)
         gt_file = os.path.join(folder, '%s_%d.gt' % (rec_type, N))
@@ -37,8 +38,9 @@ def get_stats(dataset, dataset_id2rating_count, dataset_id2title, rec_type):
         res[N] = {k: [np.mean(v), np.median(v)] for k, v in bt2ratings.items()}
         res[N] = {k: v for k, v in res[N].items() if not np.isnan(v[0])}
         stats[N] = graph_stats(graph)
+        links_to_scc[N] = get_links_to_scc(graph)
         nodes[N] = bt2nodes
-    return res, nodes, stats
+    return res, nodes, stats, links_to_scc
 
 
 def graph_stats(graph):
@@ -60,6 +62,21 @@ def graph_stats(graph):
     ]
 
 
+def get_links_to_scc(graph):
+    count = 0
+    count_scc = 0
+    for node in graph.vertices():
+        if not graph.vp['bowtie'][node] == 'IN':
+            continue
+        for nb in node.out_neighbours():
+            count += 1
+            if graph.vp['bowtie'][nb] == 'SCC':
+                count_scc += 1
+    if count == 0:
+        return -1
+    return count_scc / count
+
+
 if __name__ == '__main__':
     datasets = [
         'movielens',
@@ -68,6 +85,7 @@ if __name__ == '__main__':
     ]
 
     Ns = [
+        # 2,
         5,
         20
     ]
@@ -82,11 +100,13 @@ if __name__ == '__main__':
     results = {}
     result_nodes = {}
     result_stats = {}
+    result_links_to_scc = {}
     for dataset in datasets:
         print(dataset)
         results[dataset] = {}
         result_nodes[dataset] = {}
         result_stats[dataset] = {}
+        result_links_to_scc[dataset] = {}
         df = pd.read_pickle(os.path.join('data', dataset, 'item_stats.obj'))
         dataset_id2rating_count = {r['dataset_id']: r['rating_count']
                                    for ridx, r in df.iterrows()}
@@ -95,7 +115,7 @@ if __name__ == '__main__':
         for rec_type in rec_types:
             print('   ', rec_type)
             results[dataset][rec_type], result_nodes[dataset][rec_type], \
-            result_stats[dataset][rec_type] = \
+            result_stats[dataset][rec_type], result_links_to_scc[dataset][rec_type] = \
                 get_stats(dataset, dataset_id2rating_count, dataset_id2title,
                           rec_type)
 
@@ -108,10 +128,13 @@ if __name__ == '__main__':
             for rec_type in rec_types:
                 outfile.write(u'    %s\n' % (rec_type))
                 for N in Ns:
-                    outfile.write(u'        %d (%d components, %.2f cc)\n' % (
+                    outfile.write(u'        %d (%d components, %.2f cc, %.2f links to scc)\n' % (
                         N, result_stats[dataset][rec_type][N][1],
-                        result_stats[dataset][rec_type][N][0]))
+                        result_stats[dataset][rec_type][N][0],
+                        result_links_to_scc[dataset][rec_type][N]))
                     for label in results[dataset][rec_type][N]:
+                        if label not in ['IN', 'SCC', 'OUT']:
+                            continue
                         outfile.write(u'            %.2f\t%.2f\t%s\n' % (
                             results[dataset][rec_type][N][label][0],
                             results[dataset][rec_type][N][label][1],

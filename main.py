@@ -1081,6 +1081,14 @@ class AssociationRuleRecommender(RatingBasedRecommender):
         um = self.get_utility_matrix()
         um.data = np.ones(um.data.shape[0])
         counts = np.array(um.sum(axis=0))[0]
+
+        # get possible coratings
+        item_corating_counts = np.array(um.sum(axis=1)).T[0]
+        cr_sum = sum((c * (c-1))/2 for c in item_corating_counts)
+        cr_max = um.shape[0] * (um.shape[1] * (um.shape[1]-1)) / 2
+        print('%.10f, %d' % (cr_sum/cr_max, cr_sum))
+        # sys.exit()
+
         dataset_id2id = {v: k for k, v in self.id2dataset_id.items()}
         cts = []
         for did in self.df['dataset_id']:
