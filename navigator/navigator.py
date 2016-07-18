@@ -2,11 +2,9 @@
 
 from __future__ import division, print_function
 
-import collections
 import os
 import copy
 import io
-import itertools
 import operator
 import prettyplotlib as ppl
 import random
@@ -687,8 +685,16 @@ class Evaluator(object):
             self.graphs = {
                 'MF': ['rbmf_' + str(c) + p for c in n_vals for p in personalized_types],
             }
+            p2pl = {
+                '_personalized_min': 'Pure',
+                '_personalized_median': 'Pure',
+                '_personalized_max': 'Pure',
+                '_personalized_mixed_min': 'Mixed',
+                '_personalized_mixed_median': 'Mixed',
+                '_personalized_mixed_max': 'Mixed',
+            }
             self.graph_labels = {
-                'MF': ['MF (' + str(c) + p + ')' for c in n_vals for p in personalized_types],
+                'MF': [p2pl[p]for c in n_vals for p in personalized_types],
             }
             self.graph_order = ['MF']
 
@@ -864,10 +870,12 @@ class Evaluator(object):
         better = []
         x_vals = [1, 2, 4, 5, 7, 8, 10, 11]
         for scenario in Mission.missions:
-            hugo = []
-            # print(scenario)
+            if 'Information' not in scenario:
+                continue
+            print(scenario)
+            av_5, av_20 = [], []
             for data_set in self.data_sets:
-                # print('   ', data_set.label)
+                print('   ', data_set.label)
                 fig, ax = plt.subplots(1, figsize=(6, 3))
 
                 # plot optimal solutions
@@ -875,11 +883,13 @@ class Evaluator(object):
                 for graph_type in self.graph_order:
                     rec_type = self.label2rec_type[graph_type]
                     for nidx, N in enumerate(n_vals):
+                        # print('       ', N, rec_type)
                         g = data_set.folder_graphs + '/' + rec_type +\
                                 '_' + str(N) + '.gt'
                         o = data_set.missions[rec_type][g]['optimal'][scenario][-1]
                         r = data_set.missions[rec_type][g]['random'][scenario][-1]
                         val = o-r if self.subtract_baseline else o
+                        # print('           ', o)
                         bar_vals.append(val)
                 bars = ax.bar(x_vals, bar_vals, align='center', color='#EFEFEF')
 
@@ -911,16 +921,22 @@ class Evaluator(object):
                             print('for', g, 'random walk found no targets')
                         else:
                             better.append(s/r)
-                        # print(scenario, graph_type, N)
-                        # print('   ', r, s, o)
+
+                        if N == 5:
+                            av_5.append(s)
+                        elif N == 20:
+                            av_20.append(s)
+                        print('       ', scenario, graph_type, N, '%.2f' % (s))
                         # pdb.set_trace()
-                        hugo.append(r)
+
                         # print('                %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
                         # if s > o:
                         #     print(scenario, data_set.label, graph_type, N, '%.2f > %.2f' % (bar_vals[-1], o))
                             # print(g)
                             # pdb.set_trace()
                 bars = ax.bar(x_vals, bar_vals, align='center')
+                # print('        5: %.2f' % np.mean(av_5))
+                # print('       20: %.2f' % np.mean(av_20))
 
                 # Beautification
                 for bidx, bar in enumerate(bars):
@@ -1058,6 +1074,118 @@ class Evaluator(object):
         print('simulations were on average %.2f times better than'
               ' the random walks' % np.average(better))
 
+    def plot_bar_personalized_simple(self):
+        print('plot_bar_personalized_simple()')
+        personalized_types_simple = [
+            '_personalized_median',
+            '_personalized_mixed_median',
+        ]
+        n_vals_simple = [
+            20
+        ]
+
+        # plot the scenarios
+        better = []
+        x_vals = [1, 2]
+        for scenario in Mission.missions:
+            # print(scenario)
+            if 'random' in scenario.lower():
+                continue
+            for data_set in self.data_sets:
+                # print('   ', data_set.label)
+                fig, ax = plt.subplots(1, figsize=(3, 3))
+
+                # plot optimal solutions
+                bar_vals = []
+                for graph_type in self.graph_order:
+                    rec_type = self.label2rec_type[graph_type]
+                    for nidx, N in enumerate(n_vals_simple):
+                        for pidx, pt in enumerate(personalized_types_simple):
+                            g = data_set.folder_graphs + '/' + rec_type + \
+                                '_' + str(N) + pt + '.gt'
+                            bar_vals.append(
+                                data_set.missions[rec_type][g]['optimal'][
+                                    scenario][-1])
+                bars = ax.bar(x_vals, bar_vals, align='center', color='#EFEFEF')
+
+                # Beautification
+                for bidx, bar in enumerate(bars):
+                    # bar.set_fill(False)
+                    bar.set_edgecolor('#AAAAAA')
+
+                # plot simulation results
+                bar_vals = []
+                for graph_type in self.graph_order:
+                    # print('       ', graph_type)
+                    rec_type = self.label2rec_type[graph_type]
+                    for nidx, N in enumerate(n_vals_simple):
+                        for pidx, pt in enumerate(personalized_types_simple):
+                            g = data_set.folder_graphs + '/' + rec_type + \
+                                '_' + str(N) + pt + '.gt'
+                            if self.stochastic:
+                                s = data_set.missions[rec_type][g][
+                                    'title_stochastic'][scenario][-1]
+                            else:
+                                s = data_set.missions[rec_type][g]['title'][scenario][-1]
+                            r = data_set.missions[rec_type][g]['random'][scenario][-1]
+                            o = data_set.missions[rec_type][g]['optimal'][scenario][-1]
+                            bar_vals.append(s)
+                            better.append(s / r)
+                            # print('            %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
+                            if s > o:
+                                print(scenario, data_set.label, graph_type,
+                                      '%.2f > %.2f' % (bar_vals[-1], o))
+                bars = ax.bar(x_vals, bar_vals, align='center')
+
+                # Beautification
+                for bidx, bar in enumerate(bars):
+                    bar.set_fill(False)
+                    bar.set_hatch(self.hatches[1])
+                    bar.set_edgecolor(self.colors[3])
+
+                # plot random walk solutions (as a dot)
+                bar_vals = []
+                for graph_type in self.graph_order:
+                    rec_type = self.label2rec_type[graph_type]
+                    for nidx, N in enumerate(n_vals_simple):
+                        for pidx, pt in enumerate(personalized_types_simple):
+                            g = data_set.folder_graphs + '/' + rec_type + \
+                                '_' + str(N) + pt + '.gt'
+                            bar_vals.append(
+                                data_set.missions[rec_type][g]['random'][
+                                    scenario][-1])
+                ax.plot(x_vals, bar_vals, c='black', ls='', marker='.', ms=10)
+
+                ax.set_xlim(0.25, x_vals[-1] + 0.75)
+                ax.set_xticks([x - 0.25 for x in x_vals])
+                for tic in ax.xaxis.get_major_ticks():
+                    tic.tick1On = tic.tick2On = False
+                labels = ['Pure', 'Mixed']
+
+                ax.set_xticklabels(labels, rotation='-50', ha='left')
+
+                ax.set_ylim(0, 100)
+                ylabel = 'Found Nodes (%)'
+                ax.set_ylabel(ylabel)
+                plt.tight_layout()
+                stochastic_suffix = 'stochastic_' if self.stochastic else ''
+                fname = data_set.label + '_' + str(
+                    STEPS_MAX) + '_personalized_' + \
+                        stochastic_suffix + \
+                        scenario.lower().replace(' ', '_').replace('(',
+                                                                   '').replace(
+                            ')', '') + \
+                        self.suffix + '_simple'
+                if not os.path.isdir(os.path.join('plots', 'personalized_simple')):
+                    os.makedirs(os.path.join('plots', 'personalized_simple'))
+                fpath = os.path.join('plots', 'personalized_simple', fname)
+                for ftype in self.plot_file_types:
+                    plt.savefig(fpath + ftype)
+                plt.close()
+                # print('random walks average is %.2f' % np.average(hugo))
+        print('simulations were on average %.2f times better than'
+              ' the random walks' % np.average(better))
+
     def plot_sample(self):
         """plot and save an example evaluation showing all types of background
         knowledge used in the simulations
@@ -1179,14 +1307,14 @@ if __name__ == '__main__':
             'movielens',
             'imdb'
         ]
-        evaluator = Evaluator(datasets=datasets, pdf=True)
-        evaluator.plot_bar()
+        # evaluator = Evaluator(datasets=datasets, pdf=True)
+        # evaluator.plot_bar()
 
         # evaluator = Evaluator(datasets=datasets, subtract_baseline=True, pdf=True)
         # evaluator.plot_bar()
         # evaluator.print_results()
 
-        # evaluator = Evaluator(datasets=datasets, personalized=True, pdf=True)
-        # evaluator.plot_bar_personalized()
+        evaluator = Evaluator(datasets=datasets, personalized=True, pdf=True)
+        evaluator.plot_bar_personalized_simple()
 
 
