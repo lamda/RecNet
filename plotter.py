@@ -141,8 +141,8 @@ class Plotter(object):
         print(self.label)
         bar_colors = ['#444444', '#DDDDDD']
         for ecc_type in [
-            'ecc_max',
-            # 'ecc_median',
+            # 'ecc_max',
+            'ecc_median',
         ]:
             # plot_ecc_legend()
             # fig = plt.figure()
@@ -161,7 +161,7 @@ class Plotter(object):
             # os.system(cmd)
             # print(cmd)
             for gidx, graph_type in enumerate(self.graph_order):
-                fig, ax = plt.subplots(1, figsize=(6.25, 2.5))
+                fig, ax = plt.subplots(1, figsize=(4, 2))
                 vals = [
                     self.graph_data[graph_name][ecc_type]
                     for graph_name in
@@ -170,25 +170,25 @@ class Plotter(object):
                 print('   ', graph_type)
                 for vidx, val, in enumerate(vals):
                     # compute median median eccentricity
-                    # dummy = [[idx] * v for idx, v in enumerate(val)]
-                    # dummy = [i for sl in dummy for i in sl]
-                    # print(np.median(dummy))
-                    # val = [100 * v / sum(val) for v in val]
-                    print('       ', len(val) - 1)
+                    dummy = [[idx] * v for idx, v in enumerate(val)]
+                    dummy = [i for sl in dummy for i in sl]
+                    print(np.median(dummy))
+                    # print('       ', len(val) - 1)
                     # av = 0
                     # for vidx2, v in enumerate(val):
                     #     print('%.2f, ' % v, end='')
                     #     av += vidx2 * v
                     # print('average = %.2f' % (av/100))
                     # print()
+                    val = [100 * v / sum(val) for v in val]
 
                     bars = ax.bar(range(len(val)), val, color=bar_colors[vidx], lw=2)
                     # Beautification
                     # for bidx, bar in enumerate(bars):
-                    #     bar.set_fill(False)
-                    #     bar.set_hatch(self.hatches[vidx])
-                    #     bar.set_edgecolor(self.colors[gidx])
-                ax.set_xlim(0, 30)
+                        # bar.set_fill(False)
+                        # bar.set_hatch(self.hatches[vidx])
+                        # bar.set_edgecolor(self.colors[gidx])
+                ax.set_xlim(0, 20)
                 ax.set_ylim(0, 100)
                 ax.set_xlabel('Eccentricity')
                 ax.set_ylabel('% of Nodes')
@@ -461,7 +461,7 @@ if __name__ == '__main__':
         'imdb',
     ]:
         print('\n', sf, '----------------')
-        # p = Plotter(sf, to_plot=to_plot, personalized=False)
+        p = Plotter(sf, to_plot=to_plot, personalized=False)
         # p = Plotter(sf, to_plot=to_plot, personalized=True, personalized_suffices=personalized_suffix_list)
         # p.plot_alluvial_legend()
-        plot_selection_sizes(sf)
+        # plot_selection_sizes(sf)
