@@ -379,19 +379,19 @@ def plot_selection_sizes(dataset):
     if not os.path.exists(plot_folder):
         os.makedirs(plot_folder)
     pts_ordered = [
-        '_personalized_min',
+        # '_personalized_min',
         '_personalized_median',
-        '_personalized_max',
-        '_personalized_mixed_min',
+        # '_personalized_max',
+        # '_personalized_mixed_min',
         '_personalized_mixed_median',
-        '_personalized_mixed_max',
+        # '_personalized_mixed_max',
     ]
     pt2label = {
         '_personalized_min': 'Minimum',
-        '_personalized_median': 'Median',
+        '_personalized_median': 'Pure',
         '_personalized_max': 'Maximum',
         '_personalized_mixed_min': 'Minimum (mixed)',
-        '_personalized_mixed_median': 'Median (mixed)',
+        '_personalized_mixed_median': 'Mixed',
         '_personalized_mixed_max': 'Maximum (mixed)',
     }
     pt2color = {
@@ -461,7 +461,7 @@ if __name__ == '__main__':
         'imdb',
     ]:
         print('\n', sf, '----------------')
-        p = Plotter(sf, to_plot=to_plot, personalized=False)
+        # p = Plotter(sf, to_plot=to_plot, personalized=False)
         # p = Plotter(sf, to_plot=to_plot, personalized=True, personalized_suffices=personalized_suffix_list)
         # p.plot_alluvial_legend()
-        # plot_selection_sizes(sf)
+        plot_selection_sizes(sf)

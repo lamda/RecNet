@@ -1093,7 +1093,7 @@ class Evaluator(object):
                 continue
             for data_set in self.data_sets:
                 # print('   ', data_set.label)
-                fig, ax = plt.subplots(1, figsize=(3, 3))
+                fig, ax = plt.subplots(1, figsize=(2, 3))
 
                 # plot optimal solutions
                 bar_vals = []
