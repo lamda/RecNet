@@ -1251,6 +1251,8 @@ class Evaluator(object):
             columns=['is_random', 'data_set']
         )
 
+        df_agg = pd.pivot_table(df[df['strategy'] == 'title'], values='val', index='scenario', columns=['is_random', 'data_set'])
+
         pdb.set_trace()
 
 rec_types = [
@@ -1307,14 +1309,14 @@ if __name__ == '__main__':
             'movielens',
             'imdb'
         ]
-        # evaluator = Evaluator(datasets=datasets, pdf=True)
+        evaluator = Evaluator(datasets=datasets, pdf=True)
         # evaluator.plot_bar()
 
         # evaluator = Evaluator(datasets=datasets, subtract_baseline=True, pdf=True)
         # evaluator.plot_bar()
-        # evaluator.print_results()
+        evaluator.print_results()
 
-        evaluator = Evaluator(datasets=datasets, personalized=True, pdf=True)
-        evaluator.plot_bar_personalized_simple()
+        # evaluator = Evaluator(datasets=datasets, personalized=True, pdf=True)
+        # evaluator.plot_bar_personalized_simple()
 
 

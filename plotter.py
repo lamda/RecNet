@@ -360,7 +360,7 @@ class Plotter(object):
         objects = [matplotlib.patches.Patch(color=c) for c in self.colors_set2]
         labels = ['IN', 'SCC', 'OUT', 'TL_IN', 'TL_OUT', 'TUBE', 'OTHER']
 
-        figlegend.legend(objects, labels, ncol=7, frameon=False)
+        figlegend.legend(objects, labels, ncol=3, frameon=False)
         figlegend.savefig('plots/alluvial/alluvial_legend_full.pdf',
                           bbox_inches='tight')
         cmd = 'pdfcrop --margins 5 ' +\
@@ -438,7 +438,7 @@ if __name__ == '__main__':
         # 'cp_count',
         # 'cp_size',
         # 'cc',
-        'ecc',
+        # 'ecc',
         # 'bow_tie',
         # 'bow_tie_alluvial',
 
@@ -456,12 +456,12 @@ if __name__ == '__main__':
     ]
 
     for sf in [
-        'bookcrossing',
-        'movielens',
+        # 'bookcrossing',
+        # 'movielens',
         'imdb',
     ]:
         print('\n', sf, '----------------')
         p = Plotter(sf, to_plot=to_plot, personalized=False)
         # p = Plotter(sf, to_plot=to_plot, personalized=True, personalized_suffices=personalized_suffix_list)
-        # p.plot_alluvial_legend()
+        p.plot_alluvial_legend()
         # plot_selection_sizes(sf)
