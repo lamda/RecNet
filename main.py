@@ -1155,15 +1155,15 @@ if __name__ == '__main__':
 
     GRAPH_SUFFIX = ''
     # DATASET = 'bookcrossing'
-    # DATASET = 'movielens'
-    DATASET = 'imdb'
+    DATASET = 'movielens'
+    # DATASET = 'imdb'
     print('GRAPH_SUFFIX =', GRAPH_SUFFIX)
     print('DATASET =', DATASET)
 
     # r = ContentBasedRecommender(dataset=DATASET)
-    r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=True)
+    # r = AssociationRuleRecommender(dataset=DATASET, load_cached=False, sparse=True)
     # r = RatingBasedRecommender(dataset=DATASET, load_cached=True, sparse=False)
-    # r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=True, sparse=False)
+    r = MatrixFactorizationRecommender(dataset=DATASET, load_cached=True, sparse=False)
     # r = InterpolationWeightRecommender(dataset=DATASET, load_cached=False, sparse=True)
 
     # r.get_recommendations()

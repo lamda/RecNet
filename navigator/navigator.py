@@ -1093,7 +1093,7 @@ class Evaluator(object):
                 continue
             for data_set in self.data_sets:
                 # print('   ', data_set.label)
-                fig, ax = plt.subplots(1, figsize=(2, 3))
+                fig, ax = plt.subplots(1, figsize=(4, 3))
 
                 # plot optimal solutions
                 bar_vals = []
@@ -1309,14 +1309,14 @@ if __name__ == '__main__':
             'movielens',
             'imdb'
         ]
-        evaluator = Evaluator(datasets=datasets, pdf=True)
+        # evaluator = Evaluator(datasets=datasets, pdf=True)
         # evaluator.plot_bar()
 
         # evaluator = Evaluator(datasets=datasets, subtract_baseline=True, pdf=True)
         # evaluator.plot_bar()
-        evaluator.print_results()
+        # evaluator.print_results()
 
-        # evaluator = Evaluator(datasets=datasets, personalized=True, pdf=True)
-        # evaluator.plot_bar_personalized_simple()
+        evaluator = Evaluator(datasets=datasets, personalized=True, pdf=True)
+        evaluator.plot_bar_personalized_simple()
 
 
