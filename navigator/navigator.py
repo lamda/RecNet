@@ -683,6 +683,7 @@ class Evaluator(object):
             self.graph_order = ['AR', 'CF', 'IW', 'MF']
         else:
             self.graphs = {
+                'IW': ['rbiw_' + str(c) + p for c in n_vals for p in personalized_types],
                 'MF': ['rbmf_' + str(c) + p for c in n_vals for p in personalized_types],
             }
             p2pl = {
@@ -694,9 +695,10 @@ class Evaluator(object):
                 '_personalized_mixed_max': 'Mixed',
             }
             self.graph_labels = {
-                'MF': [p2pl[p]for c in n_vals for p in personalized_types],
+                'IW': ['IW (' + p2pl[p] + ')' for c in n_vals for p in personalized_types],
+                'MF': ['MF (' + p2pl[p] + ')' for c in n_vals for p in personalized_types],
             }
-            self.graph_order = ['MF']
+            self.graph_order = ['IW', 'MF']
 
         self.rec_type2label = {
             'rb': 'CF',
@@ -1086,7 +1088,7 @@ class Evaluator(object):
 
         # plot the scenarios
         better = []
-        x_vals = [1, 2]
+        x_vals = [1, 2, 4, 5]
         for scenario in Mission.missions:
             # print(scenario)
             if 'random' in scenario.lower():
@@ -1122,26 +1124,26 @@ class Evaluator(object):
                         for pidx, pt in enumerate(personalized_types_simple):
                             g = data_set.folder_graphs + '/' + rec_type + \
                                 '_' + str(N) + pt + '.gt'
-                            if self.stochastic:
-                                s = data_set.missions[rec_type][g][
-                                    'title_stochastic'][scenario][-1]
-                            else:
-                                s = data_set.missions[rec_type][g]['title'][scenario][-1]
-                            r = data_set.missions[rec_type][g]['random'][scenario][-1]
-                            o = data_set.missions[rec_type][g]['optimal'][scenario][-1]
+                            # if self.stochastic:
+                            #     s = data_set.missions[rec_type][g][
+                            #         'title_stochastic'][scenario][-1]
+                            # else:
+                            s = data_set.missions[rec_type][g]['title'][scenario][-1]
+                            # r = data_set.missions[rec_type][g]['random'][scenario][-1]
+                            # o = data_set.missions[rec_type][g]['optimal'][scenario][-1]
                             bar_vals.append(s)
-                            better.append(s / r)
+                            # better.append(s / r)
                             # print('            %.2f, %.2f, %.2f' % (r, bar_vals[-1], o))
-                            if s > o:
-                                print(scenario, data_set.label, graph_type,
-                                      '%.2f > %.2f' % (bar_vals[-1], o))
+                            # if s > o:
+                            #     print(scenario, data_set.label, graph_type,
+                            #           '%.2f > %.2f' % (bar_vals[-1], o))
                 bars = ax.bar(x_vals, bar_vals, align='center')
 
                 # Beautification
                 for bidx, bar in enumerate(bars):
                     bar.set_fill(False)
                     bar.set_hatch(self.hatches[1])
-                    bar.set_edgecolor(self.colors[3])
+                    bar.set_edgecolor(self.colors[(bidx>1)+2])
 
                 # plot random walk solutions (as a dot)
                 bar_vals = []
@@ -1160,7 +1162,10 @@ class Evaluator(object):
                 ax.set_xticks([x - 0.25 for x in x_vals])
                 for tic in ax.xaxis.get_major_ticks():
                     tic.tick1On = tic.tick2On = False
-                labels = ['Pure', 'Mixed']
+                labels = [
+                    'MF (Pure)', 'MF (Mixed)',
+                    'IW (Pure)', 'IW (Mixed)',
+                ]
 
                 ax.set_xticklabels(labels, rotation='-50', ha='left')
 
@@ -1263,16 +1268,17 @@ rec_types = [
 ]
 
 pers_recs = [
+    'rbiw',
     'rbmf',
 ]
 
 personalized_types = [
-    '_personalized_min',
+    # '_personalized_min',
     '_personalized_median',
-    '_personalized_max',
-    '_personalized_mixed_min',
+    # '_personalized_max',
+    # '_personalized_mixed_min',
     '_personalized_mixed_median',
-    '_personalized_mixed_max',
+    # '_personalized_mixed_max',
 ]
 
 n_vals = [
@@ -1306,8 +1312,8 @@ if __name__ == '__main__':
     else:
         datasets = [
             'bookcrossing',
-            'movielens',
-            'imdb'
+            # 'movielens',
+            # 'imdb'
         ]
         # evaluator = Evaluator(datasets=datasets, pdf=True)
         # evaluator.plot_bar()
@@ -1317,6 +1323,7 @@ if __name__ == '__main__':
         # evaluator.print_results()
 
         evaluator = Evaluator(datasets=datasets, personalized=True, pdf=True)
+        # evaluator.plot_bar_personalized()
         evaluator.plot_bar_personalized_simple()
 
 

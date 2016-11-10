@@ -376,8 +376,8 @@ if __name__ == '__main__':
     # sys.exit()
 
     datasets = [
-        # 'bookcrossing',
-        'movielens',
+        'bookcrossing',
+        # 'movielens',
         # 'imdb',
     ]
     rec_types = [
@@ -393,17 +393,17 @@ if __name__ == '__main__':
         # '_div_exprel'
     ]
     pers_recs = [
-        # 'rbiw',
-        'rbmf',
+        'rbiw',
+        # 'rbmf',
     ]
     pers_types = [
         '',
-        '_personalized_min',
+        # '_personalized_min',
         '_personalized_median',
-        '_personalized_max',
-        '_personalized_mixed_min',
+        # '_personalized_max',
+        # '_personalized_mixed_min',
         '_personalized_mixed_median',
-        '_personalized_mixed_max',
+        # '_personalized_mixed_max',
     ]
     Ns = [
         1,
