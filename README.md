@@ -2,6 +2,7 @@
 A framework to evalute the static and dynamic navigability of recommendation networks.
 
 INPUT: rating data, i.e., triples of (user, item, rating)
+
 OUTPUT: measures for the static and dynamic navigability (such as path length analysis, component analysis and simulation of navigation scenarios)
 
 This framework computers four types of recommendations, namely association rules, collaborative filtering, interpolation weights and matrix factorization.
